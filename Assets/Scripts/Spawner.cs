@@ -6,8 +6,8 @@ public class Spawner : MonoBehaviour
     public GameObject coinPrefab;
 
     public float spawnInterval = 0.9f;
-    public float minX = -4.2f;
-    public float maxX = 4.2f;
+    public float minX = -4.0f;
+    public float maxX = 4.0f;
     public float spawnY = 6f;
     public float coinSpawnChance = 0.25f;
 

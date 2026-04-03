@@ -4,11 +4,11 @@ public class PlayerController : MonoBehaviour
 {
     public float moveSpeed = 8f;
 
-    public float minX = -4.2f;
-    public float maxX = 4.2f;
+    public float minX = -4.15f;
+    public float maxX = 4.15f;
 
-    public float minY = -4f;
-    public float maxY = 2f;
+    public float minY = -6f;
+    public float maxY = 3f;
 
     private bool isDead = false;
 
