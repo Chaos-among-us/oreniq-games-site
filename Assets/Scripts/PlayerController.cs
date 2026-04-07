@@ -44,6 +44,22 @@ public class PlayerController : MonoBehaviour
         transform.position = position;
     }
 
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        if (isDead) return;
+
+        if (other.CompareTag("Obstacle"))
+        {
+            if (GameManager.instance != null && GameManager.instance.ConsumeShieldIfAvailable())
+            {
+                Destroy(other.gameObject);
+                return;
+            }
+
+            Die();
+        }
+    }
+
     public void Die()
     {
         isDead = true;

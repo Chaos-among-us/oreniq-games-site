@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 686256281941966429}
   m_Layer: 0
   m_Name: ObstacleZigZagPrefab
-  m_TagString: Untagged
+  m_TagString: Obstacle
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -179,7 +179,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f0648253fbfd4f49be023ad66070685, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ObstacleZigZag
-  fallSpeed: 5
-  horizontalSpeed: 2
+  baseFallSpeed: 5
+  baseHorizontalSpeed: 2
   frequency: 3
   destroyY: -6

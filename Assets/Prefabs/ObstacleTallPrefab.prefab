@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 5019323338407852078}
   m_Layer: 0
   m_Name: ObstacleTallPrefab
-  m_TagString: Untagged
+  m_TagString: Obstacle
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -179,5 +179,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 91b85f3539fe78e43beb56c7f189888f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Obstacle
-  fallSpeed: 6
+  baseFallSpeed: 6
   destroyY: -6

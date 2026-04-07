@@ -21,13 +21,12 @@ public class GameManager : MonoBehaviour
     private int totalCoins = 0;
     private bool gameEnded = false;
 
-    private int speedLevel = 0;
-    private int coinLevel = 0;
-
     private float runTime = 0f;
     public float difficultyStepTime = 15f;
 
     private int currentLevel = 1;
+
+    public int activeShields = 0;
 
     void Awake()
     {
@@ -43,14 +42,9 @@ public class GameManager : MonoBehaviour
             restartButton.SetActive(false);
 
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
-        speedLevel = PlayerPrefs.GetInt("SpeedLevel", 0);
-        coinLevel = PlayerPrefs.GetInt("CoinLevel", 0);
 
         if (totalCoinsText != null)
             totalCoinsText.text = "Coins: " + totalCoins;
-
-        if (player != null)
-            player.moveSpeed = 8f + speedLevel;
 
         UpdateUpgradeText();
 
@@ -80,8 +74,15 @@ public class GameManager : MonoBehaviour
 
     void UpdateUpgradeText()
     {
-        if (upgradeText != null)
-            upgradeText.text = "Speed Lv. " + speedLevel + "\nCoin Lv. " + coinLevel;
+        if (upgradeText == null)
+            return;
+
+        int shieldCount = 0;
+
+        if (UpgradeInventory.Instance != null)
+            shieldCount = UpgradeInventory.Instance.GetAmount(UpgradeType.Shield);
+
+        upgradeText.text = "Shields: " + shieldCount + "\nActive: " + activeShields;
     }
 
     void UpdateLevelText()
@@ -108,13 +109,37 @@ public class GameManager : MonoBehaviour
 
     public void AddCoin()
     {
-        int coinValue = 1 + coinLevel;
-
-        totalCoins += coinValue;
+        totalCoins += 1;
         PlayerPrefs.SetInt("TotalCoins", totalCoins);
 
         if (totalCoinsText != null)
             totalCoinsText.text = "Coins: " + totalCoins;
+    }
+
+    public void ActivateShield()
+    {
+        if (UpgradeInventory.Instance == null)
+            return;
+
+        bool used = UpgradeInventory.Instance.UseUpgrade(UpgradeType.Shield, 1);
+
+        if (used)
+        {
+            activeShields += 1;
+            UpdateUpgradeText();
+        }
+    }
+
+    public bool ConsumeShieldIfAvailable()
+    {
+        if (activeShields > 0)
+        {
+            activeShields -= 1;
+            UpdateUpgradeText();
+            return true;
+        }
+
+        return false;
     }
 
     public void GameOver()
