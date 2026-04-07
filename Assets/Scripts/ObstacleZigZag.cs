@@ -17,7 +17,14 @@ public class ObstacleZigZag : MonoBehaviour
 
     void Update()
     {
-        int difficulty = GameManager.instance.GetDifficultyLevel();
+        int difficulty = 1;
+        float worldSpeedMultiplier = 1f;
+
+        if (GameManager.instance != null)
+        {
+            difficulty = GameManager.instance.GetDifficultyLevel();
+            worldSpeedMultiplier = GameManager.instance.GetWorldSpeedMultiplier();
+        }
 
         float speedMultiplier = 1f + (difficulty * 0.15f);
 
@@ -29,22 +36,14 @@ public class ObstacleZigZag : MonoBehaviour
         float xOffset = Mathf.Sin((Time.time + timeOffset) * frequency) * horizontalSpeed;
 
         transform.position = new Vector3(
-            transform.position.x + xOffset * Time.deltaTime,
-            transform.position.y - fallSpeed * Time.deltaTime,
+            transform.position.x + xOffset * worldSpeedMultiplier * Time.deltaTime,
+            transform.position.y - fallSpeed * worldSpeedMultiplier * Time.deltaTime,
             0f
         );
 
         if (transform.position.y < destroyY)
         {
             Destroy(gameObject);
-        }
-    }
-
-    private void OnTriggerEnter2D(Collider2D other)
-    {
-        if (other.CompareTag("Player"))
-        {
-            GameManager.instance.GameOver();
         }
     }
 }

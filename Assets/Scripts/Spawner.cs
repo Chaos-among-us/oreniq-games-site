@@ -21,7 +21,12 @@ public class Spawner : MonoBehaviour
     {
         if (stopSpawning) return;
 
-        timer += Time.deltaTime;
+        float worldSpeedMultiplier = 1f;
+
+        if (GameManager.instance != null)
+            worldSpeedMultiplier = GameManager.instance.GetWorldSpeedMultiplier();
+
+        timer += Time.deltaTime * worldSpeedMultiplier;
         runTime += Time.deltaTime;
 
         if (timer >= spawnInterval)
@@ -33,7 +38,12 @@ public class Spawner : MonoBehaviour
 
     void SpawnPattern()
     {
-        if (Random.value < coinSpawnChance)
+        float currentCoinSpawnChance = coinSpawnChance;
+
+        if (GameManager.instance != null)
+            currentCoinSpawnChance = GameManager.instance.GetCurrentCoinSpawnChance(coinSpawnChance);
+
+        if (Random.value < currentCoinSpawnChance)
         {
             SpawnCoin();
             return;
