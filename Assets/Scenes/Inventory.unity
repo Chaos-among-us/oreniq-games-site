@@ -756,8 +756,17 @@ MonoBehaviour:
   equippedCountText: {fileID: 0}
   feedbackText: {fileID: 0}
   slotUIs:
+  - {fileID: 1915869670}
   - {fileID: 0}
-  - {fileID: 0}
+  slotTemplate: {fileID: 0}
+  slotParent: {fileID: 0}
+  columnCount: 2
+  sidePadding: 28
+  topPadding: 132
+  bottomPadding: 92
+  columnSpacing: 230
+  rowSpacing: 78
+  slotHeight: 72
 --- !u!1 &1561417738
 GameObject:
   m_ObjectHideFlags: 0
@@ -1030,10 +1039,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InventorySlotUI
   upgradeType: 1
-  inventoryMenu: {fileID: 0}
+  inventoryMenu: {fileID: 1477797099}
   nameText: {fileID: 0}
   ownedText: {fileID: 0}
   statusText: {fileID: 0}
+  combinedText: {fileID: 0}
   backgroundImage: {fileID: 0}
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   selectedColor: {r: 0.6, g: 1, b: 0.6, a: 1}
