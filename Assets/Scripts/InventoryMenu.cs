@@ -21,6 +21,7 @@ public class InventoryMenu : MonoBehaviour
     private RectTransform titleRect;
     private TextMeshProUGUI titleText;
     private RectTransform backButtonRect;
+    private TextMeshProUGUI backButtonText;
     private RectTransform slotViewport;
     private RectTransform slotContent;
     private ScrollRect slotScrollRect;
@@ -156,7 +157,10 @@ public class InventoryMenu : MonoBehaviour
             Transform backTransform = transform.Find("BackButton");
 
             if (backTransform != null)
+            {
                 backButtonRect = backTransform as RectTransform;
+                backButtonText = backTransform.GetComponentInChildren<TextMeshProUGUI>(true);
+            }
         }
     }
 
@@ -211,6 +215,9 @@ public class InventoryMenu : MonoBehaviour
             }
         }
 
+        if (slotViewport.GetComponent<RectMask2D>() == null)
+            slotViewport.gameObject.AddComponent<RectMask2D>();
+
         if (slotContent == null)
         {
             Transform contentTransform = slotViewport.Find("SlotContent");
@@ -263,8 +270,8 @@ public class InventoryMenu : MonoBehaviour
         {
             titleText.text = "Choose 3 Upgrades";
             titleText.enableAutoSizing = true;
-            titleText.fontSizeMin = 18;
-            titleText.fontSizeMax = 30;
+            titleText.fontSizeMin = 22;
+            titleText.fontSizeMax = 34;
             titleText.alignment = TextAlignmentOptions.Center;
         }
 
@@ -274,8 +281,11 @@ public class InventoryMenu : MonoBehaviour
             countRect.anchorMin = new Vector2(0.5f, 1f);
             countRect.anchorMax = new Vector2(0.5f, 1f);
             countRect.pivot = new Vector2(0.5f, 1f);
-            countRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 28f);
-            countRect.anchoredPosition = new Vector2(0f, -68f);
+            countRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 34f);
+            countRect.anchoredPosition = new Vector2(0f, -70f);
+            equippedCountText.enableAutoSizing = true;
+            equippedCountText.fontSizeMin = 18;
+            equippedCountText.fontSizeMax = 26;
         }
 
         if (feedbackText != null)
@@ -284,8 +294,11 @@ public class InventoryMenu : MonoBehaviour
             feedbackRect.anchorMin = new Vector2(0.5f, 1f);
             feedbackRect.anchorMax = new Vector2(0.5f, 1f);
             feedbackRect.pivot = new Vector2(0.5f, 1f);
-            feedbackRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 24f);
-            feedbackRect.anchoredPosition = new Vector2(0f, -96f);
+            feedbackRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 30f);
+            feedbackRect.anchoredPosition = new Vector2(0f, -106f);
+            feedbackText.enableAutoSizing = true;
+            feedbackText.fontSizeMin = 16;
+            feedbackText.fontSizeMax = 22;
         }
 
         if (backButtonRect != null)
@@ -293,8 +306,15 @@ public class InventoryMenu : MonoBehaviour
             backButtonRect.anchorMin = new Vector2(0.5f, 0f);
             backButtonRect.anchorMax = new Vector2(0.5f, 0f);
             backButtonRect.pivot = new Vector2(0.5f, 0f);
-            backButtonRect.sizeDelta = new Vector2(180f, 46f);
-            backButtonRect.anchoredPosition = new Vector2(0f, 20f);
+            backButtonRect.sizeDelta = new Vector2(220f, 56f);
+            backButtonRect.anchoredPosition = new Vector2(0f, 16f);
+        }
+
+        if (backButtonText != null)
+        {
+            backButtonText.enableAutoSizing = true;
+            backButtonText.fontSizeMin = 18;
+            backButtonText.fontSizeMax = 28;
         }
 
         if (slotViewport != null)

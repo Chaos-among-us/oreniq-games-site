@@ -1,6 +1,8 @@
-using UnityEngine;
+using System.Collections.Generic;
 using TMPro;
+using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class ShopManager : MonoBehaviour
 {
@@ -17,111 +19,868 @@ public class ShopManager : MonoBehaviour
     public TextMeshProUGUI bombUpgradeText;
     public TextMeshProUGUI rareCoinBoostUpgradeText;
 
+    public string titleObjectName = "ShopTitle";
+    public string backButtonObjectName = "BackButton";
+
+    public float sidePadding = 18f;
+    public float topPadding = 140f;
+    public float bottomPadding = 84f;
+    public float rowSpacing = 12f;
+    public float itemHeight = 208f;
+
     private int totalCoins;
+    private TMP_FontAsset runtimeFont;
+    private TextMeshProUGUI shopTitleText;
+    private RectTransform shopTitleRect;
+    private RectTransform backButtonRect;
+    private TextMeshProUGUI backButtonText;
+    private TextMeshProUGUI feedbackText;
+    private RectTransform viewportRect;
+    private RectTransform contentRect;
+    private ScrollRect scrollRect;
+    private RectTransform uiRootRect;
+
+    private readonly UpgradeType[] shopOrder =
+    {
+        UpgradeType.Shield,
+        UpgradeType.SpeedBoost,
+        UpgradeType.ExtraLife,
+        UpgradeType.CoinMagnet,
+        UpgradeType.DoubleCoins,
+        UpgradeType.SlowTime,
+        UpgradeType.SmallerPlayer,
+        UpgradeType.ScoreBooster,
+        UpgradeType.Bomb,
+        UpgradeType.RareCoinBoost
+    };
+
+    private readonly Dictionary<UpgradeType, ShopUpgradeButtonUI> runtimeButtons =
+        new Dictionary<UpgradeType, ShopUpgradeButtonUI>();
+
+    private const string FeedbackObjectName = "ShopFeedbackText";
+    private const string ViewportObjectName = "ShopViewport";
+    private const string ContentObjectName = "ShopContent";
+
+    void Awake()
+    {
+        FindStaticReferences();
+        NormalizeLegacyRootLayout();
+        runtimeFont = GetRuntimeFont();
+        EnsureRuntimeUI();
+    }
 
     void Start()
     {
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
-        UpdateUI();
+        BuildShopButtons();
+        RefreshUI();
     }
 
-    void UpdateUI()
+    void OnEnable()
     {
-        if (totalCoinsText != null)
-            totalCoinsText.text = "Total Coins: " + totalCoins;
-
-        UpdateUpgradeText(speedUpgradeText, UpgradeType.SpeedBoost, 10, "Speed Boost");
-        UpdateUpgradeText(shieldUpgradeText, UpgradeType.Shield, 15, "Shield");
-        UpdateUpgradeText(extraLifeUpgradeText, UpgradeType.ExtraLife, 25, "Extra Life");
-        UpdateUpgradeText(coinMagnetUpgradeText, UpgradeType.CoinMagnet, 20, "Coin Magnet");
-        UpdateUpgradeText(doubleCoinsUpgradeText, UpgradeType.DoubleCoins, 25, "Double Coins");
-        UpdateUpgradeText(slowTimeUpgradeText, UpgradeType.SlowTime, 20, "Slow Time");
-        UpdateUpgradeText(smallerPlayerUpgradeText, UpgradeType.SmallerPlayer, 18, "Smaller Player");
-        UpdateUpgradeText(scoreBoosterUpgradeText, UpgradeType.ScoreBooster, 15, "Score Booster");
-        UpdateUpgradeText(bombUpgradeText, UpgradeType.Bomb, 30, "Bomb");
-        UpdateUpgradeText(rareCoinBoostUpgradeText, UpgradeType.RareCoinBoost, 22, "Rare Coin Boost");
+        totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
+        RefreshUI();
     }
 
-    void UpdateUpgradeText(TextMeshProUGUI textBox, UpgradeType type, int cost, string itemName)
+    void OnRectTransformDimensionsChange()
     {
-        if (textBox == null)
+        if (!isActiveAndEnabled)
             return;
 
-        int owned = 0;
-
-        if (UpgradeInventory.Instance != null)
-            owned = UpgradeInventory.Instance.GetAmount(type);
-
-        textBox.text = itemName + "\nOwned: " + owned + "\nCost: " + cost;
+        RefreshUI();
     }
 
-    bool BuyUpgrade(UpgradeType type, int cost)
+    void FindStaticReferences()
     {
+        if (totalCoinsText == null)
+            totalCoinsText = FindTextObject("TotalCoinsText");
+
+        if (shopTitleText == null)
+            shopTitleText = FindTextObject(titleObjectName);
+
+        if (shopTitleText != null)
+            shopTitleRect = shopTitleText.rectTransform;
+
+        if (backButtonRect == null)
+        {
+            GameObject backButtonObject = GameObject.Find(backButtonObjectName);
+
+            if (backButtonObject != null)
+            {
+                backButtonRect = backButtonObject.GetComponent<RectTransform>();
+                backButtonText = backButtonObject.GetComponentInChildren<TextMeshProUGUI>(true);
+            }
+        }
+
+        if (uiRootRect == null)
+            uiRootRect = GetUIRootRect();
+    }
+
+    TextMeshProUGUI FindTextObject(string objectName)
+    {
+        GameObject textObject = GameObject.Find(objectName);
+
+        if (textObject == null)
+            return null;
+
+        return textObject.GetComponent<TextMeshProUGUI>();
+    }
+
+    RectTransform GetUIRootRect()
+    {
+        if (totalCoinsText != null && totalCoinsText.rectTransform.parent != null)
+            return totalCoinsText.rectTransform.parent as RectTransform;
+
+        Canvas canvas = FindAnyObjectByType<Canvas>();
+
+        if (canvas != null)
+            return canvas.GetComponent<RectTransform>();
+
+        return null;
+    }
+
+    TMP_FontAsset GetRuntimeFont()
+    {
+        if (totalCoinsText != null)
+            return totalCoinsText.font;
+
+        if (shopTitleText != null)
+            return shopTitleText.font;
+
+        return null;
+    }
+
+    void NormalizeLegacyRootLayout()
+    {
+        Canvas canvas = FindAnyObjectByType<Canvas>();
+
+        if (canvas != null)
+        {
+            RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+
+            if (canvasRect != null)
+            {
+                canvasRect.localScale = Vector3.one;
+                canvasRect.anchorMin = Vector2.zero;
+                canvasRect.anchorMax = Vector2.zero;
+                canvasRect.sizeDelta = Vector2.zero;
+            }
+        }
+
+        if (uiRootRect == null && totalCoinsText != null)
+            uiRootRect = totalCoinsText.rectTransform.parent as RectTransform;
+
+        if (uiRootRect != null)
+        {
+            uiRootRect.localScale = Vector3.one;
+            uiRootRect.anchorMin = Vector2.zero;
+            uiRootRect.anchorMax = Vector2.one;
+            uiRootRect.pivot = new Vector2(0.5f, 0.5f);
+            uiRootRect.anchoredPosition = Vector2.zero;
+            uiRootRect.sizeDelta = Vector2.zero;
+            uiRootRect.offsetMin = Vector2.zero;
+            uiRootRect.offsetMax = Vector2.zero;
+        }
+    }
+
+    void EnsureRuntimeUI()
+    {
+        HideLegacyShopButtons();
+        HideLegacyShopLabels();
+        EnsureFeedbackText();
+        EnsureScrollArea();
+        LayoutStaticElements();
+    }
+
+    void HideLegacyShopButtons()
+    {
+        string[] legacyButtonNames =
+        {
+            "SpeedUpgradeButton",
+            "ShieldUpgradeButton",
+            "CoinUpgradeButton"
+        };
+
+        for (int i = 0; i < legacyButtonNames.Length; i++)
+        {
+            GameObject legacyObject = GameObject.Find(legacyButtonNames[i]);
+
+            if (legacyObject != null)
+                legacyObject.SetActive(false);
+        }
+    }
+
+    void HideLegacyShopLabels()
+    {
+        TextMeshProUGUI[] labels = FindObjectsByType<TextMeshProUGUI>(FindObjectsInactive.Include);
+
+        for (int i = 0; i < labels.Length; i++)
+        {
+            if (labels[i] != null && labels[i].text == "New Text")
+                labels[i].gameObject.SetActive(false);
+        }
+    }
+
+    void EnsureFeedbackText()
+    {
+        if (uiRootRect == null)
+            return;
+
+        GameObject existingObject = GameObject.Find(FeedbackObjectName);
+
+        if (existingObject != null)
+        {
+            feedbackText = existingObject.GetComponent<TextMeshProUGUI>();
+            return;
+        }
+
+        GameObject labelObject = new GameObject(FeedbackObjectName, typeof(RectTransform));
+        labelObject.transform.SetParent(uiRootRect, false);
+
+        feedbackText = labelObject.AddComponent<TextMeshProUGUI>();
+        feedbackText.alignment = TextAlignmentOptions.Center;
+        feedbackText.enableAutoSizing = true;
+        feedbackText.fontSizeMin = 14;
+        feedbackText.fontSizeMax = 18;
+        feedbackText.color = new Color(0.16f, 0.18f, 0.24f, 1f);
+
+        if (runtimeFont != null)
+            feedbackText.font = runtimeFont;
+    }
+
+    void EnsureScrollArea()
+    {
+        if (uiRootRect == null)
+            return;
+
+        Transform existingViewport = uiRootRect.Find(ViewportObjectName);
+
+        if (existingViewport != null)
+        {
+            viewportRect = existingViewport as RectTransform;
+        }
+        else
+        {
+            GameObject viewportObject = new GameObject(
+                ViewportObjectName,
+                typeof(RectTransform),
+                typeof(Image),
+                typeof(RectMask2D),
+                typeof(ScrollRect));
+
+            viewportObject.transform.SetParent(uiRootRect, false);
+            viewportRect = viewportObject.GetComponent<RectTransform>();
+
+            Image viewportImage = viewportObject.GetComponent<Image>();
+            viewportImage.color = new Color(1f, 1f, 1f, 0.02f);
+        }
+
+        if (viewportRect.GetComponent<RectMask2D>() == null)
+            viewportRect.gameObject.AddComponent<RectMask2D>();
+
+        Transform existingContent = viewportRect.Find(ContentObjectName);
+
+        if (existingContent != null)
+        {
+            contentRect = existingContent as RectTransform;
+        }
+        else
+        {
+            GameObject contentObject = new GameObject(ContentObjectName, typeof(RectTransform));
+            contentObject.transform.SetParent(viewportRect, false);
+            contentRect = contentObject.GetComponent<RectTransform>();
+        }
+
+        scrollRect = viewportRect.GetComponent<ScrollRect>();
+
+        if (scrollRect == null)
+            scrollRect = viewportRect.gameObject.AddComponent<ScrollRect>();
+
+        scrollRect.viewport = viewportRect;
+        scrollRect.content = contentRect;
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+        scrollRect.scrollSensitivity = 32f;
+    }
+
+    void LayoutStaticElements()
+    {
+        if (uiRootRect == null)
+            return;
+
+        Canvas.ForceUpdateCanvases();
+
+        float rootWidth = uiRootRect.rect.width;
+
+        if (shopTitleRect != null)
+        {
+            shopTitleRect.anchorMin = new Vector2(0.5f, 1f);
+            shopTitleRect.anchorMax = new Vector2(0.5f, 1f);
+            shopTitleRect.pivot = new Vector2(0.5f, 1f);
+            shopTitleRect.sizeDelta = new Vector2(rootWidth - (sidePadding * 2f), 52f);
+            shopTitleRect.anchoredPosition = new Vector2(0f, -18f);
+        }
+
+        if (shopTitleText != null)
+        {
+            shopTitleText.text = "Consumable Shop";
+            shopTitleText.alignment = TextAlignmentOptions.Center;
+            shopTitleText.enableAutoSizing = true;
+            shopTitleText.fontSizeMin = 20;
+            shopTitleText.fontSizeMax = 30;
+        }
+
+        if (totalCoinsText != null)
+        {
+            RectTransform coinsRect = totalCoinsText.rectTransform;
+            coinsRect.anchorMin = new Vector2(0.5f, 1f);
+            coinsRect.anchorMax = new Vector2(0.5f, 1f);
+            coinsRect.pivot = new Vector2(0.5f, 1f);
+            coinsRect.sizeDelta = new Vector2(rootWidth - (sidePadding * 2f), 32f);
+            coinsRect.anchoredPosition = new Vector2(0f, -60f);
+            totalCoinsText.alignment = TextAlignmentOptions.Center;
+            totalCoinsText.enableAutoSizing = true;
+            totalCoinsText.fontSizeMin = 16;
+            totalCoinsText.fontSizeMax = 24;
+        }
+
+        if (feedbackText != null)
+        {
+            RectTransform feedbackRect = feedbackText.rectTransform;
+            feedbackRect.anchorMin = new Vector2(0.5f, 1f);
+            feedbackRect.anchorMax = new Vector2(0.5f, 1f);
+            feedbackRect.pivot = new Vector2(0.5f, 1f);
+            feedbackRect.sizeDelta = new Vector2(rootWidth - (sidePadding * 2f), 28f);
+            feedbackRect.anchoredPosition = new Vector2(0f, -92f);
+            feedbackText.fontSizeMin = 16;
+            feedbackText.fontSizeMax = 22;
+        }
+
+        if (backButtonRect != null)
+        {
+            backButtonRect.anchorMin = new Vector2(0.5f, 0f);
+            backButtonRect.anchorMax = new Vector2(0.5f, 0f);
+            backButtonRect.pivot = new Vector2(0.5f, 0f);
+            backButtonRect.sizeDelta = new Vector2(220f, 56f);
+            backButtonRect.anchoredPosition = new Vector2(0f, 16f);
+        }
+
+        if (backButtonText != null)
+        {
+            backButtonText.enableAutoSizing = true;
+            backButtonText.fontSizeMin = 18;
+            backButtonText.fontSizeMax = 28;
+        }
+
+        if (viewportRect != null)
+        {
+            viewportRect.anchorMin = new Vector2(0f, 0f);
+            viewportRect.anchorMax = new Vector2(1f, 1f);
+            viewportRect.pivot = new Vector2(0.5f, 0.5f);
+            viewportRect.offsetMin = new Vector2(sidePadding, bottomPadding);
+            viewportRect.offsetMax = new Vector2(-sidePadding, -topPadding);
+        }
+    }
+
+    void BuildShopButtons()
+    {
+        if (contentRect == null)
+            return;
+
+        BindSceneShopButtons();
+
+        if (runtimeButtons.Count > 0)
+        {
+            LayoutShopList();
+            return;
+        }
+
+        for (int i = 0; i < shopOrder.Length; i++)
+        {
+            UpgradeType type = shopOrder[i];
+            ShopUpgradeButtonUI buttonUI = CreateShopButton(type);
+
+            if (buttonUI != null)
+                runtimeButtons[type] = buttonUI;
+        }
+
+        LayoutShopList();
+    }
+
+    void BindSceneShopButtons()
+    {
+        if (contentRect == null)
+            return;
+
+        for (int i = 0; i < contentRect.childCount; i++)
+        {
+            Transform child = contentRect.GetChild(i);
+            UpgradeType type;
+
+            if (!TryGetUpgradeTypeFromObjectName(child.name, out type))
+                continue;
+
+            Button sceneButton = child.GetComponent<Button>();
+            Image sceneImage = child.GetComponent<Image>();
+
+            if (sceneButton == null || sceneImage == null)
+                continue;
+
+            ShopUpgradeButtonUI buttonUI = child.GetComponent<ShopUpgradeButtonUI>();
+
+            if (buttonUI == null)
+                buttonUI = child.gameObject.AddComponent<ShopUpgradeButtonUI>();
+
+            buttonUI.Initialize(this, type, sceneImage, sceneButton, runtimeFont);
+            runtimeButtons[type] = buttonUI;
+        }
+    }
+
+    bool TryGetUpgradeTypeFromObjectName(string objectName, out UpgradeType type)
+    {
+        switch (objectName)
+        {
+            case "ShieldShopButton":
+                type = UpgradeType.Shield;
+                return true;
+            case "SpeedBoostShopButton":
+                type = UpgradeType.SpeedBoost;
+                return true;
+            case "ExtraLifeShopButton":
+                type = UpgradeType.ExtraLife;
+                return true;
+            case "CoinMagnetShopButton":
+                type = UpgradeType.CoinMagnet;
+                return true;
+            case "DoubleCoinsShopButton":
+                type = UpgradeType.DoubleCoins;
+                return true;
+            case "SlowTimeShopButton":
+                type = UpgradeType.SlowTime;
+                return true;
+            case "SmallerPlayerShopButton":
+                type = UpgradeType.SmallerPlayer;
+                return true;
+            case "ScoreBoosterShopButton":
+                type = UpgradeType.ScoreBooster;
+                return true;
+            case "BombShopButton":
+                type = UpgradeType.Bomb;
+                return true;
+            case "RareCoinBoostShopButton":
+                type = UpgradeType.RareCoinBoost;
+                return true;
+            default:
+                type = UpgradeType.Shield;
+                return false;
+        }
+    }
+
+    ShopUpgradeButtonUI CreateShopButton(UpgradeType type)
+    {
+        GameObject buttonObject = new GameObject(
+            UpgradeInventory.GetDisplayName(type) + "ShopButton",
+            typeof(RectTransform),
+            typeof(Image),
+            typeof(Button),
+            typeof(ShopUpgradeButtonUI));
+
+        buttonObject.transform.SetParent(contentRect, false);
+
+        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
+        buttonRect.anchorMin = new Vector2(0f, 1f);
+        buttonRect.anchorMax = new Vector2(1f, 1f);
+        buttonRect.pivot = new Vector2(0.5f, 1f);
+        buttonRect.sizeDelta = new Vector2(0f, itemHeight);
+
+        Image buttonImage = buttonObject.GetComponent<Image>();
+        buttonImage.color = new Color(1f, 1f, 1f, 0.94f);
+
+        ShopUpgradeButtonUI buttonUI = buttonObject.GetComponent<ShopUpgradeButtonUI>();
+        buttonUI.Initialize(this, type, buttonImage, buttonObject.GetComponent<Button>(), runtimeFont);
+        return buttonUI;
+    }
+
+    void LayoutShopList()
+    {
+        if (viewportRect == null || contentRect == null)
+            return;
+
+        Canvas.ForceUpdateCanvases();
+
+        float contentHeight = (shopOrder.Length * itemHeight) + ((shopOrder.Length - 1) * rowSpacing);
+        float viewportHeight = viewportRect.rect.height;
+
+        if (contentHeight < viewportHeight)
+            contentHeight = viewportHeight;
+
+        contentRect.anchorMin = new Vector2(0f, 1f);
+        contentRect.anchorMax = new Vector2(1f, 1f);
+        contentRect.pivot = new Vector2(0.5f, 1f);
+        contentRect.sizeDelta = new Vector2(0f, contentHeight);
+        contentRect.anchoredPosition = Vector2.zero;
+
+        for (int i = 0; i < shopOrder.Length; i++)
+        {
+            if (!runtimeButtons.TryGetValue(shopOrder[i], out ShopUpgradeButtonUI buttonUI) || buttonUI == null)
+                continue;
+
+            RectTransform buttonRect = buttonUI.GetComponent<RectTransform>();
+
+            if (buttonRect == null)
+                continue;
+
+            float y = -(i * (itemHeight + rowSpacing));
+
+            buttonRect.anchorMin = new Vector2(0f, 1f);
+            buttonRect.anchorMax = new Vector2(1f, 1f);
+            buttonRect.pivot = new Vector2(0.5f, 1f);
+            buttonRect.sizeDelta = new Vector2(0f, itemHeight);
+            buttonRect.anchoredPosition = new Vector2(0f, y);
+        }
+    }
+
+    void RefreshUI()
+    {
+        FindStaticReferences();
+        LayoutStaticElements();
+        LayoutShopList();
+
+        if (totalCoinsText != null)
+            totalCoinsText.text = "Coins: " + totalCoins;
+
+        if (feedbackText != null && string.IsNullOrEmpty(feedbackText.text))
+            feedbackText.text = "Tap a card to buy a consumable";
+
+        for (int i = 0; i < shopOrder.Length; i++)
+        {
+            UpgradeType type = shopOrder[i];
+
+            if (!runtimeButtons.TryGetValue(type, out ShopUpgradeButtonUI buttonUI) || buttonUI == null)
+                continue;
+
+            int owned = 0;
+            int cost = GetUpgradeCost(type);
+
+            if (UpgradeInventory.Instance != null)
+                owned = UpgradeInventory.Instance.GetAmount(type);
+
+            buttonUI.RefreshView(
+                UpgradeInventory.GetDisplayName(type),
+                GetUpgradeDescription(type),
+                owned,
+                cost,
+                totalCoins >= cost);
+        }
+    }
+
+    bool TryBuyUpgrade(UpgradeType type)
+    {
+        int cost = GetUpgradeCost(type);
+
         if (totalCoins < cost)
+        {
+            SetFeedback("Not enough coins for " + UpgradeInventory.GetDisplayName(type));
+            RefreshUI();
             return false;
+        }
 
         totalCoins -= cost;
         PlayerPrefs.SetInt("TotalCoins", totalCoins);
+        PlayerPrefs.Save();
 
         if (UpgradeInventory.Instance != null)
             UpgradeInventory.Instance.AddUpgrade(type, 1);
 
-        UpdateUI();
+        SetFeedback(UpgradeInventory.GetDisplayName(type) + " purchased");
+        RefreshUI();
         return true;
+    }
+
+    string GetUpgradeDescription(UpgradeType type)
+    {
+        switch (type)
+        {
+            case UpgradeType.Shield:
+                return "Block one hit";
+            case UpgradeType.SpeedBoost:
+                return "Move faster";
+            case UpgradeType.ExtraLife:
+                return "Revive once";
+            case UpgradeType.CoinMagnet:
+                return "Pull in coins";
+            case UpgradeType.DoubleCoins:
+                return "Double coin value";
+            case UpgradeType.SlowTime:
+                return "Slow obstacles";
+            case UpgradeType.SmallerPlayer:
+                return "Shrink your hitbox";
+            case UpgradeType.ScoreBooster:
+                return "Double score gain";
+            case UpgradeType.Bomb:
+                return "Clear the screen";
+            case UpgradeType.RareCoinBoost:
+                return "More coin spawns";
+            default:
+                return "Consumable upgrade";
+        }
+    }
+
+    public void BuyUpgradeCard(UpgradeType type)
+    {
+        TryBuyUpgrade(type);
+    }
+
+    int GetUpgradeCost(UpgradeType type)
+    {
+        switch (type)
+        {
+            case UpgradeType.SpeedBoost:
+                return 12;
+            case UpgradeType.Shield:
+                return 15;
+            case UpgradeType.ExtraLife:
+                return 24;
+            case UpgradeType.CoinMagnet:
+                return 18;
+            case UpgradeType.DoubleCoins:
+                return 20;
+            case UpgradeType.SlowTime:
+                return 18;
+            case UpgradeType.SmallerPlayer:
+                return 16;
+            case UpgradeType.ScoreBooster:
+                return 14;
+            case UpgradeType.Bomb:
+                return 28;
+            case UpgradeType.RareCoinBoost:
+                return 20;
+            default:
+                return 15;
+        }
+    }
+
+    void SetFeedback(string message)
+    {
+        if (feedbackText != null)
+            feedbackText.text = message;
     }
 
     public void BuySpeedUpgrade()
     {
-        BuyUpgrade(UpgradeType.SpeedBoost, 10);
+        TryBuyUpgrade(UpgradeType.SpeedBoost);
     }
 
     public void BuyShieldUpgrade()
     {
-        BuyUpgrade(UpgradeType.Shield, 15);
+        TryBuyUpgrade(UpgradeType.Shield);
     }
 
     public void BuyExtraLifeUpgrade()
     {
-        BuyUpgrade(UpgradeType.ExtraLife, 25);
+        TryBuyUpgrade(UpgradeType.ExtraLife);
     }
 
     public void BuyCoinMagnetUpgrade()
     {
-        BuyUpgrade(UpgradeType.CoinMagnet, 20);
+        TryBuyUpgrade(UpgradeType.CoinMagnet);
     }
 
     public void BuyDoubleCoinsUpgrade()
     {
-        BuyUpgrade(UpgradeType.DoubleCoins, 25);
+        TryBuyUpgrade(UpgradeType.DoubleCoins);
     }
 
     public void BuySlowTimeUpgrade()
     {
-        BuyUpgrade(UpgradeType.SlowTime, 20);
+        TryBuyUpgrade(UpgradeType.SlowTime);
     }
 
     public void BuySmallerPlayerUpgrade()
     {
-        BuyUpgrade(UpgradeType.SmallerPlayer, 18);
+        TryBuyUpgrade(UpgradeType.SmallerPlayer);
     }
 
     public void BuyScoreBoosterUpgrade()
     {
-        BuyUpgrade(UpgradeType.ScoreBooster, 15);
+        TryBuyUpgrade(UpgradeType.ScoreBooster);
     }
 
     public void BuyBombUpgrade()
     {
-        BuyUpgrade(UpgradeType.Bomb, 30);
+        TryBuyUpgrade(UpgradeType.Bomb);
     }
 
     public void BuyRareCoinBoostUpgrade()
     {
-        BuyUpgrade(UpgradeType.RareCoinBoost, 22);
+        TryBuyUpgrade(UpgradeType.RareCoinBoost);
+    }
+
+    public void BuyCoinUpgrade()
+    {
+        TryBuyUpgrade(UpgradeType.DoubleCoins);
     }
 
     public void GoBack()
     {
         SceneManager.LoadScene("MainMenu");
+    }
+}
+
+public class ShopUpgradeButtonUI : MonoBehaviour
+{
+    private ShopManager shopManager;
+    private UpgradeType upgradeType;
+    private TextMeshProUGUI titleText;
+    private TextMeshProUGUI descriptionText;
+    private TextMeshProUGUI metaText;
+    private Image backgroundImage;
+    private Button button;
+
+    private readonly Color affordableColor = new Color(1f, 1f, 1f, 0.96f);
+    private readonly Color expensiveColor = new Color(0.87f, 0.88f, 0.92f, 0.88f);
+    private readonly Color titleColor = new Color(0.13f, 0.17f, 0.26f, 1f);
+    private readonly Color bodyColor = new Color(0.2f, 0.24f, 0.32f, 1f);
+
+    public void Initialize(
+        ShopManager manager,
+        UpgradeType type,
+        Image image,
+        Button sourceButton,
+        TMP_FontAsset runtimeFont)
+    {
+        shopManager = manager;
+        upgradeType = type;
+        backgroundImage = image;
+        button = sourceButton;
+
+        CreateLabels(runtimeFont);
+
+        if (button != null)
+        {
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(OnPressed);
+        }
+    }
+
+    void CreateLabels(TMP_FontAsset runtimeFont)
+    {
+        titleText = FindOrCreateStretchText(
+            "Title",
+            new Vector2(22f, 136f),
+            new Vector2(-22f, -18f),
+            TextAlignmentOptions.Top,
+            30f,
+            42f,
+            runtimeFont);
+
+        descriptionText = FindOrCreateStretchText(
+            "Description",
+            new Vector2(22f, 78f),
+            new Vector2(-22f, -86f),
+            TextAlignmentOptions.Center,
+            22f,
+            30f,
+            runtimeFont);
+
+        metaText = FindOrCreateStretchText(
+            "Meta",
+            new Vector2(22f, 18f),
+            new Vector2(-22f, -136f),
+            TextAlignmentOptions.Bottom,
+            20f,
+            28f,
+            runtimeFont);
+    }
+
+    TextMeshProUGUI FindOrCreateStretchText(
+        string objectName,
+        Vector2 leftBottom,
+        Vector2 rightTop,
+        TextAlignmentOptions alignment,
+        float minSize,
+        float maxSize,
+        TMP_FontAsset runtimeFont)
+    {
+        Transform existing = transform.Find(objectName);
+        GameObject textObject;
+
+        bool created = existing == null;
+
+        if (existing != null)
+        {
+            textObject = existing.gameObject;
+        }
+        else
+        {
+            textObject = new GameObject(objectName, typeof(RectTransform));
+            textObject.transform.SetParent(transform, false);
+        }
+
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(leftBottom.x, leftBottom.y);
+        textRect.offsetMax = new Vector2(rightTop.x, rightTop.y);
+
+        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+
+        if (text == null)
+            text = textObject.AddComponent<TextMeshProUGUI>();
+
+        text.alignment = alignment;
+        text.color = bodyColor;
+
+        if (created)
+        {
+            text.enableAutoSizing = true;
+            text.fontSizeMin = minSize;
+            text.fontSizeMax = maxSize;
+        }
+
+        if (runtimeFont != null && text.font == null)
+            text.font = runtimeFont;
+
+        return text;
+    }
+
+    public void RefreshView(string displayName, string description, int ownedAmount, int cost, bool canAfford)
+    {
+        if (titleText != null)
+        {
+            titleText.text = displayName;
+            titleText.color = titleColor;
+        }
+
+        if (descriptionText != null)
+        {
+            descriptionText.text = description;
+            descriptionText.color = bodyColor;
+        }
+
+        if (metaText != null)
+        {
+            string affordText = canAfford ? "Tap to buy" : "Need more coins";
+            string priceColorHex = canAfford ? "E9AA33" : "8A8FA0";
+            metaText.text =
+                "Owned " + ownedAmount +
+                "   <color=#" + priceColorHex + ">" + cost + " coins</color>" +
+                "\n" + affordText;
+        }
+
+        if (backgroundImage != null)
+        {
+            if (canAfford)
+                backgroundImage.color = affordableColor;
+            else
+                backgroundImage.color = expensiveColor;
+        }
+    }
+
+    void OnPressed()
+    {
+        if (shopManager != null)
+            shopManager.BuyUpgradeCard(upgradeType);
     }
 }

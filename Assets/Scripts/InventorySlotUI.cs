@@ -110,13 +110,13 @@ public class InventorySlotUI : MonoBehaviour
             RectTransform textRect = combinedText.rectTransform;
             textRect.anchorMin = Vector2.zero;
             textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(10f, 8f);
-            textRect.offsetMax = new Vector2(-10f, -8f);
+            textRect.offsetMin = new Vector2(18f, 10f);
+            textRect.offsetMax = new Vector2(-18f, -10f);
 
             combinedText.enableAutoSizing = true;
-            combinedText.fontSizeMin = 13;
-            combinedText.fontSizeMax = 20;
-            combinedText.alignment = TextAlignmentOptions.Center;
+            combinedText.fontSizeMin = 16;
+            combinedText.fontSizeMax = 24;
+            combinedText.alignment = TextAlignmentOptions.CenterGeoAligned;
             combinedText.color = new Color(0.16f, 0.18f, 0.24f, 1f);
 
             string statusLine;
@@ -124,13 +124,13 @@ public class InventorySlotUI : MonoBehaviour
             if (isEquipped)
                 statusLine = "Selected";
             else if (ownedAmount > 0)
-                statusLine = "Available";
+                statusLine = "Ready";
             else
                 statusLine = "Not Owned";
 
             combinedText.text =
                 UpgradeInventory.GetDisplayName(upgradeType) +
-                "\n<size=70%>Owned: " + ownedAmount + "   " + statusLine + "</size>";
+                "\n<size=76%>Owned: " + ownedAmount + "   " + statusLine + "</size>";
         }
 
         if (backgroundImage != null)
