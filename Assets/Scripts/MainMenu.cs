@@ -22,6 +22,7 @@ public class MainMenu : MonoBehaviour
     private TMP_FontAsset runtimeFont;
     private RectTransform menuRootRect;
     private TextMeshProUGUI profileStatsText;
+    private bool profileStatsSceneOwned;
 
     private GameObject dailyRewardPanel;
     private TextMeshProUGUI dailyRewardTitleText;
@@ -29,12 +30,22 @@ public class MainMenu : MonoBehaviour
     private TextMeshProUGUI dailyRewardStatusText;
     private Button claimRewardButton;
     private TextMeshProUGUI claimRewardButtonText;
+    private bool dailyRewardPanelSceneOwned;
 
     private GameObject missionSummaryPanel;
     private TextMeshProUGUI missionSummaryTitleText;
     private TextMeshProUGUI missionSummaryStatusText;
     private Button missionSummaryOpenButton;
     private TextMeshProUGUI missionSummaryOpenButtonText;
+    private bool missionSummaryPanelSceneOwned;
+
+    private GameObject challengeSummaryPanel;
+    private TextMeshProUGUI challengeSummaryTitleText;
+    private TextMeshProUGUI challengeSummaryBodyText;
+    private TextMeshProUGUI challengeSummaryStatusText;
+    private Button challengeSummaryActionButton;
+    private TextMeshProUGUI challengeSummaryActionButtonText;
+    private bool challengeSummaryPanelSceneOwned;
 
     private GameObject missionOverlayRoot;
     private GameObject missionOverlayPanel;
@@ -52,6 +63,7 @@ public class MainMenu : MonoBehaviour
 
     private const string ProfileStatsObjectName = "ProfileStatsText";
     private const string DailyRewardPanelObjectName = "DailyRewardPanel";
+    private const string ChallengeSummaryPanelObjectName = "DailyChallengeSummaryPanel";
     private const string MissionSummaryPanelObjectName = "DailyMissionSummaryPanel";
     private const string MissionOverlayRootObjectName = "DailyMissionOverlayRoot";
 
@@ -62,6 +74,10 @@ public class MainMenu : MonoBehaviour
             enabled = false;
             return;
         }
+
+        DailyRewardSystem.GetPreviewReward();
+        DailyMissionSystem.EnsureInitializedForToday();
+        DailyChallengeSystem.EnsureInitializedForToday();
 
         runtimeFont = ResolveRuntimeFont();
         menuRootRect = GetMenuRoot();
@@ -74,6 +90,7 @@ public class MainMenu : MonoBehaviour
         if (createDailyRewardPanelAtRuntime)
             EnsureDailyRewardPanel();
 
+        EnsureChallengeSummaryPanel();
         EnsureMissionSummaryPanel();
         EnsureMissionOverlayPanel();
         NormalizeMenuLayout();
@@ -83,6 +100,7 @@ public class MainMenu : MonoBehaviour
 
     public void PlayGame()
     {
+        DailyChallengeSystem.ClearActiveRun();
         SceneManager.LoadScene(gameSceneName);
     }
 
@@ -116,6 +134,33 @@ public class MainMenu : MonoBehaviour
         {
             RefreshDailyRewardPanel();
         }
+    }
+
+    public void HandleDailyChallengeAction()
+    {
+        DailyChallengeData challenge = DailyChallengeSystem.GetTodayChallenge();
+
+        if (challenge.rewardClaimed)
+        {
+            RefreshMenuHud();
+            return;
+        }
+
+        if (DailyChallengeSystem.TryClaimReward(out int coinsGranted, out UpgradeType rewardUpgrade, out int rewardAmount))
+        {
+            GameSettings.TriggerHaptic();
+            RefreshMenuHud();
+
+            if (challengeSummaryStatusText != null)
+            {
+                challengeSummaryStatusText.text = "Reward claimed for today";
+            }
+
+            return;
+        }
+
+        DailyChallengeSystem.BeginTodayChallengeRun();
+        SceneManager.LoadScene(gameSceneName);
     }
 
     public void OpenMissionOverlay()
@@ -202,26 +247,31 @@ public class MainMenu : MonoBehaviour
 
         if (existing != null)
         {
+            profileStatsSceneOwned = true;
             profileStatsText = existing.GetComponent<TextMeshProUGUI>();
         }
         else
         {
+            profileStatsSceneOwned = false;
             GameObject statsObject = new GameObject(ProfileStatsObjectName, typeof(RectTransform));
             statsObject.transform.SetParent(menuRootRect, false);
             profileStatsText = statsObject.AddComponent<TextMeshProUGUI>();
         }
 
-        RectTransform statsRect = profileStatsText.rectTransform;
-        statsRect.anchorMin = new Vector2(0.5f, 1f);
-        statsRect.anchorMax = new Vector2(0.5f, 1f);
-        statsRect.pivot = new Vector2(0.5f, 1f);
-        statsRect.sizeDelta = new Vector2(760f, 60f);
-        statsRect.anchoredPosition = new Vector2(0f, -340f);
+        if (!profileStatsSceneOwned)
+        {
+            RectTransform statsRect = profileStatsText.rectTransform;
+            statsRect.anchorMin = new Vector2(0.5f, 1f);
+            statsRect.anchorMax = new Vector2(0.5f, 1f);
+            statsRect.pivot = new Vector2(0.5f, 1f);
+            statsRect.sizeDelta = new Vector2(760f, 60f);
+            statsRect.anchoredPosition = new Vector2(0f, -340f);
+        }
 
         profileStatsText.alignment = TextAlignmentOptions.Center;
         profileStatsText.enableAutoSizing = true;
-        profileStatsText.fontSizeMin = 22;
-        profileStatsText.fontSizeMax = 32;
+        profileStatsText.fontSizeMin = 26;
+        profileStatsText.fontSizeMax = 36;
         profileStatsText.color = new Color(0.92f, 0.96f, 1f, 1f);
 
         if (runtimeFont != null)
@@ -237,11 +287,13 @@ public class MainMenu : MonoBehaviour
 
         if (existing != null)
         {
+            dailyRewardPanelSceneOwned = true;
             dailyRewardPanel = existing.gameObject;
             CacheDailyRewardPanelReferences();
             return;
         }
 
+        dailyRewardPanelSceneOwned = false;
         dailyRewardPanel = new GameObject(DailyRewardPanelObjectName, typeof(RectTransform), typeof(Image));
         dailyRewardPanel.transform.SetParent(menuRootRect, false);
 
@@ -312,6 +364,92 @@ public class MainMenu : MonoBehaviour
         }
     }
 
+    void EnsureChallengeSummaryPanel()
+    {
+        if (menuRootRect == null)
+            return;
+
+        Transform existing = menuRootRect.Find(ChallengeSummaryPanelObjectName);
+
+        if (existing != null)
+        {
+            challengeSummaryPanelSceneOwned = true;
+            challengeSummaryPanel = existing.gameObject;
+            CacheChallengeSummaryReferences();
+            return;
+        }
+
+        challengeSummaryPanelSceneOwned = false;
+        challengeSummaryPanel = new GameObject(ChallengeSummaryPanelObjectName, typeof(RectTransform), typeof(Image));
+        challengeSummaryPanel.transform.SetParent(menuRootRect, false);
+
+        RectTransform panelRect = challengeSummaryPanel.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.5f, 0f);
+        panelRect.anchorMax = new Vector2(0.5f, 0f);
+        panelRect.pivot = new Vector2(0.5f, 0f);
+        panelRect.sizeDelta = new Vector2(760f, 220f);
+        panelRect.anchoredPosition = new Vector2(0f, 244f);
+
+        Image panelImage = challengeSummaryPanel.GetComponent<Image>();
+        panelImage.color = new Color(0.1f, 0.19f, 0.34f, 0.97f);
+
+        challengeSummaryTitleText = CreatePanelText(
+            challengeSummaryPanel.transform,
+            "ChallengeSummaryTitle",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(680f, 40f),
+            new Vector2(0f, -18f),
+            TextAlignmentOptions.Center,
+            24f,
+            34f,
+            new Color(1f, 0.94f, 0.72f, 1f));
+
+        challengeSummaryBodyText = CreatePanelText(
+            challengeSummaryPanel.transform,
+            "ChallengeSummaryBody",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(680f, 64f),
+            new Vector2(0f, -78f),
+            TextAlignmentOptions.Center,
+            20f,
+            28f,
+            new Color(0.94f, 0.97f, 1f, 1f));
+
+        challengeSummaryStatusText = CreatePanelText(
+            challengeSummaryPanel.transform,
+            "ChallengeSummaryStatus",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(680f, 34f),
+            new Vector2(0f, -138f),
+            TextAlignmentOptions.Center,
+            18f,
+            24f,
+            new Color(0.86f, 0.93f, 1f, 1f));
+
+        challengeSummaryActionButton = CreatePanelButton(
+            challengeSummaryPanel.transform,
+            "ChallengeSummaryActionButton",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(420f, 60f),
+            new Vector2(0f, 18f),
+            "Play Challenge",
+            out challengeSummaryActionButtonText);
+
+        if (challengeSummaryActionButton != null)
+        {
+            challengeSummaryActionButton.onClick.RemoveAllListeners();
+            challengeSummaryActionButton.onClick.AddListener(HandleDailyChallengeAction);
+        }
+    }
+
     void EnsureMissionSummaryPanel()
     {
         if (menuRootRect == null)
@@ -321,11 +459,13 @@ public class MainMenu : MonoBehaviour
 
         if (existing != null)
         {
+            missionSummaryPanelSceneOwned = true;
             missionSummaryPanel = existing.gameObject;
             CacheMissionSummaryReferences();
             return;
         }
 
+        missionSummaryPanelSceneOwned = false;
         missionSummaryPanel = new GameObject(MissionSummaryPanelObjectName, typeof(RectTransform), typeof(Image));
         missionSummaryPanel.transform.SetParent(menuRootRect, false);
 
@@ -565,6 +705,24 @@ public class MainMenu : MonoBehaviour
         }
     }
 
+    void CacheChallengeSummaryReferences()
+    {
+        if (challengeSummaryPanel == null)
+            return;
+
+        challengeSummaryTitleText = FindTextInParent(challengeSummaryPanel.transform, "ChallengeSummaryTitle");
+        challengeSummaryBodyText = FindTextInParent(challengeSummaryPanel.transform, "ChallengeSummaryBody");
+        challengeSummaryStatusText = FindTextInParent(challengeSummaryPanel.transform, "ChallengeSummaryStatus");
+
+        Transform buttonTransform = challengeSummaryPanel.transform.Find("ChallengeSummaryActionButton");
+
+        if (buttonTransform != null)
+        {
+            challengeSummaryActionButton = buttonTransform.GetComponent<Button>();
+            challengeSummaryActionButtonText = buttonTransform.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+    }
+
     void CacheMissionSummaryReferences()
     {
         if (missionSummaryPanel == null)
@@ -729,6 +887,7 @@ public class MainMenu : MonoBehaviour
     {
         RefreshProfileStats();
         RefreshDailyRewardPanel();
+        RefreshDailyChallengePanel();
         RefreshMissionSummaryPanel();
         RefreshDailyMissionPanel();
     }
@@ -763,7 +922,7 @@ public class MainMenu : MonoBehaviour
         {
             panelImage.color = canClaimToday
                 ? new Color(0.1f, 0.18f, 0.32f, 0.96f)
-                : new Color(0.1f, 0.18f, 0.32f, 0.74f);
+                : new Color(0.1f, 0.18f, 0.32f, 0.56f);
         }
 
         if (dailyRewardTitleText != null)
@@ -780,7 +939,7 @@ public class MainMenu : MonoBehaviour
                 ? rewardPackage.coins + " Coins" +
                   "\n+ " + rewardPackage.bonusAmount + " " +
                   UpgradeInventory.GetDisplayName(rewardPackage.bonusUpgrade)
-                : "Today's reward collected";
+                : "Come back tomorrow";
 
             dailyRewardBodyText.color = canClaimToday
                 ? new Color(0.94f, 0.97f, 1f, 1f)
@@ -791,7 +950,7 @@ public class MainMenu : MonoBehaviour
         {
             dailyRewardStatusText.text = canClaimToday
                 ? "Day " + rewardPackage.rewardDay + "   |   Streak " + currentStreak
-                : "Streak " + currentStreak + "   |   Next " + DailyRewardSystem.GetNextClaimCountdownText();
+                : "Next " + DailyRewardSystem.GetNextClaimCountdownText();
 
             dailyRewardStatusText.color = canClaimToday
                 ? new Color(0.9f, 0.96f, 1f, 1f)
@@ -837,6 +996,72 @@ public class MainMenu : MonoBehaviour
 
         if (missionSummaryOpenButtonText != null)
             missionSummaryOpenButtonText.text = claimableCount > 0 ? "Open + Claim" : "Open Missions";
+    }
+
+    void RefreshDailyChallengePanel()
+    {
+        if (challengeSummaryPanel == null)
+            return;
+
+        DailyChallengeData challenge = DailyChallengeSystem.GetTodayChallenge();
+        bool canClaimReward = DailyChallengeSystem.CanClaimReward();
+        bool rewardClaimed = challenge.rewardClaimed;
+        Image panelImage = challengeSummaryPanel.GetComponent<Image>();
+        Image buttonImage = challengeSummaryActionButton != null ? challengeSummaryActionButton.GetComponent<Image>() : null;
+
+        if (panelImage != null)
+        {
+            panelImage.color = rewardClaimed
+                ? new Color(0.14f, 0.2f, 0.29f, 0.82f)
+                : canClaimReward
+                    ? new Color(0.15f, 0.3f, 0.23f, 0.97f)
+                    : new Color(0.1f, 0.19f, 0.34f, 0.97f);
+        }
+
+        if (challengeSummaryTitleText != null)
+            challengeSummaryTitleText.text = "Daily Challenge";
+
+        if (challengeSummaryBodyText != null)
+        {
+            challengeSummaryBodyText.text = challenge.title;
+        }
+
+        if (challengeSummaryStatusText != null)
+        {
+            if (rewardClaimed)
+            {
+                challengeSummaryStatusText.text = "Completed today";
+            }
+            else if (canClaimReward)
+            {
+                challengeSummaryStatusText.text = "Reward: " + DailyChallengeSystem.GetRewardLabel(challenge);
+            }
+            else
+            {
+                challengeSummaryStatusText.text = DailyChallengeSystem.GetObjectiveLabel(challenge);
+            }
+        }
+
+        if (challengeSummaryActionButton != null)
+            challengeSummaryActionButton.interactable = !rewardClaimed;
+
+        if (challengeSummaryActionButtonText != null)
+        {
+            challengeSummaryActionButtonText.text = rewardClaimed
+                ? "Done Today"
+                : canClaimReward
+                    ? "Claim Reward"
+                    : "Play Challenge";
+        }
+
+        if (buttonImage != null)
+        {
+            buttonImage.color = rewardClaimed
+                ? new Color(0.42f, 0.46f, 0.5f, 0.72f)
+                : canClaimReward
+                    ? new Color(0.3f, 0.75f, 0.46f, 1f)
+                    : new Color(0.93f, 0.73f, 0.24f, 1f);
+        }
     }
 
     void RefreshDailyMissionPanel()
@@ -946,6 +1171,7 @@ public class MainMenu : MonoBehaviour
     void NormalizeMenuLayout()
     {
         NormalizeDailyRewardPanel();
+        NormalizeChallengeSummaryPanel();
         NormalizeMissionSummaryPanel();
         NormalizeMissionOverlayPanel();
         NormalizeButtons();
@@ -954,6 +1180,9 @@ public class MainMenu : MonoBehaviour
     void NormalizeDailyRewardPanel()
     {
         if (dailyRewardPanel == null)
+            return;
+
+        if (dailyRewardPanelSceneOwned)
             return;
 
         RectTransform panelRect = dailyRewardPanel.GetComponent<RectTransform>();
@@ -972,6 +1201,8 @@ public class MainMenu : MonoBehaviour
             RectTransform titleRect = dailyRewardTitleText.rectTransform;
             titleRect.sizeDelta = new Vector2(680f, 42f);
             titleRect.anchoredPosition = new Vector2(0f, -18f);
+            dailyRewardTitleText.fontSizeMin = 26f;
+            dailyRewardTitleText.fontSizeMax = 36f;
         }
 
         if (dailyRewardBodyText != null)
@@ -980,6 +1211,8 @@ public class MainMenu : MonoBehaviour
             bodyRect.sizeDelta = new Vector2(680f, 64f);
             bodyRect.anchoredPosition = new Vector2(0f, -92f);
             dailyRewardBodyText.lineSpacing = -4f;
+            dailyRewardBodyText.fontSizeMin = 22f;
+            dailyRewardBodyText.fontSizeMax = 32f;
         }
 
         if (dailyRewardStatusText != null)
@@ -987,6 +1220,8 @@ public class MainMenu : MonoBehaviour
             RectTransform statusRect = dailyRewardStatusText.rectTransform;
             statusRect.sizeDelta = new Vector2(680f, 24f);
             statusRect.anchoredPosition = new Vector2(0f, 90f);
+            dailyRewardStatusText.fontSizeMin = 20f;
+            dailyRewardStatusText.fontSizeMax = 26f;
         }
 
         if (claimRewardButton != null)
@@ -999,11 +1234,20 @@ public class MainMenu : MonoBehaviour
                 buttonRect.anchoredPosition = new Vector2(0f, 16f);
             }
         }
+
+        if (claimRewardButtonText != null)
+        {
+            claimRewardButtonText.fontSizeMin = 20f;
+            claimRewardButtonText.fontSizeMax = 28f;
+        }
     }
 
     void NormalizeMissionSummaryPanel()
     {
         if (missionSummaryPanel == null)
+            return;
+
+        if (missionSummaryPanelSceneOwned)
             return;
 
         RectTransform panelRect = missionSummaryPanel.GetComponent<RectTransform>();
@@ -1049,6 +1293,72 @@ public class MainMenu : MonoBehaviour
         {
             missionSummaryOpenButtonText.fontSizeMin = 22f;
             missionSummaryOpenButtonText.fontSizeMax = 30f;
+        }
+    }
+
+    void NormalizeChallengeSummaryPanel()
+    {
+        if (challengeSummaryPanel == null)
+            return;
+
+        if (challengeSummaryPanelSceneOwned)
+            return;
+
+        RectTransform panelRect = challengeSummaryPanel.GetComponent<RectTransform>();
+
+        if (panelRect == null)
+            return;
+
+        panelRect.anchorMin = new Vector2(0.5f, 0f);
+        panelRect.anchorMax = new Vector2(0.5f, 0f);
+        panelRect.pivot = new Vector2(0.5f, 0f);
+        panelRect.sizeDelta = new Vector2(760f, 240f);
+        panelRect.anchoredPosition = new Vector2(0f, 244f);
+
+        if (challengeSummaryTitleText != null)
+        {
+            RectTransform titleRect = challengeSummaryTitleText.rectTransform;
+            titleRect.sizeDelta = new Vector2(700f, 46f);
+            titleRect.anchoredPosition = new Vector2(0f, -18f);
+            challengeSummaryTitleText.fontSizeMin = 30f;
+            challengeSummaryTitleText.fontSizeMax = 42f;
+        }
+
+        if (challengeSummaryBodyText != null)
+        {
+            RectTransform bodyRect = challengeSummaryBodyText.rectTransform;
+            bodyRect.sizeDelta = new Vector2(700f, 50f);
+            bodyRect.anchoredPosition = new Vector2(0f, -82f);
+            challengeSummaryBodyText.fontSizeMin = 28f;
+            challengeSummaryBodyText.fontSizeMax = 40f;
+            challengeSummaryBodyText.lineSpacing = 0f;
+        }
+
+        if (challengeSummaryStatusText != null)
+        {
+            RectTransform statusRect = challengeSummaryStatusText.rectTransform;
+            statusRect.sizeDelta = new Vector2(700f, 46f);
+            statusRect.anchoredPosition = new Vector2(0f, -138f);
+            challengeSummaryStatusText.fontSizeMin = 24f;
+            challengeSummaryStatusText.fontSizeMax = 34f;
+            challengeSummaryStatusText.lineSpacing = 0f;
+        }
+
+        if (challengeSummaryActionButton != null)
+        {
+            RectTransform buttonRect = challengeSummaryActionButton.GetComponent<RectTransform>();
+
+            if (buttonRect != null)
+            {
+                buttonRect.sizeDelta = new Vector2(420f, 64f);
+                buttonRect.anchoredPosition = new Vector2(0f, 20f);
+            }
+        }
+
+        if (challengeSummaryActionButtonText != null)
+        {
+            challengeSummaryActionButtonText.fontSizeMin = 24f;
+            challengeSummaryActionButtonText.fontSizeMax = 34f;
         }
     }
 
@@ -1152,17 +1462,6 @@ public class MainMenu : MonoBehaviour
 
         if (button == null)
             return;
-
-        RectTransform buttonRect = button.GetComponent<RectTransform>();
-
-        if (buttonRect != null)
-        {
-            buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
-            buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
-            buttonRect.pivot = new Vector2(0.5f, 0.5f);
-            buttonRect.sizeDelta = new Vector2(500f, 128f);
-            buttonRect.anchoredPosition = new Vector2(0f, anchoredY);
-        }
 
         Image buttonImage = button.GetComponent<Image>();
 

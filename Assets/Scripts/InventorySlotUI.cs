@@ -110,12 +110,12 @@ public class InventorySlotUI : MonoBehaviour
             RectTransform textRect = combinedText.rectTransform;
             textRect.anchorMin = Vector2.zero;
             textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(18f, 10f);
-            textRect.offsetMax = new Vector2(-18f, -10f);
+            textRect.offsetMin = new Vector2(20f, 12f);
+            textRect.offsetMax = new Vector2(-20f, -12f);
 
             combinedText.enableAutoSizing = true;
-            combinedText.fontSizeMin = 16;
-            combinedText.fontSizeMax = 24;
+            combinedText.fontSizeMin = 18;
+            combinedText.fontSizeMax = 28;
             combinedText.alignment = TextAlignmentOptions.CenterGeoAligned;
             combinedText.color = new Color(0.16f, 0.18f, 0.24f, 1f);
 
@@ -130,7 +130,7 @@ public class InventorySlotUI : MonoBehaviour
 
             combinedText.text =
                 UpgradeInventory.GetDisplayName(upgradeType) +
-                "\n<size=76%>Owned: " + ownedAmount + "   " + statusLine + "</size>";
+                "\n<size=78%>Owned: " + ownedAmount + "   " + statusLine + "</size>";
         }
 
         if (backgroundImage != null)

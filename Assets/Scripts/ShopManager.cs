@@ -39,7 +39,6 @@ public class ShopManager : MonoBehaviour
     private RectTransform contentRect;
     private ScrollRect scrollRect;
     private RectTransform uiRootRect;
-
     private readonly UpgradeType[] shopOrder =
     {
         UpgradeType.Shield,
@@ -93,10 +92,13 @@ public class ShopManager : MonoBehaviour
     void FindStaticReferences()
     {
         if (totalCoinsText == null)
+        {
             totalCoinsText = FindTextObject("TotalCoinsText");
-
+        }
         if (shopTitleText == null)
+        {
             shopTitleText = FindTextObject(titleObjectName);
+        }
 
         if (shopTitleText != null)
             shopTitleRect = shopTitleText.rectTransform;
@@ -111,7 +113,6 @@ public class ShopManager : MonoBehaviour
                 backButtonText = backButtonObject.GetComponentInChildren<TextMeshProUGUI>(true);
             }
         }
-
         if (uiRootRect == null)
             uiRootRect = GetUIRootRect();
     }
@@ -310,7 +311,6 @@ public class ShopManager : MonoBehaviour
             return;
 
         Canvas.ForceUpdateCanvases();
-
         float rootWidth = uiRootRect.rect.width;
 
         if (shopTitleRect != null)
@@ -532,7 +532,6 @@ public class ShopManager : MonoBehaviour
                 continue;
 
             float y = -(i * (itemHeight + rowSpacing));
-
             buttonRect.anchorMin = new Vector2(0f, 1f);
             buttonRect.anchorMax = new Vector2(1f, 1f);
             buttonRect.pivot = new Vector2(0.5f, 1f);

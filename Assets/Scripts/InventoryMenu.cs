@@ -11,12 +11,14 @@ public class InventoryMenu : MonoBehaviour
     public RectTransform slotParent;
 
     public int columnCount = 1;
-    public float sidePadding = 18f;
-    public float topPadding = 118f;
-    public float bottomPadding = 76f;
+    public float sidePadding = 20f;
+    public float topPadding = 154f;
+    public float bottomPadding = 92f;
     public float columnSpacing = 18f;
-    public float rowSpacing = 10f;
-    public float slotHeight = 72f;
+    public float rowSpacing = 12f;
+    public float slotHeight = 92f;
+    public float cardHorizontalInset = 38f;
+    public float cardMaxWidth = 560f;
 
     private RectTransform titleRect;
     private TextMeshProUGUI titleText;
@@ -42,6 +44,8 @@ public class InventoryMenu : MonoBehaviour
 
     void Awake()
     {
+        NormalizeLegacyPanelLayout();
+
         if (slotParent == null)
             slotParent = transform as RectTransform;
 
@@ -112,11 +116,13 @@ public class InventoryMenu : MonoBehaviour
             return;
 
         float y = -(index * (slotHeight + rowSpacing));
+        float availableWidth = Mathf.Max(320f, slotViewport.rect.width - (cardHorizontalInset * 2f));
+        float slotWidth = Mathf.Min(availableWidth, cardMaxWidth);
 
-        slotRect.anchorMin = new Vector2(0f, 1f);
-        slotRect.anchorMax = new Vector2(1f, 1f);
+        slotRect.anchorMin = new Vector2(0.5f, 1f);
+        slotRect.anchorMax = new Vector2(0.5f, 1f);
         slotRect.pivot = new Vector2(0.5f, 1f);
-        slotRect.sizeDelta = new Vector2(0f, slotHeight);
+        slotRect.sizeDelta = new Vector2(slotWidth, slotHeight);
         slotRect.anchoredPosition = new Vector2(0f, y);
     }
 
@@ -161,6 +167,43 @@ public class InventoryMenu : MonoBehaviour
                 backButtonRect = backTransform as RectTransform;
                 backButtonText = backTransform.GetComponentInChildren<TextMeshProUGUI>(true);
             }
+        }
+    }
+
+    void NormalizeLegacyPanelLayout()
+    {
+        Canvas canvas = FindAnyObjectByType<Canvas>();
+
+        if (canvas != null)
+        {
+            RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+
+            if (canvasRect != null)
+            {
+                canvasRect.localScale = Vector3.one;
+                canvasRect.anchorMin = Vector2.zero;
+                canvasRect.anchorMax = Vector2.zero;
+                canvasRect.sizeDelta = Vector2.zero;
+            }
+
+            CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
+
+            if (scaler != null)
+            {
+                scaler.referenceResolution = new Vector2(1080f, 1920f);
+                scaler.matchWidthOrHeight = 0.5f;
+            }
+        }
+
+        RectTransform panelRect = transform as RectTransform;
+
+        if (panelRect != null)
+        {
+            panelRect.localScale = Vector3.one;
+            panelRect.anchorMin = Vector2.zero;
+            panelRect.anchorMax = Vector2.one;
+            panelRect.offsetMin = Vector2.zero;
+            panelRect.offsetMax = Vector2.zero;
         }
     }
 
@@ -262,16 +305,16 @@ public class InventoryMenu : MonoBehaviour
             titleRect.anchorMin = new Vector2(0.5f, 1f);
             titleRect.anchorMax = new Vector2(0.5f, 1f);
             titleRect.pivot = new Vector2(0.5f, 1f);
-            titleRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 54f);
-            titleRect.anchoredPosition = new Vector2(0f, -20f);
+            titleRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 62f);
+            titleRect.anchoredPosition = new Vector2(0f, -18f);
         }
 
         if (titleText != null)
         {
             titleText.text = "Choose 3 Upgrades";
             titleText.enableAutoSizing = true;
-            titleText.fontSizeMin = 22;
-            titleText.fontSizeMax = 34;
+            titleText.fontSizeMin = 26;
+            titleText.fontSizeMax = 40;
             titleText.alignment = TextAlignmentOptions.Center;
         }
 
@@ -281,11 +324,11 @@ public class InventoryMenu : MonoBehaviour
             countRect.anchorMin = new Vector2(0.5f, 1f);
             countRect.anchorMax = new Vector2(0.5f, 1f);
             countRect.pivot = new Vector2(0.5f, 1f);
-            countRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 34f);
-            countRect.anchoredPosition = new Vector2(0f, -70f);
+            countRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 38f);
+            countRect.anchoredPosition = new Vector2(0f, -76f);
             equippedCountText.enableAutoSizing = true;
-            equippedCountText.fontSizeMin = 18;
-            equippedCountText.fontSizeMax = 26;
+            equippedCountText.fontSizeMin = 20;
+            equippedCountText.fontSizeMax = 30;
         }
 
         if (feedbackText != null)
@@ -294,11 +337,11 @@ public class InventoryMenu : MonoBehaviour
             feedbackRect.anchorMin = new Vector2(0.5f, 1f);
             feedbackRect.anchorMax = new Vector2(0.5f, 1f);
             feedbackRect.pivot = new Vector2(0.5f, 1f);
-            feedbackRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 30f);
-            feedbackRect.anchoredPosition = new Vector2(0f, -106f);
+            feedbackRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 34f);
+            feedbackRect.anchoredPosition = new Vector2(0f, -114f);
             feedbackText.enableAutoSizing = true;
-            feedbackText.fontSizeMin = 16;
-            feedbackText.fontSizeMax = 22;
+            feedbackText.fontSizeMin = 18;
+            feedbackText.fontSizeMax = 24;
         }
 
         if (backButtonRect != null)
@@ -306,8 +349,8 @@ public class InventoryMenu : MonoBehaviour
             backButtonRect.anchorMin = new Vector2(0.5f, 0f);
             backButtonRect.anchorMax = new Vector2(0.5f, 0f);
             backButtonRect.pivot = new Vector2(0.5f, 0f);
-            backButtonRect.sizeDelta = new Vector2(220f, 56f);
-            backButtonRect.anchoredPosition = new Vector2(0f, 16f);
+            backButtonRect.sizeDelta = new Vector2(260f, 62f);
+            backButtonRect.anchoredPosition = new Vector2(0f, 18f);
         }
 
         if (backButtonText != null)

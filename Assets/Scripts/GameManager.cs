@@ -32,6 +32,8 @@ public class GameManager : MonoBehaviour
     private int currentLevel = 1;
     public int activeShields = 0;
     public int armedExtraLives = 0;
+    private bool isDailyChallengeRun = false;
+    private DailyChallengeData activeDailyChallenge;
 
     private readonly List<UpgradeType> equippedUpgrades = new List<UpgradeType>();
     private readonly Dictionary<UpgradeType, float> activeUpgradeEndTimes = new Dictionary<UpgradeType, float>();
@@ -77,7 +79,12 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
+        DailyChallengeSystem.EnsureInitializedForToday();
         DailyMissionSystem.EnsureInitializedForToday();
+        isDailyChallengeRun = DailyChallengeSystem.IsDailyChallengeRunActive();
+
+        if (isDailyChallengeRun)
+            activeDailyChallenge = DailyChallengeSystem.GetTodayChallenge();
 
         if (gameOverText != null)
             gameOverText.SetActive(false);
@@ -90,6 +97,9 @@ public class GameManager : MonoBehaviour
 
         if (totalCoinsText != null)
             totalCoinsText.text = "Coins: " + totalCoins;
+
+        if (isDailyChallengeRun)
+            UpdateUpgradeText();
 
         runtimeFont = GetRuntimeFont();
         EnsureRuntimeFeedbackUI();
@@ -117,6 +127,12 @@ public class GameManager : MonoBehaviour
         if (scoreText != null)
             scoreText.text = "Score: " + Mathf.FloorToInt(score);
 
+        if (isDailyChallengeRun)
+        {
+            UpdateUpgradeText();
+            UpdateBestScoreHud();
+        }
+
         ApplyContinuousEffects();
         RefreshRunUpgradeButtons();
         int newLevel = GetDifficultyLevel();
@@ -133,6 +149,14 @@ public class GameManager : MonoBehaviour
     {
         if (upgradeText == null)
             return;
+
+        if (isDailyChallengeRun)
+        {
+            upgradeText.text =
+                activeDailyChallenge.title +
+                "\n" + DailyChallengeSystem.GetObjectiveLabel(activeDailyChallenge);
+            return;
+        }
 
         if (equippedUpgrades.Count == 0)
         {
@@ -183,6 +207,12 @@ public class GameManager : MonoBehaviour
 
         if (totalCoinsText != null)
             totalCoinsText.text = "Coins: " + totalCoins;
+
+        if (isDailyChallengeRun)
+        {
+            UpdateUpgradeText();
+            UpdateBestScoreHud();
+        }
     }
 
     public void ActivateShield()
@@ -215,6 +245,24 @@ public class GameManager : MonoBehaviour
 
     void SyncLoadoutFromInventory(bool forceRebuild)
     {
+        if (isDailyChallengeRun)
+        {
+            bool shouldClear = forceRebuild || equippedUpgrades.Count > 0 || runUpgradeButtons.Count > 0;
+
+            if (shouldClear)
+            {
+                equippedUpgrades.Clear();
+                autoEnabledUpgrades.Clear();
+                activeUpgradeEndTimes.Clear();
+                activeShields = 0;
+                armedExtraLives = 0;
+                RebuildRunUpgradeButtons();
+                UpdateUpgradeText();
+            }
+
+            return;
+        }
+
         if (UpgradeInventory.Instance == null)
             return;
 
@@ -772,10 +820,15 @@ public class GameManager : MonoBehaviour
 
     public float GetWorldSpeedMultiplier()
     {
-        if (IsUpgradeActive(UpgradeType.SlowTime))
-            return 0.55f;
+        float multiplier = 1f;
 
-        return 1f;
+        if (isDailyChallengeRun)
+            multiplier *= activeDailyChallenge.worldSpeedMultiplier;
+
+        if (IsUpgradeActive(UpgradeType.SlowTime))
+            multiplier *= 0.55f;
+
+        return multiplier;
     }
 
     public float GetPlayerMoveSpeedMultiplier()
@@ -812,10 +865,15 @@ public class GameManager : MonoBehaviour
 
     public float GetCurrentCoinSpawnChance(float baseChance)
     {
-        if (IsUpgradeActive(UpgradeType.RareCoinBoost))
-            return Mathf.Clamp01(baseChance + 0.3f);
+        float spawnChance = baseChance;
 
-        return baseChance;
+        if (isDailyChallengeRun)
+            spawnChance *= activeDailyChallenge.coinSpawnMultiplier;
+
+        if (IsUpgradeActive(UpgradeType.RareCoinBoost))
+            spawnChance += 0.3f;
+
+        return Mathf.Clamp01(spawnChance);
     }
 
     public Transform GetCoinMagnetTarget(Vector3 coinPosition)
@@ -838,6 +896,10 @@ public class GameManager : MonoBehaviour
         gameEnded = true;
         int finalScore = Mathf.FloorToInt(score);
         DailyMissionSystem.RegisterRunFinished(finalScore, currentLevel);
+
+        if (isDailyChallengeRun)
+            activeDailyChallenge = DailyChallengeSystem.RegisterRunResult(finalScore, runCoinsEarned);
+
         SetPauseOverlayVisible(false);
         SetTutorialOverlayVisible(false);
         GameSettings.TriggerHaptic();
@@ -874,6 +936,10 @@ public class GameManager : MonoBehaviour
     public void RestartGame()
     {
         Time.timeScale = 1f;
+
+        if (isDailyChallengeRun)
+            DailyChallengeSystem.BeginTodayChallengeRun();
+
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
@@ -1393,7 +1459,16 @@ public class GameManager : MonoBehaviour
     void UpdateBestScoreHud()
     {
         if (bestScoreHudText != null)
-            bestScoreHudText.text = "Best: " + bestScore;
+        {
+            if (isDailyChallengeRun)
+            {
+                bestScoreHudText.text = gameEnded
+                    ? DailyChallengeSystem.GetBestProgressLabel(activeDailyChallenge)
+                    : DailyChallengeSystem.GetCurrentRunLabel(activeDailyChallenge, Mathf.FloorToInt(score), runCoinsEarned);
+            }
+            else
+                bestScoreHudText.text = "Best: " + bestScore;
+        }
     }
 
     void ShowPostRunSummary(int finalScore)
@@ -1404,18 +1479,47 @@ public class GameManager : MonoBehaviour
         int completedMissionCount = DailyMissionSystem.GetCompletedCount();
         int claimableMissionCount = DailyMissionSystem.GetClaimableCount();
 
-        string summaryText =
-            "Run Score " + finalScore +
-            "\nBest " + bestScore + "   Coins +" + runCoinsEarned +
-            "\nLevel " + currentLevel + "   Missions " + completedMissionCount + "/3";
+        string summaryText;
 
-        if (claimableMissionCount > 0)
+        if (isDailyChallengeRun)
         {
-            summaryText +=
-                "\n<color=#FFD876>" +
-                claimableMissionCount +
-                (claimableMissionCount == 1 ? " reward ready in menu" : " rewards ready in menu") +
-                "</color>";
+            summaryText =
+                activeDailyChallenge.title +
+                "\n" + DailyChallengeSystem.GetCurrentRunLabel(activeDailyChallenge, finalScore, runCoinsEarned) +
+                "\n" + DailyChallengeSystem.GetBestProgressLabel(activeDailyChallenge);
+
+            if (DailyChallengeSystem.CanClaimReward())
+            {
+                summaryText += "\n<color=#FFD876>Challenge reward ready in menu</color>";
+            }
+            else if (activeDailyChallenge.rewardClaimed)
+            {
+                summaryText += "\n<color=#7FF0A6>Reward already claimed today</color>";
+            }
+            else if (activeDailyChallenge.bestScore >= activeDailyChallenge.targetScore)
+            {
+                summaryText += "\n<color=#7FF0A6>Challenge cleared</color>";
+            }
+            else
+            {
+                summaryText += "\n" + DailyChallengeSystem.GetNeedsMoreLabel(activeDailyChallenge);
+            }
+        }
+        else
+        {
+            summaryText =
+                "Run Score " + finalScore +
+                "\nBest " + bestScore + "   Coins +" + runCoinsEarned +
+                "\nLevel " + currentLevel + "   Missions " + completedMissionCount + "/3";
+
+            if (claimableMissionCount > 0)
+            {
+                summaryText +=
+                    "\n<color=#FFD876>" +
+                    claimableMissionCount +
+                    (claimableMissionCount == 1 ? " reward ready in menu" : " rewards ready in menu") +
+                    "</color>";
+            }
         }
 
         if (newBestScore)
@@ -1450,6 +1554,10 @@ public class GameManager : MonoBehaviour
     public void ReturnToMainMenu()
     {
         Time.timeScale = 1f;
+
+        if (isDailyChallengeRun)
+            DailyChallengeSystem.ClearActiveRun();
+
         SceneManager.LoadScene("MainMenu");
     }
 
