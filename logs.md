@@ -1,4 +1,4 @@
-# EndlessDodge1 Fresh Start Protocol
+# EndlessDodge1 Logs
 
 ## Project Path
 Use this project:
@@ -6,6 +6,60 @@ Use this project:
 
 Do not use this stale clone:
 - `C:\Users\antho\OneDrive\Documents\GitHub\Block-dodger1`
+
+## Handoff Note
+- This log intentionally does **not** include hidden system instructions, hidden chain-of-thought, or private tool internals.
+- Instead, it includes the strongest public handoff possible:
+  - project scope
+  - user preferences
+  - implemented systems
+  - major decisions
+  - reversions
+  - current rough edges
+  - next recommended work
+  - a visible-turn conversation log
+  - roadmap
+  - full scripts
+- A new thread should be able to continue from this file without needing any hidden context.
+
+## Seamless Handoff Instructions
+- In a new thread, tell the assistant to read:
+  - `C:\Users\antho\EndlessDodge1\logs.md`
+- Tell it to treat that file as the source of truth for:
+  - current project state
+  - user preferences
+  - what has already been built
+  - what was reverted
+  - what still needs work
+- Tell it to continue working in:
+  - `C:\Users\antho\EndlessDodge1`
+- Tell it **not** to use:
+  - `C:\Users\antho\OneDrive\Documents\GitHub\Block-dodger1`
+
+## Copy-Paste Prompt For A New Thread
+Use the file `C:\Users\antho\EndlessDodge1\logs.md` as the full project handoff and source of truth. Read it before making assumptions. Continue development in `C:\Users\antho\EndlessDodge1`, not the stale clone in `C:\Users\antho\OneDrive\Documents\GitHub\Block-dodger1`. Follow the user preferences documented in the log, preserve the current systems and reversions already made, and continue from the current project state rather than restarting or re-architecting unnecessarily.
+
+## Current Local File Status
+- `logs.md` is the new handoff file for this project.
+- `FRESH_START_PROTOCOL.md` was renamed into `logs.md`.
+- If version control matters later, the local status currently reflects that rename as:
+  - deleted: `FRESH_START_PROTOCOL.md`
+  - new: `logs.md`
+
+## Current Highest-Priority Next Work
+- polish scene-owned UI across `MainMenu`, `Shop`, `Inventory`, and `Game`
+- improve readability of small text in desktop preview without hurting phone layout
+- make the daily challenge panel cleaner and less clunky on the main menu
+- add audio, juice, transitions, and stronger feedback
+- later add leaderboard/share scaffolding and mobile device testing
+
+## Important Recent Reversion State
+- The project is currently on a **better restored baseline** after undoing the later clunky main-menu/shop cleanup batch.
+- That means:
+  - the later overlapping/clunky challenge-panel layout change was undone
+  - the later shop-header/layout behavior from that batch was undone
+  - broken dead legacy shop junk was **not** reintroduced
+- Future work should continue from the current look, not from the reverted clunkier version.
 
 ## Engine / Setup
 - Unity 6
@@ -118,6 +172,349 @@ The long-term goal is to turn this into a polished, highly replayable mobile gam
 - The user cares about making this commercially successful long-term, but wants practical steps first.
 - The user is open to creative license.
 - The user prefers not to spend messages on tiny back-and-forth when a reasonable assumption can be made.
+
+## Session Timeline
+- Main development in this log happened across `2026-04-09` and `2026-04-10`.
+- The project was resumed from a user-provided checkpoint after a previous long ChatGPT thread.
+- Early work focused on restoring the known code state and getting the inventory/loadout system working.
+- Mid-session work focused on making upgrades actually function in gameplay, then fixing the UI/readability fallout.
+- Later work added retention systems: daily reward, daily missions, and a separate daily challenge mode.
+- The most recent work before this log request involved reverting a clunky main-menu/shop cleanup batch back to a better baseline.
+
+## Detailed Change Log
+
+### Initial restore / baseline
+- Restored the project to the checkpoint the user provided.
+- Confirmed the active project should be `C:\Users\antho\EndlessDodge1`.
+- Noted that `C:\Users\antho\OneDrive\Documents\GitHub\Block-dodger1` is stale and should not be used.
+- Ensured the `Inventory` scene existed in build settings.
+
+### Inventory / loadout system
+- Added `InventoryMenu.cs`.
+- Added `InventorySlotUI.cs`.
+- Expanded `UpgradeInventory.cs` to support equipped upgrades as a 3-slot loadout.
+- Built the inventory selection flow so upgrades can be equipped/unequipped and persisted.
+- Iterated on the inventory layout several times:
+  - broken grid attempt
+  - broken narrow column attempt
+  - fixed scroll-list version
+- Converted the inventory scene toward scene-owned UI and preserved a visible back button.
+
+### Gameplay / upgrade behavior
+- Fixed the shield-bypass problem by moving collision resolution to the player side.
+- Fixed player border clamping so the player stays inside the lane.
+- Added support for equipped upgrades to appear in `Game`.
+- Implemented gameplay effects for:
+  - Shield
+  - Extra Life
+  - Speed Boost
+  - Coin Magnet
+  - Double Coins
+  - Slow Time
+  - Smaller Player
+  - Score Booster
+  - Bomb
+  - Rare Coin Boost
+- Added persistent/auto-use behavior for appropriate in-run buffs.
+
+### Main menu / navigation
+- Added an inventory entry path from `MainMenu`.
+- Added daily reward UI and later adjusted it multiple times for placement and readability.
+- Added daily missions summary UI and later converted it to a simpler summary + pop-out approach.
+- Added daily challenge summary UI.
+- Multiple layout passes were done on menu panels because text size and overlap were persistent issues.
+
+### Shop
+- Replaced the old shop logic that only really exposed the old leftover buttons.
+- Built a scrollable 10-upgrade consumable store.
+- Iterated on shop button layout repeatedly because readability was poor in the desktop phone preview.
+- Moved the shop closer to scene-owned UI for title/header/back button/content area.
+- Removed dead legacy shop objects from the scene.
+- Later reverted a clunkier shop/main-menu cleanup batch after user feedback.
+
+### Game UI
+- Added scene-backed HUD elements in `Game`.
+- Added a scene-backed post-run summary panel.
+- Added a pause button and pause/settings panel.
+- Added tutorial overlay and haptics toggle support.
+- Enlarged and cleaned up multiple game HUD elements after overlap/readability complaints.
+
+### Rewards / retention systems
+- Added daily login reward system via `DailyRewardSystem.cs`.
+- Added daily missions via `DailyMissionSystem.cs`.
+- Added a separate daily challenge system via `DailyChallengeSystem.cs`.
+- Fixed the daily challenge naming/goal mismatch so challenge type and goal align better.
+- Added daily challenge claiming and repeat-run reward locking.
+
+### Coins / visuals
+- Coins were changed to render as circular gold-looking pickups instead of square-looking placeholders.
+
+### Files added during the project
+- `Assets/Scripts/DailyChallengeSystem.cs`
+- `Assets/Scripts/DailyMissionSystem.cs`
+- `Assets/Scripts/DailyRewardSystem.cs`
+- `Assets/Scripts/GameSettings.cs`
+- `Assets/Scripts/InventoryMenu.cs`
+- `Assets/Scripts/InventorySlotUI.cs`
+- `ROADMAP.md`
+- This current log file, originally created as `FRESH_START_PROTOCOL.md` and then renamed to `logs.md`
+
+### Files heavily modified during the project
+- `Assets/Scripts/GameManager.cs`
+- `Assets/Scripts/MainMenu.cs`
+- `Assets/Scripts/ShopManager.cs`
+- `Assets/Scripts/InventoryMenu.cs`
+- `Assets/Scripts/InventorySlotUI.cs`
+- `Assets/Scripts/UpgradeInventory.cs`
+- `Assets/Scripts/PlayerController.cs`
+- `Assets/Scripts/Coin.cs`
+- `Assets/Scenes/Game.unity`
+- `Assets/Scenes/MainMenu.unity`
+- `Assets/Scenes/Shop.unity`
+- `Assets/Scenes/Inventory.unity`
+
+### Latest revert state
+- The last reverted batch was the cleanup/integration work that happened after the user message:
+  - `the look is clunky and the panel overlaps other buttons on the menu so if we can move them around and resize a little wuuld be good. Please also integrate it with unity so each thing can be controlled like we did the other scenes. please also do the cleanup tasks.`
+- That revert restored the previous `MainMenu` challenge/mission card layout and the previous `ShopManager.cs` behavior.
+- Dead corrupt legacy shop junk was not reintroduced, because it was broken baggage rather than useful UI.
+
+## Conversation Log
+This section is the visible-turn project log for this thread. It captures the user-visible conversation and the major work done at each step.
+
+1. User asked what help was possible for finishing the game.
+   Assistant explained it could implement features, fix bugs, polish UI/UX, balance gameplay, clean code, review the project, and help with release prep.
+
+2. User asked if other ChatGPT chats could be accessed.
+   Assistant said no, unless the user pasted their contents, and offered to reconstruct the roadmap from the project.
+
+3. User said they were pushing the latest update manually to GitHub.
+   Assistant confirmed the local repo looked clean and the user could push manually.
+
+4. User supplied the main project checkpoint:
+   - Unity 6
+   - 2D portrait mobile game
+   - scenes: MainMenu, Game, Shop, Inventory
+   - consumable-upgrade design
+   - current scripts
+   - current UI state
+   - known shield bug
+   - loadout system in progress
+
+5. Assistant resumed from that checkpoint and directed the user to ensure `Inventory.unity` existed and was added to build settings.
+
+6. User completed the scene/build setup and asked what was next.
+   Assistant began building the 3-upgrade loadout system.
+
+7. Assistant added `InventoryMenu.cs` and `InventorySlotUI.cs`.
+   User could not see the component in Unity.
+
+8. Assistant first suggested refresh, then found Unity was pointed at the wrong folder.
+   After correcting the project path, the user could add the component.
+
+9. The user manually wired the first inventory slot through several step-by-step messages:
+   - set `Slot UIs` size
+   - add `Inventory Slot UI`
+   - set `Upgrade Type` to Shield
+   - assign the `Inventory Menu` reference
+   - assign the slot into `Slot UIs`
+
+10. User asked whether all 10 upgrades should be set up now.
+    Assistant updated the system so one slot could act as a template and the rest would be generated/runtime-bound.
+
+11. The inventory UI looked terrible through several iterations.
+    Multiple layout passes were attempted:
+    - ugly compressed layout
+    - worse broken vertical layout
+    - still broken
+    - eventually fixed by making it a readable scroll list
+
+12. User confirmed the inventory scroll worked and then asked to stop doing one-step-at-a-time messages because of chat limits.
+    Assistant took more initiative from that point onward.
+
+13. Assistant implemented the larger consumable loop:
+    - up to 3 equipped upgrades
+    - only equipped upgrades appear in game
+    - shield no longer bypassed
+    - extra life and other buffs implemented
+
+14. User reported major issues:
+    - no way to reach inventory from main menu
+    - shield still did nothing in gameplay
+    - player could move outside borders
+
+15. Assistant patched:
+    - runtime `Inventory` button in `MainMenu`
+    - stronger collision handling for shield
+    - player border clamping against borders/camera bounds
+
+16. User confirmed those fixes worked and then requested:
+    - matching border visuals
+    - bigger activate buttons
+    - toggle behavior that persists until buffs run out
+
+17. Assistant updated the game:
+    - border visuals improved
+    - buff buttons larger
+    - auto-on / auto-off behavior for repeat-consumed buffs
+
+18. User asked about long-term scope and whether internet research was possible.
+    Assistant said yes, and later did browse-backed product/launch guidance.
+
+19. Shop work began in earnest.
+    User reported shop text/readability issues repeatedly.
+    Assistant made many layout passes:
+    - full scrollable 10-item shop
+    - various failed text layouts
+    - scene root fix
+    - simplified centered card layout
+
+20. User asked for a roadmap to completion.
+    Assistant created `ROADMAP.md`.
+
+21. Assistant implemented best score saving and a post-run summary.
+    User then asked what `ROADMAP.md` was and how to access it.
+
+22. Assistant explained `ROADMAP.md` and continued into daily reward work.
+
+23. Assistant added `DailyRewardSystem.cs` and a runtime daily reward panel on the main menu.
+
+24. User repeatedly asked for the daily reward panel to be moved down and the text enlarged.
+    Assistant iterated many times until it was “good enough for now.”
+
+25. Assistant then added daily missions.
+    The missions panel was initially unreadable and overlapping.
+
+26. User asked whether real Unity objects/TextMeshPro objects could be used instead of script-generated blocks.
+    Assistant agreed that scene-owned UI would be better and changed the missions flow so the main menu used a compact summary and a separate pop-out for readable mission detail.
+
+27. User approved the mission summary enough to move on.
+
+28. Assistant added:
+    - tutorial overlay
+    - pause button
+    - pause/settings panel
+    - `GameSettings.cs`
+    - haptics toggle and first-run tutorial tracking
+
+29. User reported more issues:
+    - text too small across the board
+    - tutorial listed wrong colors / coins
+    - post-run summary overlapped restart
+    - coins should look circular
+
+30. Assistant moved more of the `Game` scene UI into scene-owned objects, enlarged HUD text, fixed tutorial wording, moved the summary lower, and made coins look circular and gold.
+
+31. User liked the result and asked to use the same Unity-owned approach in other scenes.
+
+32. Assistant converted the `Game` top HUD to scene-owned objects and laid out:
+    - pause button
+    - coins
+    - score
+    - best score
+    - level
+    - upgrade/challenge text
+    - menu button
+
+33. User asked to do the same for `MainMenu`, `Shop`, and `Inventory`, noting:
+    - reward claimed panel was hard to read
+    - inventory lost the back button
+    - UI felt cluttered
+
+34. Assistant moved more persistent UI scaffolding into those scenes and updated the scripts to bind to scene-owned elements where possible.
+
+35. User specifically requested scene-owned setup for inventory and shop.
+    Assistant built that direction further:
+    - inventory slot cards and back button area improved
+    - shop used real card objects under content
+
+36. User reported shop card proportions/title problems, plus warnings and greyed-out objects.
+    Assistant explained that greyed-out objects were disabled legacy leftovers, and identified the active scene-owned content under `ShopContent`.
+
+37. User asked if disabled legacy objects should just be deleted.
+    Assistant agreed, removed them from `Shop.unity`, and cleaned the scene further.
+
+38. User said the shop looked great after that cleanup and asked what was next.
+    Assistant suggested inventory polish and then a real daily challenge.
+
+39. Assistant polished inventory further and confirmed local phone testing would be possible later via Android build/sideload.
+
+40. User pointed out that daily missions and daily rewards already existed, and asked if daily challenge was something different.
+    Assistant clarified the distinction:
+    - daily reward
+    - daily missions
+    - separate daily challenge mode
+
+41. Assistant implemented the actual daily challenge system in `DailyChallengeSystem.cs` and wired it into the menu and gameplay.
+
+42. User tested it and reported:
+    - small text
+    - challenge mode starts correctly and disables buffs
+    - reward claiming works
+    - `Gold Rush` name did not match the objective
+    - it could be replayed indefinitely after completion
+    - `Transform child can't be loaded` warning still appeared
+
+43. Assistant fixed:
+    - `Gold Rush` to actually behave like a coin challenge
+    - challenge HUD/readability
+    - challenge reward locking for the day
+    - another corrupted scene block contributing to warnings
+
+44. User then said the challenge/menu look was clunky and overlapping, and asked for it to be integrated with Unity objects and cleaned up.
+
+45. Assistant attempted a cleanup/integration pass:
+    - made challenge and mission summary cards smaller/lower in `MainMenu.unity`
+    - cleaned `Shop.unity`
+    - made `ShopManager.cs` respect scene-owned header objects more strongly
+
+46. That cleanup batch was not well received.
+    The user said it made the shop worse and later clarified they wanted everything after that request undone.
+
+47. Assistant first only reverted the last header tweak, which was not enough.
+    User clarified that the full later batch should be reverted.
+
+48. Assistant then reverted the later visible/layout behavior changes from that batch:
+    - restored previous `MainMenu.unity` challenge and mission panel layout
+    - restored previous `ShopManager.cs` shop layout behavior
+    - kept stale broken legacy objects out of `Shop.unity`
+
+49. User requested a fresh start file with scope, goals, full scripts, and everything done so far.
+    Assistant created `FRESH_START_PROTOCOL.md`.
+
+50. User then asked for a better idea:
+    - rename the file to `logs`
+    - include every change, every message, every bit of data available
+    - include scope, goals, timeline, etc.
+
+51. Assistant renamed the file to `logs.md` and expanded it into this fuller project log.
+
+## Current File / Scene Snapshot
+
+### Scenes
+- `Assets/Scenes/Game.unity`
+- `Assets/Scenes/Inventory.unity`
+- `Assets/Scenes/MainMenu.unity`
+- `Assets/Scenes/Shop.unity`
+
+### Scripts
+- `Assets/Scripts/Coin.cs`
+- `Assets/Scripts/DailyChallengeSystem.cs`
+- `Assets/Scripts/DailyMissionSystem.cs`
+- `Assets/Scripts/DailyRewardSystem.cs`
+- `Assets/Scripts/GameManager.cs`
+- `Assets/Scripts/GameSettings.cs`
+- `Assets/Scripts/GameUI.cs`
+- `Assets/Scripts/InventoryMenu.cs`
+- `Assets/Scripts/InventorySlotUI.cs`
+- `Assets/Scripts/MainMenu.cs`
+- `Assets/Scripts/Obstacle.cs`
+- `Assets/Scripts/ObstacleZigZag.cs`
+- `Assets/Scripts/PlayerController.cs`
+- `Assets/Scripts/SceneLoader.cs`
+- `Assets/Scripts/ShopManager.cs`
+- `Assets/Scripts/Spawner.cs`
+- `Assets/Scripts/UpgradeInventory.cs`
 
 ## Current Roadmap File
 Below is the current `ROADMAP.md` content.
