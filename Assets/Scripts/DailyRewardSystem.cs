@@ -72,6 +72,7 @@ public static class DailyRewardSystem
             UpgradeInventory.Instance.AddUpgrade(rewardPackage.bonusUpgrade, rewardPackage.bonusAmount);
 
         PlayerPrefs.Save();
+        LaunchAnalytics.RecordDailyRewardClaimed(rewardPackage, nextStreak);
         return true;
     }
 

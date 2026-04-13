@@ -1,89 +1,67 @@
 # EndlessDodge1 Roadmap
 
-## Core Goal
-Build a polished mobile arcade game with:
-- fast restart loops
-- readable UI on phones
-- satisfying consumable strategy
-- strong retention hooks
-- organic sharing and competition
+## Business Goal
+- Release fast and iterate toward a commercially real mobile game.
+- Target release: Friday, April 17, 2026.
+- Revenue target: ramp toward `$1,000/day` inside the first 30 days, then scale hard through retention, ads, IAP, and live ops.
+- Release identity locked:
+  - company name: `Oreniq Games`
+  - Android package: `com.oreniq.endlessdodge`
 
-## Phase 1: Ship-Ready Core
-Status: In progress
+## Current Product Shape
+- Portrait endless dodge arcade game.
+- Short runs, fast restart loop, simple controls.
+- Consumable loadout meta loop through `Shop` and `Inventory`.
+- Early retention hooks already implemented:
+  - daily reward
+  - daily missions
+  - daily challenge
 
-### Must finish
-- polish the `Game`, `Shop`, and `Inventory` UI for phone readability
-- add a simple first-run tutorial overlay
-- improve score/coin/loadout HUD readability
-- tighten obstacle pacing and early-game fairness
-- add pause/settings panel
-- add audio and haptics
-- save and display best score
-- remove scene leftovers and inconsistent legacy UI
+## What Matters Before Launch
+1. Make the first session clean, readable, and satisfying on a real phone.
+2. Ship with basic monetization and analytics instead of "add later" placeholders.
+3. Remove prototype signals in Android app setup and store readiness.
+4. Launch with a version we can improve every few days after release.
 
-### Success check
-- a new player understands the game in under 30 seconds
-- a full run feels fair, readable, and restart-friendly
-- no obvious collision, border, or scene-navigation bugs remain
+## Friday Release Gate
 
-## Phase 2: Retention Systems
-Status: In progress
+### Must be done
+- Android app identity finalized:
+  - company name
+  - package name
+  - app icon
+  - keystore
+- Android build passes device install and playtest.
+- Readability pass completed on a real phone.
+- Core game feel improved:
+  - audio
+  - stronger feedback
+  - clearer rewards
+- Analytics initialized and verified.
+- Basic monetization path ready:
+  - rewarded ads and/or
+  - coin packs / starter offer
+- Store page basics ready:
+  - screenshots
+  - short description
+  - full description
+  - privacy policy link
 
-### Build next
-- daily reward
-- daily missions
-- streak rewards
-- post-run summary with score, coins earned, and reward progress
-- beginner reward track for the first 7 days
-- better economy balancing for shop prices and run rewards
+### Nice if possible
+- Better post-run upsell flow.
+- Beginner bundle or starter pack.
+- Daily challenge presentation upgrade.
+- Social/share scaffolding.
 
-### Reward direction
-- use in-game rewards only: coins, shield packs, mixed buff packs
-- do not use real-money prizes
-- weekly milestone rewards can scale from coins to premium consumable bundles
+## Immediate Build Order
+1. Fix release blockers and service setup.
+2. Verify phone readability and early-run fairness.
+3. Add launch-safe monetization hooks.
+4. Add audio/juice pass.
+5. Build store assets and upload package.
 
-## Phase 3: Social and Organic Growth
-Status: Planned
-
-### Core features
-- daily challenge mode with the same seed for everyone
-- leaderboard support
-- weekly leaderboard reset with in-game rewards
-- share result screen with score and challenge result
-- friend brag hooks like "beat my run"
-- seasonal events with temporary reward tracks
-
-### Why this matters
-- daily challenge creates a reason to return
-- leaderboards create competition without paid acquisition
-- share results create organic discovery loops
-
-## Phase 4: Launch and Store Readiness
-Status: Planned
-
-### Store and release
-- closed test
-- crash and performance pass
-- store icon, screenshots, short description, full description
-- Google Play Games setup
-- analytics setup
-- update cadence plan for the first 30 days after launch
-
-### Launch targets
-- stable build with no major blocker bugs
-- strong first-session clarity
-- enough progression to support repeat play before content fatigue
-
-## Recommended Build Order
-1. finish UI readability and run polish
-2. add best score, tutorial, pause/settings, and audio
-3. add daily rewards and daily missions
-4. add post-run summary and streak rewards
-5. add daily challenge and leaderboard support
-6. prepare store listing assets and closed testing
-
-## Immediate Next Slice
-This is the next highest-value implementation block:
-- HUD readability pass
-- beginner reward track
-- economy balancing pass
+## Post-Launch Month One
+- Watch retention and monetization daily.
+- Tune reward values, shop prices, and rewarded ad payouts.
+- Add more challenge variety and stronger daily hooks.
+- Add better offers once baseline metrics are real.

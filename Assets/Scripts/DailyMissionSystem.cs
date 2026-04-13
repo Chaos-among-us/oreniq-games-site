@@ -125,6 +125,7 @@ public static class DailyMissionSystem
             totalCoins += coinsGranted;
             PlayerPrefs.SetInt(TotalCoinsKey, totalCoins);
             PlayerPrefs.Save();
+            LaunchAnalytics.RecordMissionRewardsClaimed(coinsGranted, upgradesGranted.Count);
         }
 
         return claimedAny;

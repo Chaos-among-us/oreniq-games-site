@@ -592,6 +592,7 @@ public class ShopManager : MonoBehaviour
         if (UpgradeInventory.Instance != null)
             UpgradeInventory.Instance.AddUpgrade(type, 1);
 
+        LaunchAnalytics.RecordSoftCurrencyPurchase(type, cost, totalCoins);
         SetFeedback(UpgradeInventory.GetDisplayName(type) + " purchased");
         RefreshUI();
         return true;

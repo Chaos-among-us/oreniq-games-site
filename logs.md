@@ -2,10 +2,13 @@
 
 ## Project Path
 Use this project:
-- `C:\Users\antho\EndlessDodge1`
+- `C:\Users\antho\Documents\UnityProjects\Block-dodger1`
 
-Do not use this stale clone:
-- `C:\Users\antho\OneDrive\Documents\GitHub\Block-dodger1`
+## Source Of Truth Correction
+- The earlier "stale clone" warning in this file was wrong.
+- That came from a malfunctioning handoff thread and should not be followed.
+- The current files in `C:\Users\antho\Documents\UnityProjects\Block-dodger1` are the source of truth.
+- Continue logging all major changes in this file.
 
 ## Handoff Note
 - This log intentionally does **not** include hidden system instructions, hidden chain-of-thought, or private tool internals.
@@ -24,7 +27,7 @@ Do not use this stale clone:
 
 ## Seamless Handoff Instructions
 - In a new thread, tell the assistant to read:
-  - `C:\Users\antho\EndlessDodge1\logs.md`
+  - `C:\Users\antho\Documents\UnityProjects\Block-dodger1\logs.md`
 - Tell it to treat that file as the source of truth for:
   - current project state
   - user preferences
@@ -32,26 +35,22 @@ Do not use this stale clone:
   - what was reverted
   - what still needs work
 - Tell it to continue working in:
-  - `C:\Users\antho\EndlessDodge1`
-- Tell it **not** to use:
-  - `C:\Users\antho\OneDrive\Documents\GitHub\Block-dodger1`
+  - `C:\Users\antho\Documents\UnityProjects\Block-dodger1`
 
 ## Copy-Paste Prompt For A New Thread
-Use the file `C:\Users\antho\EndlessDodge1\logs.md` as the full project handoff and source of truth. Read it before making assumptions. Continue development in `C:\Users\antho\EndlessDodge1`, not the stale clone in `C:\Users\antho\OneDrive\Documents\GitHub\Block-dodger1`. Follow the user preferences documented in the log, preserve the current systems and reversions already made, and continue from the current project state rather than restarting or re-architecting unnecessarily.
+Use the file `C:\Users\antho\Documents\UnityProjects\Block-dodger1\logs.md` as the full project handoff and source of truth. Read it before making assumptions. Continue development in `C:\Users\antho\Documents\UnityProjects\Block-dodger1`. Follow the user preferences documented in the log, preserve the current systems and reversions already made, and continue from the current project state rather than restarting or re-architecting unnecessarily.
 
 ## Current Local File Status
-- `logs.md` is the new handoff file for this project.
-- `FRESH_START_PROTOCOL.md` was renamed into `logs.md`.
-- If version control matters later, the local status currently reflects that rename as:
-  - deleted: `FRESH_START_PROTOCOL.md`
-  - new: `logs.md`
+- `logs.md` is the live handoff and working change log for this project.
+- New work from `2026-04-11` onward should be appended here as changes are made.
 
 ## Current Highest-Priority Next Work
-- polish scene-owned UI across `MainMenu`, `Shop`, `Inventory`, and `Game`
-- improve readability of small text in desktop preview without hurting phone layout
-- make the daily challenge panel cleaner and less clunky on the main menu
-- add audio, juice, transitions, and stronger feedback
-- later add leaderboard/share scaffolding and mobile device testing
+- install Android Build Support for Unity `6000.4.0f1` on this machine
+- open Unity and let Package Manager restore the new Analytics/Auth/IAP packages
+- verify the local Android release-signing setup loads from `UserSettings/Android`
+- add real ad mediation and coin-pack IAPs on top of the simulated rewarded flow
+- test readability, feel, and monetization flow on a real phone
+- finish icons, screenshots, store copy, privacy policy, and Play Console setup
 
 ## Important Recent Reversion State
 - The project is currently on a **better restored baseline** after undoing the later clunky main-menu/shop cleanup batch.
@@ -96,6 +95,11 @@ The long-term goal is to turn this into a polished, highly replayable mobile gam
 - competitive and shareable loops
 - Google Play-ready quality
 - future support for leaderboards, achievements, rewarded systems, and growth features
+
+## Current Launch Targets
+- Release target: Friday, `2026-04-17`
+- Near-term revenue target: reach roughly `$1,000/day` within the first month after release
+- Year-one ambition: scale toward `$3,000,000` in the first year through retention, ads, IAP, and rapid iteration
 
 ## What Is Implemented Right Now
 
@@ -180,8 +184,70 @@ The long-term goal is to turn this into a polished, highly replayable mobile gam
 - Mid-session work focused on making upgrades actually function in gameplay, then fixing the UI/readability fallout.
 - Later work added retention systems: daily reward, daily missions, and a separate daily challenge mode.
 - The most recent work before this log request involved reverting a clunky main-menu/shop cleanup batch back to a better baseline.
+- Work resumed again on `2026-04-11` for a launch sprint focused on release readiness, monetization, analytics, and Android setup.
 
 ## Detailed Change Log
+
+### 2026-04-11 launch sprint continuation
+- Confirmed the active project is `C:\Users\antho\Documents\UnityProjects\Block-dodger1`.
+- Corrected this log so it no longer tells future threads to use the wrong project path.
+- Added Unity package entries for:
+  - `com.unity.services.analytics`
+  - `com.unity.services.authentication`
+  - `com.unity.purchasing`
+- Added launch/release service scripts:
+  - `Assets/Scripts/Services/UnityServicesBootstrap.cs`
+  - `Assets/Scripts/Services/LaunchAnalytics.cs`
+  - `Assets/Scripts/Services/MonetizationManager.cs`
+- Added first monetization surface:
+  - post-run rewarded double-coins flow
+  - currently simulated in-editor until a real ad provider is integrated
+- Instrumented launch analytics in core run and economy flows:
+  - run start
+  - run finish
+  - shop purchase
+  - daily reward claim
+  - daily mission reward claim
+  - daily challenge start
+  - daily challenge reward claim
+  - rewarded offer request/result
+- Replaced the old roadmap with a release-focused `ROADMAP.md`.
+- Added `RELEASE_SPRINT.md` for the `2026-04-17` launch push.
+- Locked release identity:
+  - company/developer name: `Oreniq Games`
+  - Android package: `com.oreniq.endlessdodge`
+- Created a local Android release keystore at:
+  - `UserSettings/Android/oreniq-release.keystore`
+- Created a local signing config at:
+  - `UserSettings/Android/release-signing.json`
+- Important:
+  - the keystore and signing JSON are intentionally local-only and should stay out of committed source control
+  - do not paste keystore passwords into this log
+- Added editor-side release-signing helper:
+  - `Assets/Editor/AndroidReleaseSigningConfigurator.cs`
+  - automatically reapplies local signing from `UserSettings/Android/release-signing.json` when Unity opens
+  - also adds menu items under `Tools/Android`
+- Updated `ProjectSettings/ProjectSettings.asset` to use the local release keystore path and alias.
+- Verified:
+  - script assembly compiled successfully after the launch-sprint code changes
+- Current blocker:
+  - this machine's Unity `6000.4.0f1` install currently has Windows, WebGL, Android, and iOS support installed
+- Follow-up progress:
+  - Android Build Support, Android SDK & NDK Tools, OpenJDK, and Visual Studio Community were installed through Unity Hub
+  - the requested Unity packages restored successfully:
+    - `com.unity.services.analytics`
+    - `com.unity.services.authentication`
+    - `com.unity.purchasing`
+  - both assemblies compiled cleanly after restore:
+    - `Assembly-CSharp`
+    - `Assembly-CSharp-Editor`
+  - local Android release signing was verified in Unity through:
+    - `Tools/Android/Apply Local Release Signing`
+    - success dialog: `Applied local Android release signing from UserSettings/Android/release-signing.json.`
+  - Android build profile was switched and is now the active profile in Unity
+- Next recommended step:
+  - verify the release-signing helper loads correctly from the Unity menu
+  - then switch the active build target to Android and continue release configuration
 
 ### Initial restore / baseline
 - Restored the project to the checkpoint the user provided.

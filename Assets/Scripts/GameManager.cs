@@ -44,6 +44,8 @@ public class GameManager : MonoBehaviour
     private TMP_FontAsset runtimeFont;
     private GameObject postRunPanel;
     private TextMeshProUGUI postRunSummaryText;
+    private Button postRunDoubleCoinsButton;
+    private TextMeshProUGUI postRunDoubleCoinsButtonText;
     private TextMeshProUGUI bestScoreHudText;
     private Button pauseButton;
     private TextMeshProUGUI pauseButtonText;
@@ -57,6 +59,7 @@ public class GameManager : MonoBehaviour
     private Button tutorialPrimaryButton;
     private TextMeshProUGUI tutorialPrimaryButtonText;
     private bool markTutorialSeenOnClose;
+    private bool postRunDoubleCoinsClaimed;
 
     private const float RunUpgradeButtonWidth = 230f;
     private const float RunUpgradeButtonHeight = 78f;
@@ -94,6 +97,7 @@ public class GameManager : MonoBehaviour
 
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
         bestScore = PlayerPrefs.GetInt(BestScoreKey, 0);
+        postRunDoubleCoinsClaimed = false;
 
         if (totalCoinsText != null)
             totalCoinsText.text = "Coins: " + totalCoins;
@@ -112,6 +116,7 @@ public class GameManager : MonoBehaviour
 
         currentLevel = GetDifficultyLevel();
         UpdateLevelText();
+        LaunchAnalytics.RecordRunStarted(isDailyChallengeRun, equippedUpgrades.Count);
     }
 
     void Update()
@@ -916,6 +921,14 @@ public class GameManager : MonoBehaviour
             newBestScore = false;
         }
 
+        postRunDoubleCoinsClaimed = false;
+        LaunchAnalytics.RecordRunFinished(
+            finalScore,
+            runCoinsEarned,
+            currentLevel,
+            isDailyChallengeRun,
+            newBestScore);
+
         if (spawner != null)
             spawner.StopSpawning();
 
@@ -978,6 +991,7 @@ public class GameManager : MonoBehaviour
         }
 
         ConfigurePostRunSummaryText(postRunSummaryText);
+        EnsurePostRunDoubleCoinsButton();
 
         if (pauseButton == null)
         {
@@ -1044,6 +1058,14 @@ public class GameManager : MonoBehaviour
         if (summaryTransform != null)
             postRunSummaryText = summaryTransform.GetComponent<TextMeshProUGUI>();
 
+        Transform buttonTransform = panelTransform.Find("DoubleCoinsButton");
+
+        if (buttonTransform != null)
+        {
+            postRunDoubleCoinsButton = buttonTransform.GetComponent<Button>();
+            postRunDoubleCoinsButtonText = buttonTransform.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+
         if (postRunPanel != null)
             postRunPanel.SetActive(false);
 
@@ -1064,6 +1086,54 @@ public class GameManager : MonoBehaviour
 
         if (runtimeFont != null)
             summaryText.font = runtimeFont;
+    }
+
+    void EnsurePostRunDoubleCoinsButton()
+    {
+        if (postRunPanel == null)
+            return;
+
+        RectTransform panelRect = postRunPanel.GetComponent<RectTransform>();
+
+        if (panelRect == null)
+            return;
+
+        if (postRunDoubleCoinsButton == null)
+        {
+            postRunDoubleCoinsButton = CreateRuntimeButton(
+                panelRect,
+                "DoubleCoinsButton",
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(380f, 54f),
+                new Vector2(0f, 18f),
+                "Watch Ad: 2x Coins",
+                new Color(0.94f, 0.73f, 0.23f, 1f),
+                out postRunDoubleCoinsButtonText);
+        }
+
+        if (postRunDoubleCoinsButton != null)
+        {
+            postRunDoubleCoinsButton.onClick.RemoveAllListeners();
+            postRunDoubleCoinsButton.onClick.AddListener(ClaimPostRunDoubleCoins);
+        }
+
+        if (postRunDoubleCoinsButtonText != null)
+        {
+            postRunDoubleCoinsButtonText.enableAutoSizing = true;
+            postRunDoubleCoinsButtonText.fontSizeMin = 18f;
+            postRunDoubleCoinsButtonText.fontSizeMax = 28f;
+        }
+
+        if (postRunSummaryText != null)
+        {
+            RectTransform summaryRect = postRunSummaryText.rectTransform;
+            summaryRect.offsetMin = new Vector2(28f, 88f);
+            summaryRect.offsetMax = new Vector2(-28f, -24f);
+        }
+
+        RefreshPostRunDoubleCoinsButton();
     }
 
     TextMeshProUGUI CreateRuntimeLabel(
@@ -1135,10 +1205,11 @@ public class GameManager : MonoBehaviour
         if (postRunSummaryText != null)
         {
             RectTransform summaryRect = postRunSummaryText.rectTransform;
-            summaryRect.offsetMin = new Vector2(28f, 24f);
+            summaryRect.offsetMin = new Vector2(28f, 88f);
             summaryRect.offsetMax = new Vector2(-28f, -24f);
         }
 
+        EnsurePostRunDoubleCoinsButton();
         postRunPanel.SetActive(false);
     }
 
@@ -1507,9 +1578,10 @@ public class GameManager : MonoBehaviour
         }
         else
         {
+            int displayedCoinGain = runCoinsEarned * (postRunDoubleCoinsClaimed ? 2 : 1);
             summaryText =
                 "Run Score " + finalScore +
-                "\nBest " + bestScore + "   Coins +" + runCoinsEarned +
+                "\nBest " + bestScore + "   Coins +" + displayedCoinGain +
                 "\nLevel " + currentLevel + "   Missions " + completedMissionCount + "/3";
 
             if (claimableMissionCount > 0)
@@ -1520,6 +1592,15 @@ public class GameManager : MonoBehaviour
                     (claimableMissionCount == 1 ? " reward ready in menu" : " rewards ready in menu") +
                     "</color>";
             }
+
+            if (postRunDoubleCoinsClaimed)
+            {
+                summaryText += "\n<color=#7FF0A6>Double coins claimed</color>";
+            }
+            else if (CanOfferPostRunDoubleCoins())
+            {
+                summaryText += "\n<color=#FFD876>Watch an ad for +" + runCoinsEarned + " bonus coins</color>";
+            }
         }
 
         if (newBestScore)
@@ -1527,6 +1608,78 @@ public class GameManager : MonoBehaviour
 
         postRunSummaryText.text = summaryText;
         postRunPanel.SetActive(true);
+        RefreshPostRunDoubleCoinsButton();
+    }
+
+    bool CanOfferPostRunDoubleCoins()
+    {
+        return gameEnded &&
+               !isDailyChallengeRun &&
+               runCoinsEarned > 0 &&
+               !postRunDoubleCoinsClaimed &&
+               MonetizationManager.Instance != null &&
+               MonetizationManager.Instance.CanShowRewardedAd(RewardedOfferType.PostRunDoubleCoins);
+    }
+
+    void RefreshPostRunDoubleCoinsButton()
+    {
+        if (postRunDoubleCoinsButton == null)
+            return;
+
+        bool canOffer = CanOfferPostRunDoubleCoins();
+        bool showClaimedState = gameEnded && postRunDoubleCoinsClaimed;
+        postRunDoubleCoinsButton.gameObject.SetActive(canOffer || showClaimedState);
+        postRunDoubleCoinsButton.interactable = canOffer;
+
+        if (postRunDoubleCoinsButtonText != null)
+        {
+            if (postRunDoubleCoinsClaimed)
+                postRunDoubleCoinsButtonText.text = "Bonus Claimed";
+            else
+                postRunDoubleCoinsButtonText.text = "Watch Ad: +" + runCoinsEarned + " Coins";
+        }
+    }
+
+    public void ClaimPostRunDoubleCoins()
+    {
+        if (!CanOfferPostRunDoubleCoins())
+            return;
+
+        if (postRunDoubleCoinsButton != null)
+            postRunDoubleCoinsButton.interactable = false;
+
+        if (postRunDoubleCoinsButtonText != null)
+            postRunDoubleCoinsButtonText.text = "Loading Ad...";
+
+        LaunchAnalytics.RecordRewardedOfferRequested("post_run_double_coins", runCoinsEarned);
+        MonetizationManager.Instance.ShowRewardedAd(
+            RewardedOfferType.PostRunDoubleCoins,
+            HandlePostRunDoubleCoinsResult);
+    }
+
+    void HandlePostRunDoubleCoinsResult(bool rewarded)
+    {
+        LaunchAnalytics.RecordRewardedOfferResult("post_run_double_coins", rewarded, runCoinsEarned);
+
+        if (!rewarded)
+        {
+            RefreshPostRunDoubleCoinsButton();
+            return;
+        }
+
+        if (postRunDoubleCoinsClaimed)
+            return;
+
+        postRunDoubleCoinsClaimed = true;
+        totalCoins += runCoinsEarned;
+        PlayerPrefs.SetInt("TotalCoins", totalCoins);
+        PlayerPrefs.Save();
+
+        if (totalCoinsText != null)
+            totalCoinsText.text = "Coins: " + totalCoins;
+
+        GameSettings.TriggerHaptic();
+        ShowPostRunSummary(Mathf.FloorToInt(score));
     }
 
     void ShowTutorialIfNeeded()

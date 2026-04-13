@@ -70,6 +70,8 @@ public static class DailyChallengeSystem
         PlayerPrefs.SetString(ActiveRunDateKey, DateTime.Today.ToString("yyyy-MM-dd"));
         PlayerPrefs.SetInt(ActiveRunFlagKey, 1);
         PlayerPrefs.Save();
+        ApplyPresentation(ref challenge);
+        LaunchAnalytics.RecordDailyChallengeStarted(challenge);
     }
 
     public static bool IsDailyChallengeRunActive()
@@ -147,6 +149,8 @@ public static class DailyChallengeSystem
             UpgradeInventory.Instance.AddUpgrade(rewardUpgrade, rewardAmount);
 
         PlayerPrefs.Save();
+        ApplyPresentation(ref challenge);
+        LaunchAnalytics.RecordDailyChallengeRewardClaimed(challenge);
         return true;
     }
 
