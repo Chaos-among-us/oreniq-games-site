@@ -2,6 +2,11 @@
 
 Target release date: Friday, April 17, 2026
 
+## Document Role
+- This file tracks the active launch-week checklist.
+- Read `logs.md` first for the current project handoff and session continuity.
+- Keep this document focused on release blockers, release tasks, and verification.
+
 ## Current repo status
 - Core gameplay loop exists and compiles.
 - Shop, inventory, daily reward, daily missions, and daily challenge are already in place.
@@ -17,11 +22,11 @@ Target release date: Friday, April 17, 2026
   - `com.unity.services.authentication`
   - `com.unity.purchasing`
 - Added runtime bootstrap for Unity Services:
-  - [UnityServicesBootstrap.cs](C:/Users/antho/Documents/UnityProjects/Block-dodger1/Assets/Scripts/Services/UnityServicesBootstrap.cs)
+  - `Assets/Scripts/Services/UnityServicesBootstrap.cs`
 - Added launch analytics event router:
-  - [LaunchAnalytics.cs](C:/Users/antho/Documents/UnityProjects/Block-dodger1/Assets/Scripts/Services/LaunchAnalytics.cs)
+  - `Assets/Scripts/Services/LaunchAnalytics.cs`
 - Added monetization entry point and first rewarded-offer surface:
-  - [MonetizationManager.cs](C:/Users/antho/Documents/UnityProjects/Block-dodger1/Assets/Scripts/Services/MonetizationManager.cs)
+  - `Assets/Scripts/Services/MonetizationManager.cs`
   - post-run double-coins flow is now wired for immediate editor testing
 - Instrumented high-value events:
   - run start
@@ -55,6 +60,15 @@ Target release date: Friday, April 17, 2026
 - Privacy policy URL
 - Ad mediation choice and ad-unit IDs
 - Google Play Console listing and content rating setup
+
+## Fresh-machine Android signing note
+- If `UserSettings/Android/release-signing.json` does not exist on a new machine, use:
+  - `Tools/Android/Open Local Signing Folder`
+  - `Tools/Android/Create Local Signing Config Template`
+- Fill in the real local keystore values after creating the template.
+- For the full multi-computer workflow, also read:
+  - `docs/WORKSTATION_SYNC.md`
+  - `docs/COMPUTER_SWITCH_CHECKLIST.md`
 
 ## Monetization recommendation
 - Fastest path for launch:

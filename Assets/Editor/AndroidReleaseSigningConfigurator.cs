@@ -16,23 +16,47 @@ public sealed class AndroidReleaseSigningConfig
 public static class AndroidReleaseSigningConfigurator
 {
     private const string ConfigRelativePath = "UserSettings/Android/release-signing.json";
+    private const string TemplateRelativePath = "UserSettings/Android/release-signing.template.json";
 
     [InitializeOnLoadMethod]
     private static void TryApplyOnEditorLoad()
     {
-        TryApply(interactiveFailure: false, logSuccess: false);
+        TryApply(interactiveFailure: false, logSuccess: false, warnIfConfigMissing: false);
     }
 
     [MenuItem("Tools/Android/Apply Local Release Signing")]
     private static void ApplyFromMenu()
     {
-        if (TryApply(interactiveFailure: true, logSuccess: true))
+        if (TryApply(interactiveFailure: true, logSuccess: true, warnIfConfigMissing: true))
         {
             EditorUtility.DisplayDialog(
                 "Android Release Signing",
                 "Applied local Android release signing from UserSettings/Android/release-signing.json.",
                 "OK");
         }
+    }
+
+    [MenuItem("Tools/Android/Create Local Signing Config Template")]
+    private static void CreateLocalSigningConfigTemplate()
+    {
+        string templateFullPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), TemplateRelativePath));
+        Directory.CreateDirectory(Path.GetDirectoryName(templateFullPath) ?? string.Empty);
+
+        AndroidReleaseSigningConfig template = new AndroidReleaseSigningConfig
+        {
+            keystoreName = "UserSettings/Android/oreniq-release.keystore",
+            keystorePassword = "replace-with-your-keystore-password",
+            keyaliasName = "oreniq-release",
+            keyaliasPassword = "replace-with-your-key-password"
+        };
+
+        File.WriteAllText(templateFullPath, JsonUtility.ToJson(template, prettyPrint: true));
+
+        EditorUtility.RevealInFinder(templateFullPath);
+        EditorUtility.DisplayDialog(
+            "Android Release Signing",
+            "Created UserSettings/Android/release-signing.template.json. Copy its values into release-signing.json on this machine and fill in the real passwords.",
+            "OK");
     }
 
     [MenuItem("Tools/Android/Open Local Signing Folder")]
@@ -43,7 +67,7 @@ public static class AndroidReleaseSigningConfigurator
         EditorUtility.RevealInFinder(folderPath);
     }
 
-    private static bool TryApply(bool interactiveFailure, bool logSuccess)
+    private static bool TryApply(bool interactiveFailure, bool logSuccess, bool warnIfConfigMissing)
     {
         try
         {
@@ -51,7 +75,10 @@ public static class AndroidReleaseSigningConfigurator
 
             if (!File.Exists(configFullPath))
             {
-                return Fail("Local Android signing config was not found in UserSettings/Android.", interactiveFailure);
+                return Fail(
+                    "Local Android signing config was not found in UserSettings/Android. This is expected on a fresh machine until release-signing.json is created locally.",
+                    interactiveFailure,
+                    logWarning: warnIfConfigMissing);
             }
 
             AndroidReleaseSigningConfig config = JsonUtility.FromJson<AndroidReleaseSigningConfig>(File.ReadAllText(configFullPath));
@@ -97,14 +124,18 @@ public static class AndroidReleaseSigningConfigurator
         }
     }
 
-    private static bool Fail(string message, bool interactiveFailure)
+    private static bool Fail(string message, bool interactiveFailure, bool logWarning = true)
     {
         if (interactiveFailure)
         {
             EditorUtility.DisplayDialog("Android Release Signing", message, "OK");
         }
 
-        Debug.LogWarning(message);
+        if (logWarning)
+        {
+            Debug.LogWarning(message);
+        }
+
         return false;
     }
 

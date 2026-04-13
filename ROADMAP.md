@@ -1,5 +1,10 @@
 # EndlessDodge1 Roadmap
 
+## Document Role
+- This file is the strategic product and milestone document.
+- Read `logs.md` first for the current operational handoff state.
+- Read `RELEASE_SPRINT.md` for the active launch-week checklist and blockers.
+
 ## Business Goal
 - Release fast and iterate toward a commercially real mobile game.
 - Target release: Friday, April 17, 2026.
