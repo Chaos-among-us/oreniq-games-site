@@ -219,6 +219,23 @@ Use this exact format for new entries:
 - Next best action:
   - When the other PC is available, recover the local Android signing files and apply them on this machine.
 
+### 2026-04-15 - Shop monetization wiring
+- Goal:
+  - Connect the new monetization manager to the existing `Shop` scene so starter-offer and coin-pack purchases have a visible in-game surface.
+- What changed:
+  - Expanded `MonetizationManager` into a real offer catalog with starter pack and three coin packs, Unity IAP store connection, editor-safe purchase simulation, reward granting, and purchase callbacks.
+  - Added IAP analytics events to `LaunchAnalytics` for purchase request and purchase result tracking.
+  - Updated `ShopManager` to render a `Coin Packs & Offers` section above consumables, refresh from monetization state changes, and keep the soft-currency total in sync after purchases.
+  - Added editor-only shop verification helpers so the shop snaps to the premium section on open, seeds a temporary test coin balance when empty, and uses larger card text for Game view checks.
+- Decisions / reversions:
+  - Keep editor purchase simulation enabled for now so the offer flow can be tested before Android signing and store products are fully recovered on every machine.
+  - Leave the rewarded-ad flow simulated until a real ad provider is integrated.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+- Next best action:
+  - Reopen the `Shop` scene in Unity, verify the new offer cards render cleanly, and click through simulated purchases to confirm coin and consumable grants update live.
+
 ### 2026-04-11 - Launch sprint continuation
 - Goal:
   - Move the project from "game systems mostly exist" toward "Android release preparation is real."

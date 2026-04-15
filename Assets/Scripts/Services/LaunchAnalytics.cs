@@ -116,6 +116,25 @@ public static class LaunchAnalytics
             ("reward_amount", rewardAmount));
     }
 
+    public static void RecordIapPurchaseRequested(string offerName, string productId, bool simulated)
+    {
+        RecordEvent(
+            "iap_purchase_requested",
+            ("offer_name", offerName),
+            ("product_id", productId),
+            ("simulated", simulated));
+    }
+
+    public static void RecordIapPurchaseResult(string offerName, string productId, bool success, bool simulated)
+    {
+        RecordEvent(
+            "iap_purchase_result",
+            ("offer_name", offerName),
+            ("product_id", productId),
+            ("success", success),
+            ("simulated", simulated));
+    }
+
     public static void FlushPendingEvents()
     {
         if (!UnityServicesBootstrap.IsReady || pendingEvents.Count == 0)

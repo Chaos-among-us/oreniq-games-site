@@ -26,7 +26,13 @@ public class ShopManager : MonoBehaviour
     public float topPadding = 140f;
     public float bottomPadding = 84f;
     public float rowSpacing = 12f;
-    public float itemHeight = 208f;
+    public float offerItemHeight = 228f;
+    public float itemHeight = 236f;
+    public float sectionHeaderHeight = 42f;
+    public float sectionSpacing = 12f;
+    public float sectionGap = 20f;
+    [SerializeField] private bool seedEditorCoinsIfEmpty = true;
+    [SerializeField] private int editorSeedCoinsAmount = 250;
 
     private int totalCoins;
     private TMP_FontAsset runtimeFont;
@@ -35,10 +41,13 @@ public class ShopManager : MonoBehaviour
     private RectTransform backButtonRect;
     private TextMeshProUGUI backButtonText;
     private TextMeshProUGUI feedbackText;
+    private TextMeshProUGUI monetizationHeaderText;
+    private TextMeshProUGUI consumablesHeaderText;
     private RectTransform viewportRect;
     private RectTransform contentRect;
     private ScrollRect scrollRect;
     private RectTransform uiRootRect;
+    private bool shouldSnapScrollToTop;
     private readonly UpgradeType[] shopOrder =
     {
         UpgradeType.Shield,
@@ -55,10 +64,19 @@ public class ShopManager : MonoBehaviour
 
     private readonly Dictionary<UpgradeType, ShopUpgradeButtonUI> runtimeButtons =
         new Dictionary<UpgradeType, ShopUpgradeButtonUI>();
+    private readonly Dictionary<MonetizationOfferId, ShopOfferCardUI> runtimeOfferCards =
+        new Dictionary<MonetizationOfferId, ShopOfferCardUI>();
+    private readonly List<MonetizationOfferId> offerOrder = new List<MonetizationOfferId>();
 
     private const string FeedbackObjectName = "ShopFeedbackText";
     private const string ViewportObjectName = "ShopViewport";
     private const string ContentObjectName = "ShopContent";
+    private const string MonetizationHeaderObjectName = "MonetizationHeader";
+    private const string ConsumablesHeaderObjectName = "ConsumablesHeader";
+
+#if UNITY_EDITOR
+    private static bool seededEditorCoinsThisSession;
+#endif
 
     void Awake()
     {
@@ -70,15 +88,28 @@ public class ShopManager : MonoBehaviour
 
     void Start()
     {
+        ResolveMonetizationManager(true);
+        EnsureEditorTestBalance();
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
         BuildShopButtons();
+        shouldSnapScrollToTop = true;
         RefreshUI();
     }
 
     void OnEnable()
     {
+        ResolveMonetizationManager(true);
+        SubscribeMonetizationEvents();
+        EnsureEditorTestBalance();
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
+        BuildShopButtons();
+        shouldSnapScrollToTop = true;
         RefreshUI();
+    }
+
+    void OnDisable()
+    {
+        UnsubscribeMonetizationEvents();
     }
 
     void OnRectTransformDimensionsChange()
@@ -190,7 +221,76 @@ public class ShopManager : MonoBehaviour
         HideLegacyShopLabels();
         EnsureFeedbackText();
         EnsureScrollArea();
+        EnsureSectionHeaders();
         LayoutStaticElements();
+    }
+
+    void SubscribeMonetizationEvents()
+    {
+        MonetizationManager manager = ResolveMonetizationManager(true);
+
+        if (manager == null)
+            return;
+
+        manager.OnOfferCatalogChanged -= HandleOfferCatalogChanged;
+        manager.OnOfferCatalogChanged += HandleOfferCatalogChanged;
+    }
+
+    void UnsubscribeMonetizationEvents()
+    {
+        MonetizationManager manager = ResolveMonetizationManager(false);
+
+        if (manager == null)
+            return;
+
+        manager.OnOfferCatalogChanged -= HandleOfferCatalogChanged;
+    }
+
+    void HandleOfferCatalogChanged()
+    {
+        if (!isActiveAndEnabled)
+            return;
+
+        totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
+        RefreshUI();
+    }
+
+    MonetizationManager ResolveMonetizationManager(bool createIfMissing)
+    {
+        if (MonetizationManager.Instance != null)
+            return MonetizationManager.Instance;
+
+        MonetizationManager existingManager = FindAnyObjectByType<MonetizationManager>();
+
+        if (existingManager != null)
+            return existingManager;
+
+        if (!createIfMissing || !Application.isPlaying)
+            return null;
+
+        GameObject managerObject = new GameObject("MonetizationManager");
+        return managerObject.AddComponent<MonetizationManager>();
+    }
+
+    void EnsureEditorTestBalance()
+    {
+#if UNITY_EDITOR
+        if (!Application.isPlaying || !seedEditorCoinsIfEmpty || seededEditorCoinsThisSession)
+            return;
+
+        int savedCoins = PlayerPrefs.GetInt("TotalCoins", 0);
+        seededEditorCoinsThisSession = true;
+
+        if (savedCoins > 0)
+            return;
+
+        PlayerPrefs.SetInt("TotalCoins", editorSeedCoinsAmount);
+        PlayerPrefs.Save();
+        totalCoins = editorSeedCoinsAmount;
+
+        if (feedbackText != null)
+            feedbackText.text = "Editor coins: " + editorSeedCoinsAmount;
+#endif
     }
 
     void HideLegacyShopButtons()
@@ -241,8 +341,8 @@ public class ShopManager : MonoBehaviour
         feedbackText = labelObject.AddComponent<TextMeshProUGUI>();
         feedbackText.alignment = TextAlignmentOptions.Center;
         feedbackText.enableAutoSizing = true;
-        feedbackText.fontSizeMin = 14;
-        feedbackText.fontSizeMax = 18;
+        feedbackText.fontSizeMin = 16;
+        feedbackText.fontSizeMax = 22;
         feedbackText.color = new Color(0.16f, 0.18f, 0.24f, 1f);
 
         if (runtimeFont != null)
@@ -305,6 +405,59 @@ public class ShopManager : MonoBehaviour
         scrollRect.scrollSensitivity = 32f;
     }
 
+    void EnsureSectionHeaders()
+    {
+        if (contentRect == null)
+            return;
+
+        monetizationHeaderText = FindOrCreateSectionHeader(
+            MonetizationHeaderObjectName,
+            "Coin Packs & Offers");
+        consumablesHeaderText = FindOrCreateSectionHeader(
+            ConsumablesHeaderObjectName,
+            "Consumables");
+    }
+
+    TextMeshProUGUI FindOrCreateSectionHeader(string objectName, string textValue)
+    {
+        Transform existing = contentRect.Find(objectName);
+        GameObject textObject;
+
+        if (existing != null)
+        {
+            textObject = existing.gameObject;
+        }
+        else
+        {
+            textObject = new GameObject(objectName, typeof(RectTransform));
+            textObject.transform.SetParent(contentRect, false);
+        }
+
+        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+
+        if (text == null)
+            text = textObject.AddComponent<TextMeshProUGUI>();
+
+        RectTransform textRect = text.rectTransform;
+        textRect.anchorMin = new Vector2(0f, 1f);
+        textRect.anchorMax = new Vector2(1f, 1f);
+        textRect.pivot = new Vector2(0.5f, 1f);
+        textRect.sizeDelta = new Vector2(0f, sectionHeaderHeight);
+
+        text.text = textValue;
+        text.alignment = TextAlignmentOptions.MidlineLeft;
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 18;
+        text.fontSizeMax = 28;
+        text.fontStyle = FontStyles.Bold;
+        text.color = new Color(0.11f, 0.17f, 0.27f, 0.92f);
+
+        if (runtimeFont != null && text.font == null)
+            text.font = runtimeFont;
+
+        return text;
+    }
+
     void LayoutStaticElements()
     {
         if (uiRootRect == null)
@@ -324,7 +477,7 @@ public class ShopManager : MonoBehaviour
 
         if (shopTitleText != null)
         {
-            shopTitleText.text = "Consumable Shop";
+            shopTitleText.text = "Shop";
             shopTitleText.alignment = TextAlignmentOptions.Center;
             shopTitleText.enableAutoSizing = true;
             shopTitleText.fontSizeMin = 20;
@@ -388,23 +541,22 @@ public class ShopManager : MonoBehaviour
         if (contentRect == null)
             return;
 
+        EnsureSectionHeaders();
         BindSceneShopButtons();
-
-        if (runtimeButtons.Count > 0)
-        {
-            LayoutShopList();
-            return;
-        }
 
         for (int i = 0; i < shopOrder.Length; i++)
         {
             UpgradeType type = shopOrder[i];
+            if (runtimeButtons.ContainsKey(type))
+                continue;
+
             ShopUpgradeButtonUI buttonUI = CreateShopButton(type);
 
             if (buttonUI != null)
                 runtimeButtons[type] = buttonUI;
         }
 
+        SyncOfferCards();
         LayoutShopList();
     }
 
@@ -502,24 +654,113 @@ public class ShopManager : MonoBehaviour
         return buttonUI;
     }
 
+    void SyncOfferCards()
+    {
+        offerOrder.Clear();
+
+        List<MonetizationOfferSnapshot> snapshots = GetOfferSnapshots();
+
+        for (int i = 0; i < snapshots.Count; i++)
+        {
+            MonetizationOfferId offerId = snapshots[i].Definition.OfferId;
+            offerOrder.Add(offerId);
+
+            if (runtimeOfferCards.ContainsKey(offerId))
+                continue;
+
+            ShopOfferCardUI offerCard = CreateOfferCard(offerId);
+
+            if (offerCard != null)
+                runtimeOfferCards[offerId] = offerCard;
+        }
+
+        List<MonetizationOfferId> staleIds = new List<MonetizationOfferId>();
+
+        foreach (KeyValuePair<MonetizationOfferId, ShopOfferCardUI> pair in runtimeOfferCards)
+        {
+            if (!offerOrder.Contains(pair.Key))
+                staleIds.Add(pair.Key);
+        }
+
+        for (int i = 0; i < staleIds.Count; i++)
+        {
+            MonetizationOfferId offerId = staleIds[i];
+
+            if (runtimeOfferCards.TryGetValue(offerId, out ShopOfferCardUI offerCard) && offerCard != null)
+                Destroy(offerCard.gameObject);
+
+            runtimeOfferCards.Remove(offerId);
+        }
+
+        if (monetizationHeaderText != null)
+            monetizationHeaderText.gameObject.SetActive(offerOrder.Count > 0);
+    }
+
+    ShopOfferCardUI CreateOfferCard(MonetizationOfferId offerId)
+    {
+        GameObject offerObject = new GameObject(
+            offerId + "OfferCard",
+            typeof(RectTransform),
+            typeof(Image),
+            typeof(Button),
+            typeof(ShopOfferCardUI));
+
+        offerObject.transform.SetParent(contentRect, false);
+
+        RectTransform offerRect = offerObject.GetComponent<RectTransform>();
+        offerRect.anchorMin = new Vector2(0f, 1f);
+        offerRect.anchorMax = new Vector2(1f, 1f);
+        offerRect.pivot = new Vector2(0.5f, 1f);
+        offerRect.sizeDelta = new Vector2(0f, offerItemHeight);
+
+        Image offerImage = offerObject.GetComponent<Image>();
+        offerImage.color = new Color(1f, 1f, 1f, 0.96f);
+
+        ShopOfferCardUI offerCard = offerObject.GetComponent<ShopOfferCardUI>();
+        offerCard.Initialize(this, offerId, offerImage, offerObject.GetComponent<Button>(), runtimeFont);
+        return offerCard;
+    }
+
     void LayoutShopList()
     {
         if (viewportRect == null || contentRect == null)
             return;
 
         Canvas.ForceUpdateCanvases();
-
-        float contentHeight = (shopOrder.Length * itemHeight) + ((shopOrder.Length - 1) * rowSpacing);
+        float currentY = 0f;
         float viewportHeight = viewportRect.rect.height;
 
-        if (contentHeight < viewportHeight)
-            contentHeight = viewportHeight;
+        if (offerOrder.Count > 0)
+        {
+            if (monetizationHeaderText != null)
+            {
+                LayoutSectionHeader(monetizationHeaderText.rectTransform, currentY);
+                currentY += sectionHeaderHeight + sectionSpacing;
+            }
 
-        contentRect.anchorMin = new Vector2(0f, 1f);
-        contentRect.anchorMax = new Vector2(1f, 1f);
-        contentRect.pivot = new Vector2(0.5f, 1f);
-        contentRect.sizeDelta = new Vector2(0f, contentHeight);
-        contentRect.anchoredPosition = Vector2.zero;
+            for (int i = 0; i < offerOrder.Count; i++)
+            {
+                if (!runtimeOfferCards.TryGetValue(offerOrder[i], out ShopOfferCardUI offerCard) || offerCard == null)
+                    continue;
+
+                RectTransform offerRect = offerCard.GetComponent<RectTransform>();
+
+                if (offerRect == null)
+                    continue;
+
+                LayoutCard(offerRect, offerItemHeight, currentY);
+                currentY += offerItemHeight + rowSpacing;
+            }
+
+            currentY -= rowSpacing;
+            currentY += sectionGap;
+        }
+
+        if (consumablesHeaderText != null)
+        {
+            LayoutSectionHeader(consumablesHeaderText.rectTransform, currentY);
+            currentY += sectionHeaderHeight + sectionSpacing;
+        }
 
         for (int i = 0; i < shopOrder.Length; i++)
         {
@@ -531,26 +772,62 @@ public class ShopManager : MonoBehaviour
             if (buttonRect == null)
                 continue;
 
-            float y = -(i * (itemHeight + rowSpacing));
-            buttonRect.anchorMin = new Vector2(0f, 1f);
-            buttonRect.anchorMax = new Vector2(1f, 1f);
-            buttonRect.pivot = new Vector2(0.5f, 1f);
-            buttonRect.sizeDelta = new Vector2(0f, itemHeight);
-            buttonRect.anchoredPosition = new Vector2(0f, y);
+            LayoutCard(buttonRect, itemHeight, currentY);
+            currentY += itemHeight + rowSpacing;
         }
+
+        if (shopOrder.Length > 0)
+            currentY -= rowSpacing;
+
+        float contentHeight = currentY;
+
+        if (contentHeight < viewportHeight)
+            contentHeight = viewportHeight;
+
+        contentRect.anchorMin = new Vector2(0f, 1f);
+        contentRect.anchorMax = new Vector2(1f, 1f);
+        contentRect.pivot = new Vector2(0.5f, 1f);
+        contentRect.sizeDelta = new Vector2(0f, contentHeight);
+        contentRect.anchoredPosition = Vector2.zero;
+    }
+
+    void LayoutSectionHeader(RectTransform headerRect, float yOffset)
+    {
+        if (headerRect == null)
+            return;
+
+        headerRect.anchorMin = new Vector2(0f, 1f);
+        headerRect.anchorMax = new Vector2(1f, 1f);
+        headerRect.pivot = new Vector2(0.5f, 1f);
+        headerRect.sizeDelta = new Vector2(0f, sectionHeaderHeight);
+        headerRect.anchoredPosition = new Vector2(0f, -yOffset);
+    }
+
+    void LayoutCard(RectTransform cardRect, float height, float yOffset)
+    {
+        cardRect.anchorMin = new Vector2(0f, 1f);
+        cardRect.anchorMax = new Vector2(1f, 1f);
+        cardRect.pivot = new Vector2(0.5f, 1f);
+        cardRect.sizeDelta = new Vector2(0f, height);
+        cardRect.anchoredPosition = new Vector2(0f, -yOffset);
     }
 
     void RefreshUI()
     {
         FindStaticReferences();
+        totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
+        BuildShopButtons();
         LayoutStaticElements();
         LayoutShopList();
+        SnapScrollToTopIfNeeded();
 
         if (totalCoinsText != null)
             totalCoinsText.text = "Coins: " + totalCoins;
 
         if (feedbackText != null && string.IsNullOrEmpty(feedbackText.text))
-            feedbackText.text = "Tap a card to buy a consumable";
+            feedbackText.text = "Tap a card to buy coins or consumables";
+
+        RefreshOfferCards();
 
         for (int i = 0; i < shopOrder.Length; i++)
         {
@@ -572,6 +849,56 @@ public class ShopManager : MonoBehaviour
                 cost,
                 totalCoins >= cost);
         }
+    }
+
+    void RefreshOfferCards()
+    {
+        if (monetizationHeaderText != null)
+            monetizationHeaderText.text = "Coin Packs & Offers";
+
+        if (consumablesHeaderText != null)
+            consumablesHeaderText.text = "Consumables";
+
+        List<MonetizationOfferSnapshot> snapshots = GetOfferSnapshots();
+
+        for (int i = 0; i < snapshots.Count; i++)
+        {
+            MonetizationOfferSnapshot snapshot = snapshots[i];
+
+            if (!runtimeOfferCards.TryGetValue(snapshot.Definition.OfferId, out ShopOfferCardUI offerCard) ||
+                offerCard == null)
+            {
+                continue;
+            }
+
+            offerCard.RefreshView(snapshot, BuildOfferValueSummary(snapshot.Definition));
+        }
+    }
+
+    List<MonetizationOfferSnapshot> GetOfferSnapshots()
+    {
+        MonetizationManager manager = ResolveMonetizationManager(true);
+
+        if (manager == null)
+            return new List<MonetizationOfferSnapshot>();
+
+        return manager.GetOfferSnapshots();
+    }
+
+    string BuildOfferValueSummary(MonetizationOfferDefinition definition)
+    {
+        List<string> parts = new List<string>();
+
+        if (definition.CoinsGranted > 0)
+            parts.Add(definition.CoinsGranted + " coins");
+
+        for (int i = 0; i < definition.BonusUpgrades.Length; i++)
+        {
+            BonusUpgradeGrant grant = definition.BonusUpgrades[i];
+            parts.Add(grant.amount + " " + UpgradeInventory.GetDisplayName(grant.type));
+        }
+
+        return string.Join(" + ", parts);
     }
 
     bool TryBuyUpgrade(UpgradeType type)
@@ -630,6 +957,44 @@ public class ShopManager : MonoBehaviour
     public void BuyUpgradeCard(UpgradeType type)
     {
         TryBuyUpgrade(type);
+    }
+
+    public void BuyOfferCard(MonetizationOfferId offerId)
+    {
+        MonetizationManager manager = ResolveMonetizationManager(true);
+
+        if (manager == null)
+        {
+            SetFeedback("Store manager unavailable.");
+            RefreshUI();
+            return;
+        }
+
+        SetFeedback("Opening purchase flow...");
+        RefreshUI();
+
+        manager.PurchaseOffer(
+            offerId,
+            result =>
+            {
+                if (this == null)
+                    return;
+
+                totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
+                SetFeedback(result.Message);
+                RefreshUI();
+            });
+    }
+
+    void SnapScrollToTopIfNeeded()
+    {
+        if (!shouldSnapScrollToTop || scrollRect == null)
+            return;
+
+        Canvas.ForceUpdateCanvases();
+        scrollRect.StopMovement();
+        scrollRect.verticalNormalizedPosition = 1f;
+        shouldSnapScrollToTop = false;
     }
 
     int GetUpgradeCost(UpgradeType type)
@@ -768,17 +1133,17 @@ public class ShopUpgradeButtonUI : MonoBehaviour
     {
         titleText = FindOrCreateStretchText(
             "Title",
-            new Vector2(22f, 136f),
-            new Vector2(-22f, -18f),
+            new Vector2(20f, 156f),
+            new Vector2(-20f, -18f),
             TextAlignmentOptions.Top,
-            30f,
-            42f,
+            28f,
+            40f,
             runtimeFont);
 
         descriptionText = FindOrCreateStretchText(
             "Description",
-            new Vector2(22f, 78f),
-            new Vector2(-22f, -86f),
+            new Vector2(20f, 88f),
+            new Vector2(-20f, -88f),
             TextAlignmentOptions.Center,
             22f,
             30f,
@@ -786,8 +1151,8 @@ public class ShopUpgradeButtonUI : MonoBehaviour
 
         metaText = FindOrCreateStretchText(
             "Meta",
-            new Vector2(22f, 18f),
-            new Vector2(-22f, -136f),
+            new Vector2(20f, 18f),
+            new Vector2(-20f, -170f),
             TextAlignmentOptions.Bottom,
             20f,
             28f,
@@ -851,6 +1216,7 @@ public class ShopUpgradeButtonUI : MonoBehaviour
         {
             titleText.text = displayName;
             titleText.color = titleColor;
+            titleText.fontStyle = FontStyles.Bold;
         }
 
         if (descriptionText != null)
@@ -861,12 +1227,13 @@ public class ShopUpgradeButtonUI : MonoBehaviour
 
         if (metaText != null)
         {
-            string affordText = canAfford ? "Tap to buy" : "Need more coins";
+            string stateText = canAfford ? "Tap" : "Locked";
             string priceColorHex = canAfford ? "E9AA33" : "8A8FA0";
             metaText.text =
-                "Owned " + ownedAmount +
-                "   <color=#" + priceColorHex + ">" + cost + " coins</color>" +
-                "\n" + affordText;
+                "Owned: " + ownedAmount +
+                "  |  <color=#" + priceColorHex + ">" + cost + " coins</color>" +
+                "  |  " + stateText;
+            metaText.fontStyle = FontStyles.Bold;
         }
 
         if (backgroundImage != null)
@@ -882,5 +1249,186 @@ public class ShopUpgradeButtonUI : MonoBehaviour
     {
         if (shopManager != null)
             shopManager.BuyUpgradeCard(upgradeType);
+    }
+}
+
+public class ShopOfferCardUI : MonoBehaviour
+{
+    private ShopManager shopManager;
+    private MonetizationOfferId offerId;
+    private TextMeshProUGUI titleText;
+    private TextMeshProUGUI descriptionText;
+    private TextMeshProUGUI metaText;
+    private Image backgroundImage;
+    private Button button;
+
+    private readonly Color starterAvailableColor = new Color(1f, 0.95f, 0.86f, 0.98f);
+    private readonly Color coinPackAvailableColor = new Color(0.89f, 0.97f, 0.96f, 0.98f);
+    private readonly Color ownedColor = new Color(0.88f, 0.97f, 0.9f, 0.98f);
+    private readonly Color unavailableColor = new Color(0.88f, 0.9f, 0.94f, 0.88f);
+    private readonly Color titleColor = new Color(0.12f, 0.16f, 0.24f, 1f);
+    private readonly Color bodyColor = new Color(0.19f, 0.23f, 0.31f, 1f);
+
+    public void Initialize(
+        ShopManager manager,
+        MonetizationOfferId id,
+        Image image,
+        Button sourceButton,
+        TMP_FontAsset runtimeFont)
+    {
+        shopManager = manager;
+        offerId = id;
+        backgroundImage = image;
+        button = sourceButton;
+
+        CreateLabels(runtimeFont);
+
+        if (button != null)
+        {
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(OnPressed);
+        }
+    }
+
+    void CreateLabels(TMP_FontAsset runtimeFont)
+    {
+        titleText = FindOrCreateStretchText(
+            "Title",
+            new Vector2(20f, 150f),
+            new Vector2(-20f, -20f),
+            TextAlignmentOptions.Top,
+            24f,
+            38f,
+            runtimeFont);
+
+        descriptionText = FindOrCreateStretchText(
+            "Description",
+            new Vector2(20f, 76f),
+            new Vector2(-20f, -90f),
+            TextAlignmentOptions.Center,
+            18f,
+            26f,
+            runtimeFont);
+
+        metaText = FindOrCreateStretchText(
+            "Meta",
+            new Vector2(20f, 18f),
+            new Vector2(-20f, -170f),
+            TextAlignmentOptions.Bottom,
+            16f,
+            24f,
+            runtimeFont);
+    }
+
+    TextMeshProUGUI FindOrCreateStretchText(
+        string objectName,
+        Vector2 leftBottom,
+        Vector2 rightTop,
+        TextAlignmentOptions alignment,
+        float minSize,
+        float maxSize,
+        TMP_FontAsset runtimeFont)
+    {
+        Transform existing = transform.Find(objectName);
+        GameObject textObject;
+
+        bool created = existing == null;
+
+        if (existing != null)
+        {
+            textObject = existing.gameObject;
+        }
+        else
+        {
+            textObject = new GameObject(objectName, typeof(RectTransform));
+            textObject.transform.SetParent(transform, false);
+        }
+
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(leftBottom.x, leftBottom.y);
+        textRect.offsetMax = new Vector2(rightTop.x, rightTop.y);
+
+        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+
+        if (text == null)
+            text = textObject.AddComponent<TextMeshProUGUI>();
+
+        text.alignment = alignment;
+        text.color = bodyColor;
+
+        if (created)
+        {
+            text.enableAutoSizing = true;
+            text.fontSizeMin = minSize;
+            text.fontSizeMax = maxSize;
+            text.margin = new Vector4(2f, 0f, 2f, 0f);
+        }
+
+        if (runtimeFont != null && text.font == null)
+            text.font = runtimeFont;
+
+        return text;
+    }
+
+    public void RefreshView(MonetizationOfferSnapshot snapshot, string valueSummary)
+    {
+        if (titleText != null)
+        {
+            titleText.text = snapshot.Definition.DisplayName;
+            titleText.color = titleColor;
+            titleText.fontStyle = FontStyles.Bold;
+        }
+
+        if (descriptionText != null)
+        {
+            descriptionText.text =
+                valueSummary +
+                (string.IsNullOrEmpty(snapshot.Definition.HighlightLabel)
+                    ? string.Empty
+                    : "\n<color=#2F6FDB>" + snapshot.Definition.HighlightLabel + "</color>");
+            descriptionText.color = bodyColor;
+        }
+
+        if (metaText != null)
+        {
+            string priceColorHex = snapshot.CanPurchase ? "E9AA33" : "8A8FA0";
+            string statusColorHex = snapshot.IsOwned
+                ? "30945D"
+                : (snapshot.CanPurchase ? "2F6FDB" : "8A8FA0");
+
+            metaText.text =
+                "<color=#" + priceColorHex + ">" + snapshot.PriceLabel + "</color>" +
+                "\n<color=#" + statusColorHex + ">" + snapshot.StatusLabel + "</color>";
+            metaText.fontStyle = FontStyles.Bold;
+        }
+
+        if (button != null)
+            button.interactable = snapshot.CanPurchase;
+
+        if (backgroundImage != null)
+        {
+            if (snapshot.IsOwned)
+            {
+                backgroundImage.color = ownedColor;
+            }
+            else if (snapshot.CanPurchase)
+            {
+                backgroundImage.color = snapshot.Definition.IsStarterOffer
+                    ? starterAvailableColor
+                    : coinPackAvailableColor;
+            }
+            else
+            {
+                backgroundImage.color = unavailableColor;
+            }
+        }
+    }
+
+    void OnPressed()
+    {
+        if (shopManager != null)
+            shopManager.BuyOfferCard(offerId);
     }
 }
