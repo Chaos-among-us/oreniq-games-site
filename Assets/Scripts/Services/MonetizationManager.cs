@@ -6,7 +6,8 @@ using UnityEngine.Purchasing;
 
 public enum RewardedOfferType
 {
-    PostRunDoubleCoins
+    PostRunDoubleCoins,
+    MidRunRevive
 }
 
 public enum MonetizationOfferId
@@ -92,6 +93,7 @@ public class MonetizationManager : MonoBehaviour
     public event Action OnOfferCatalogChanged;
 
     [SerializeField] private bool simulateRewardedAdsInEditor = true;
+    [SerializeField] private bool simulateRewardedAdsInDevelopmentBuilds = true;
     [SerializeField] private bool simulateIapPurchasesInEditor = true;
     [SerializeField] private float simulatedRewardDelaySeconds = 0.75f;
     [SerializeField] private float simulatedPurchaseDelaySeconds = 0.6f;
@@ -148,11 +150,7 @@ public class MonetizationManager : MonoBehaviour
         if (isShowingRewardedAd)
             return false;
 
-#if UNITY_EDITOR
-        return simulateRewardedAdsInEditor;
-#else
-        return false;
-#endif
+        return IsRewardedAdSimulationEnabled();
     }
 
     public void ShowRewardedAd(RewardedOfferType offerType, Action<bool> onCompleted)
@@ -559,6 +557,14 @@ public class MonetizationManager : MonoBehaviour
 #else
         return false;
 #endif
+    }
+
+    bool IsRewardedAdSimulationEnabled()
+    {
+        if (Application.isEditor)
+            return simulateRewardedAdsInEditor;
+
+        return Debug.isDebugBuild && simulateRewardedAdsInDevelopmentBuilds;
     }
 
     List<ProductDefinition> BuildProductDefinitions()

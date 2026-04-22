@@ -9,6 +9,11 @@ public class ObstacleZigZag : MonoBehaviour
 
     private float timeOffset;
 
+    void Awake()
+    {
+        CaveHazardVisuals.EnsureStyled(gameObject, preferBat: true);
+    }
+
     void Start()
     {
         // Prevent all zig-zags syncing together
@@ -17,21 +22,21 @@ public class ObstacleZigZag : MonoBehaviour
 
     void Update()
     {
-        int difficulty = 1;
+        float speedMultiplier = 1.15f;
+        float horizontalScale = 1.05f;
         float worldSpeedMultiplier = 1f;
 
         if (GameManager.instance != null)
         {
-            difficulty = GameManager.instance.GetDifficultyLevel();
+            speedMultiplier = GameManager.instance.GetObstacleSpeedRampMultiplier();
+            horizontalScale = 1f + GameManager.instance.GetContinuousDifficultyLevel() * 0.05f;
             worldSpeedMultiplier = GameManager.instance.GetWorldSpeedMultiplier();
         }
-
-        float speedMultiplier = 1f + (difficulty * 0.15f);
 
         float fallSpeed = baseFallSpeed * speedMultiplier;
 
         // Limit horizontal scaling so it doesn't become unfair
-        float horizontalSpeed = baseHorizontalSpeed * (1f + (difficulty * 0.05f));
+        float horizontalSpeed = baseHorizontalSpeed * horizontalScale;
 
         float xOffset = Mathf.Sin((Time.time + timeOffset) * frequency) * horizontalSpeed;
 

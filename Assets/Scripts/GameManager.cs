@@ -42,6 +42,9 @@ public class GameManager : MonoBehaviour
 
     private RectTransform runUpgradePanel;
     private TMP_FontAsset runtimeFont;
+    private CaveBackgroundController caveBackgroundController;
+    private EndlessDodgeAudioDirector audioDirector;
+    private PlayerPowerupVisuals playerPowerupVisuals;
     private GameObject postRunPanel;
     private TextMeshProUGUI postRunSummaryText;
     private Button postRunDoubleCoinsButton;
@@ -54,12 +57,20 @@ public class GameManager : MonoBehaviour
     private TextMeshProUGUI hapticsStatusText;
     private Button hapticsToggleButton;
     private TextMeshProUGUI hapticsToggleButtonText;
+    private GameObject revivePromptRoot;
+    private TextMeshProUGUI revivePromptBodyText;
+    private Button revivePromptAcceptButton;
+    private TextMeshProUGUI revivePromptAcceptButtonText;
+    private Button revivePromptDeclineButton;
+    private TextMeshProUGUI revivePromptDeclineButtonText;
     private GameObject tutorialOverlayRoot;
     private TextMeshProUGUI tutorialBodyText;
     private Button tutorialPrimaryButton;
     private TextMeshProUGUI tutorialPrimaryButtonText;
     private bool markTutorialSeenOnClose;
     private bool postRunDoubleCoinsClaimed;
+    private bool rewardedReviveUsed;
+    private bool isAwaitingRewardedRevive;
 
     private const float RunUpgradeButtonWidth = 230f;
     private const float RunUpgradeButtonHeight = 78f;
@@ -98,6 +109,8 @@ public class GameManager : MonoBehaviour
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
         bestScore = PlayerPrefs.GetInt(BestScoreKey, 0);
         postRunDoubleCoinsClaimed = false;
+        rewardedReviveUsed = false;
+        isAwaitingRewardedRevive = false;
 
         if (totalCoinsText != null)
             totalCoinsText.text = "Coins: " + totalCoins;
@@ -116,11 +129,13 @@ public class GameManager : MonoBehaviour
 
         currentLevel = GetDifficultyLevel();
         UpdateLevelText();
+        EnsurePresentationSystems();
         LaunchAnalytics.RecordRunStarted(isDailyChallengeRun, equippedUpgrades.Count);
     }
 
     void Update()
     {
+        EnsurePresentationSystems();
         SyncLoadoutFromInventory(false);
 
         if (gameEnded) return;
@@ -145,6 +160,7 @@ public class GameManager : MonoBehaviour
         if (newLevel != currentLevel)
         {
             currentLevel = newLevel;
+            audioDirector?.PlayLevelAdvanceCue();
             UpdateLevelText();
             StartCoroutine(LevelFlash());
         }
@@ -201,6 +217,32 @@ public class GameManager : MonoBehaviour
         return Mathf.FloorToInt(runTime / difficultyStepTime) + 1;
     }
 
+    public float GetContinuousDifficultyLevel()
+    {
+        if (difficultyStepTime <= 0.001f)
+            return Mathf.Max(1f, currentLevel);
+
+        return 1f + Mathf.Max(0f, runTime) / difficultyStepTime;
+    }
+
+    public float GetLevelProgress01()
+    {
+        if (difficultyStepTime <= 0.001f)
+            return 1f;
+
+        return Mathf.Clamp01(Mathf.Repeat(runTime, difficultyStepTime) / difficultyStepTime);
+    }
+
+    public float GetLevelTransitionBlend01()
+    {
+        return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.24f, 0.94f, GetLevelProgress01()));
+    }
+
+    public float GetObstacleSpeedRampMultiplier()
+    {
+        return 1f + GetContinuousDifficultyLevel() * 0.15f;
+    }
+
     public void AddCoin()
     {
         int coinValue = GetCoinValue();
@@ -218,6 +260,8 @@ public class GameManager : MonoBehaviour
             UpdateUpgradeText();
             UpdateBestScoreHud();
         }
+
+        audioDirector?.PlayCoinPickup();
     }
 
     public void ActivateShield()
@@ -230,6 +274,8 @@ public class GameManager : MonoBehaviour
         if (used)
         {
             activeShields += 1;
+            audioDirector?.PlayShieldActivated();
+            playerPowerupVisuals?.PlayUpgradeBurst(UpgradeType.Shield);
             RefreshRunUpgradeButtons();
             UpdateUpgradeText();
         }
@@ -414,6 +460,8 @@ public class GameManager : MonoBehaviour
             if (obstacle != null)
                 Destroy(obstacle);
 
+            audioDirector?.PlayShieldBlocked();
+            playerPowerupVisuals?.PlayShieldBlockBurst();
             return;
         }
 
@@ -425,6 +473,8 @@ public class GameManager : MonoBehaviour
             if (player != null)
                 player.TriggerInvulnerability(ShieldProtectionDuration);
 
+            audioDirector?.PlayShieldBlocked();
+            playerPowerupVisuals?.PlayShieldBlockBurst();
             GameSettings.TriggerHaptic();
 
             ProcessAutoUpgrades();
@@ -446,6 +496,17 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        audioDirector?.PlayObstacleHit();
+
+        if (CanOfferRewardedRevive())
+        {
+            if (obstacle != null)
+                Destroy(obstacle);
+
+            ShowRewardedRevivePrompt();
+            return;
+        }
+
         GameOver();
     }
 
@@ -458,6 +519,9 @@ public class GameManager : MonoBehaviour
 
         if (player != null)
             player.Revive(ExtraLifeInvulnerabilityDuration);
+
+        audioDirector?.PlayExtraLifeRevive();
+        playerPowerupVisuals?.PlayUpgradeBurst(UpgradeType.ExtraLife);
     }
 
     public void UseRunUpgrade(UpgradeType type)
@@ -521,6 +585,8 @@ public class GameManager : MonoBehaviour
         if (UpgradeInventory.Instance.UseUpgrade(UpgradeType.ExtraLife, 1))
         {
             armedExtraLives += 1;
+            audioDirector?.PlayExtraLifeArmed();
+            playerPowerupVisuals?.PlayUpgradeBurst(UpgradeType.ExtraLife);
         }
     }
 
@@ -535,6 +601,9 @@ public class GameManager : MonoBehaviour
         {
             Destroy(obstacles[i]);
         }
+
+        audioDirector?.PlayBombBlast();
+        playerPowerupVisuals?.PlayBombBurst();
     }
 
     void ActivateTimedUpgrade(UpgradeType type, float duration)
@@ -548,6 +617,8 @@ public class GameManager : MonoBehaviour
             startTime = activeUpgradeEndTimes[type];
 
         activeUpgradeEndTimes[type] = startTime + duration;
+        audioDirector?.PlayUpgradeActivated(type);
+        playerPowerupVisuals?.PlayUpgradeBurst(type);
     }
 
     void LoadEquippedUpgrades()
@@ -898,6 +969,8 @@ public class GameManager : MonoBehaviour
     {
         if (gameEnded) return;
 
+        isAwaitingRewardedRevive = false;
+        SetRevivePromptVisible(false);
         gameEnded = true;
         int finalScore = Mathf.FloorToInt(score);
         DailyMissionSystem.RegisterRunFinished(finalScore, currentLevel);
@@ -1006,6 +1079,9 @@ public class GameManager : MonoBehaviour
 
         if (tutorialOverlayRoot == null)
             CreateTutorialOverlay(parentRect);
+
+        if (revivePromptRoot == null)
+            CreateRevivePrompt(parentRect);
 
         NormalizeHudLayout(parentRect);
     }
@@ -1333,6 +1409,111 @@ public class GameManager : MonoBehaviour
 
         EnsurePostRunDoubleCoinsButton();
         postRunPanel.SetActive(false);
+    }
+
+    void CreateRevivePrompt(RectTransform parentRect)
+    {
+        revivePromptRoot = new GameObject("RevivePromptRoot", typeof(RectTransform), typeof(Image));
+        revivePromptRoot.transform.SetParent(parentRect, false);
+
+        RectTransform rootRect = revivePromptRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = Vector2.zero;
+        rootRect.anchorMax = Vector2.one;
+        rootRect.offsetMin = Vector2.zero;
+        rootRect.offsetMax = Vector2.zero;
+
+        Image overlayImage = revivePromptRoot.GetComponent<Image>();
+        overlayImage.color = new Color(0.03f, 0.05f, 0.08f, 0.84f);
+
+        GameObject panelObject = new GameObject("RevivePromptPanel", typeof(RectTransform), typeof(Image));
+        panelObject.transform.SetParent(revivePromptRoot.transform, false);
+
+        RectTransform panelRect = panelObject.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.sizeDelta = new Vector2(660f, 360f);
+        panelRect.anchoredPosition = new Vector2(0f, -10f);
+
+        Image panelImage = panelObject.GetComponent<Image>();
+        panelImage.color = new Color(0.11f, 0.17f, 0.28f, 0.98f);
+
+        CreateRuntimeLabel(
+            panelRect,
+            "RevivePromptTitle",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(520f, 58f),
+            new Vector2(0f, -30f),
+            TextAlignmentOptions.Center,
+            28f,
+            40f,
+            Color.white).text = "Continue This Run?";
+
+        revivePromptBodyText = CreateRuntimeLabel(
+            panelRect,
+            "RevivePromptBody",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(560f, 132f),
+            new Vector2(0f, -122f),
+            TextAlignmentOptions.Center,
+            22f,
+            32f,
+            new Color(0.93f, 0.97f, 1f, 1f));
+
+        if (revivePromptBodyText != null)
+        {
+            revivePromptBodyText.lineSpacing = 8f;
+            revivePromptBodyText.text = "Watch an ad to revive once and keep your coin run going.";
+        }
+
+        revivePromptAcceptButton = CreateRuntimeButton(
+            panelRect,
+            "ReviveAcceptButton",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(450f, 72f),
+            new Vector2(0f, 106f),
+            "Watch Ad: Revive",
+            new Color(0.94f, 0.73f, 0.23f, 1f),
+            out revivePromptAcceptButtonText);
+
+        if (revivePromptAcceptButton != null)
+        {
+            revivePromptAcceptButton.onClick.RemoveAllListeners();
+            revivePromptAcceptButton.onClick.AddListener(ClaimRewardedRevive);
+        }
+
+        if (revivePromptAcceptButtonText != null)
+        {
+            revivePromptAcceptButtonText.enableAutoSizing = true;
+            revivePromptAcceptButtonText.fontSizeMin = 20f;
+            revivePromptAcceptButtonText.fontSizeMax = 30f;
+        }
+
+        revivePromptDeclineButton = CreateRuntimeButton(
+            panelRect,
+            "ReviveDeclineButton",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(450f, 64f),
+            new Vector2(0f, 24f),
+            "End Run",
+            new Color(0.34f, 0.4f, 0.48f, 1f),
+            out revivePromptDeclineButtonText);
+
+        if (revivePromptDeclineButton != null)
+        {
+            revivePromptDeclineButton.onClick.RemoveAllListeners();
+            revivePromptDeclineButton.onClick.AddListener(SkipRewardedRevive);
+        }
+
+        revivePromptRoot.SetActive(false);
     }
 
     void CreatePauseButton(RectTransform parentRect)
@@ -1715,7 +1896,7 @@ public class GameManager : MonoBehaviour
                     "</color>";
             }
 
-            if (postRunDoubleCoinsClaimed)
+        if (postRunDoubleCoinsClaimed)
             {
                 summaryText += "\n<color=#7FF0A6>Double coins claimed</color>";
             }
@@ -1731,6 +1912,47 @@ public class GameManager : MonoBehaviour
         postRunSummaryText.text = summaryText;
         postRunPanel.SetActive(true);
         RefreshPostRunDoubleCoinsButton();
+    }
+
+    bool CanOfferRewardedRevive()
+    {
+        return !gameEnded &&
+               !isDailyChallengeRun &&
+               !rewardedReviveUsed &&
+               !isAwaitingRewardedRevive &&
+               MonetizationManager.Instance != null &&
+               MonetizationManager.Instance.CanShowRewardedAd(RewardedOfferType.MidRunRevive);
+    }
+
+    void ShowRewardedRevivePrompt()
+    {
+        if (revivePromptRoot == null)
+        {
+            GameOver();
+            return;
+        }
+
+        isAwaitingRewardedRevive = true;
+        SetPauseOverlayVisible(false);
+        SetTutorialOverlayVisible(false);
+
+        if (revivePromptBodyText != null)
+            revivePromptBodyText.text = "Watch an ad to revive once and continue from this run.";
+
+        if (revivePromptAcceptButton != null)
+            revivePromptAcceptButton.interactable = true;
+
+        if (revivePromptAcceptButtonText != null)
+            revivePromptAcceptButtonText.text = "Watch Ad: Revive";
+
+        if (revivePromptDeclineButton != null)
+            revivePromptDeclineButton.interactable = true;
+
+        if (revivePromptDeclineButtonText != null)
+            revivePromptDeclineButtonText.text = "End Run";
+
+        SetRevivePromptVisible(true);
+        GameSettings.TriggerHaptic();
     }
 
     bool CanOfferPostRunDoubleCoins()
@@ -1779,6 +2001,55 @@ public class GameManager : MonoBehaviour
             HandlePostRunDoubleCoinsResult);
     }
 
+    public void ClaimRewardedRevive()
+    {
+        if (!CanOfferRewardedRevive())
+            return;
+
+        if (revivePromptAcceptButton != null)
+            revivePromptAcceptButton.interactable = false;
+
+        if (revivePromptDeclineButton != null)
+            revivePromptDeclineButton.interactable = false;
+
+        if (revivePromptAcceptButtonText != null)
+            revivePromptAcceptButtonText.text = "Loading Ad...";
+
+        LaunchAnalytics.RecordRewardedOfferRequested("mid_run_revive", 1);
+        MonetizationManager.Instance.ShowRewardedAd(
+            RewardedOfferType.MidRunRevive,
+            HandleRewardedReviveResult);
+    }
+
+    public void SkipRewardedRevive()
+    {
+        if (!isAwaitingRewardedRevive)
+            return;
+
+        isAwaitingRewardedRevive = false;
+        SetRevivePromptVisible(false);
+        GameOver();
+    }
+
+    void HandleRewardedReviveResult(bool rewarded)
+    {
+        LaunchAnalytics.RecordRewardedOfferResult("mid_run_revive", rewarded, 1);
+        isAwaitingRewardedRevive = false;
+
+        if (!rewarded)
+        {
+            SetRevivePromptVisible(false);
+            GameOver();
+            return;
+        }
+
+        rewardedReviveUsed = true;
+        SetRevivePromptVisible(false);
+        StartCoroutine(RevivePlayerRoutine());
+        RefreshRunUpgradeButtons();
+        UpdateUpgradeText();
+    }
+
     void HandlePostRunDoubleCoinsResult(bool rewarded)
     {
         LaunchAnalytics.RecordRewardedOfferResult("post_run_double_coins", rewarded, runCoinsEarned);
@@ -1815,7 +2086,7 @@ public class GameManager : MonoBehaviour
 
     public void TogglePause()
     {
-        if (gameEnded || IsTutorialOverlayVisible())
+        if (gameEnded || IsTutorialOverlayVisible() || IsRevivePromptVisible())
             return;
 
         SetPauseOverlayVisible(!IsPauseOverlayVisible());
@@ -1877,6 +2148,14 @@ public class GameManager : MonoBehaviour
         UpdateOverlayTimeScale();
     }
 
+    void SetRevivePromptVisible(bool isVisible)
+    {
+        if (revivePromptRoot != null)
+            revivePromptRoot.SetActive(isVisible);
+
+        UpdateOverlayTimeScale();
+    }
+
     bool IsPauseOverlayVisible()
     {
         return pauseOverlayRoot != null && pauseOverlayRoot.activeSelf;
@@ -1887,9 +2166,47 @@ public class GameManager : MonoBehaviour
         return tutorialOverlayRoot != null && tutorialOverlayRoot.activeSelf;
     }
 
+    bool IsRevivePromptVisible()
+    {
+        return revivePromptRoot != null && revivePromptRoot.activeSelf;
+    }
+
     void UpdateOverlayTimeScale()
     {
-        Time.timeScale = (IsPauseOverlayVisible() || IsTutorialOverlayVisible()) ? 0f : 1f;
+        Time.timeScale = (IsPauseOverlayVisible() || IsTutorialOverlayVisible() || IsRevivePromptVisible()) ? 0f : 1f;
+    }
+
+    void EnsurePresentationSystems()
+    {
+        if (caveBackgroundController == null)
+        {
+            caveBackgroundController = FindAnyObjectByType<CaveBackgroundController>();
+
+            if (caveBackgroundController == null)
+            {
+                GameObject backgroundRoot = new GameObject("RuntimeCaveBackground");
+                caveBackgroundController = backgroundRoot.AddComponent<CaveBackgroundController>();
+            }
+        }
+
+        if (audioDirector == null)
+        {
+            audioDirector = FindAnyObjectByType<EndlessDodgeAudioDirector>();
+
+            if (audioDirector == null)
+            {
+                GameObject audioRoot = new GameObject("EndlessDodgeAudioDirector");
+                audioDirector = audioRoot.AddComponent<EndlessDodgeAudioDirector>();
+            }
+        }
+
+        if (player != null && playerPowerupVisuals == null)
+        {
+            playerPowerupVisuals = player.GetComponent<PlayerPowerupVisuals>();
+
+            if (playerPowerupVisuals == null)
+                playerPowerupVisuals = player.gameObject.AddComponent<PlayerPowerupVisuals>();
+        }
     }
 }
 

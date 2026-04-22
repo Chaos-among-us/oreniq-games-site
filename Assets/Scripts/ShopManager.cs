@@ -186,6 +186,22 @@ public class ShopManager : MonoBehaviour
             uiRootRect = totalCoinsText.rectTransform.parent as RectTransform;
 
         SafeAreaUtility.ApplySafeArea(uiRootRect);
+        MenuBackdropUtility.EnsureBackdrop(uiRootRect, CaveThemeLibrary.GetMenuTheme(), "ShopBackdrop");
+        ApplySceneTheme();
+
+        Image rootImage = uiRootRect != null ? uiRootRect.GetComponent<Image>() : null;
+
+        if (rootImage != null)
+            rootImage.color = new Color(0.02f, 0.03f, 0.05f, 0.08f);
+    }
+
+    void ApplySceneTheme()
+    {
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        Camera mainCamera = Camera.main;
+
+        if (mainCamera != null)
+            mainCamera.backgroundColor = Color.Lerp(theme.BackgroundBottom, theme.FogColor, 0.3f);
     }
 
     void EnsureRuntimeUI()
@@ -295,7 +311,7 @@ public class ShopManager : MonoBehaviour
         feedbackText.enableAutoSizing = true;
         feedbackText.fontSizeMin = 16;
         feedbackText.fontSizeMax = 22;
-        feedbackText.color = new Color(0.16f, 0.18f, 0.24f, 1f);
+        feedbackText.color = new Color(0.79f, 0.87f, 0.93f, 1f);
 
         if (runtimeFont != null)
             feedbackText.font = runtimeFont;
@@ -325,11 +341,16 @@ public class ShopManager : MonoBehaviour
             viewportRect = viewportObject.GetComponent<RectTransform>();
 
             Image viewportImage = viewportObject.GetComponent<Image>();
-            viewportImage.color = new Color(1f, 1f, 1f, 0.02f);
+            viewportImage.color = new Color(0.07f, 0.09f, 0.13f, 0.26f);
         }
 
         if (viewportRect.GetComponent<RectMask2D>() == null)
             viewportRect.gameObject.AddComponent<RectMask2D>();
+
+        Image existingViewportImage = viewportRect.GetComponent<Image>();
+
+        if (existingViewportImage != null)
+            existingViewportImage.color = new Color(0.07f, 0.09f, 0.13f, 0.26f);
 
         Transform existingContent = viewportRect.Find(ContentObjectName);
 
@@ -402,7 +423,7 @@ public class ShopManager : MonoBehaviour
         text.fontSizeMin = 18;
         text.fontSizeMax = 28;
         text.fontStyle = FontStyles.Bold;
-        text.color = new Color(0.11f, 0.17f, 0.27f, 0.92f);
+        text.color = new Color(0.9f, 0.95f, 0.98f, 0.96f);
 
         if (runtimeFont != null && text.font == null)
             text.font = runtimeFont;
@@ -415,6 +436,7 @@ public class ShopManager : MonoBehaviour
         if (uiRootRect == null)
             return;
 
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
         Canvas.ForceUpdateCanvases();
         float contentWidth = GetCenteredContentWidth();
 
@@ -434,6 +456,7 @@ public class ShopManager : MonoBehaviour
             shopTitleText.enableAutoSizing = true;
             shopTitleText.fontSizeMin = 20;
             shopTitleText.fontSizeMax = 30;
+            shopTitleText.color = new Color(0.95f, 0.98f, 0.99f, 1f);
         }
 
         if (totalCoinsText != null)
@@ -448,6 +471,7 @@ public class ShopManager : MonoBehaviour
             totalCoinsText.enableAutoSizing = true;
             totalCoinsText.fontSizeMin = 16;
             totalCoinsText.fontSizeMax = 24;
+            totalCoinsText.color = new Color(0.84f, 0.91f, 0.95f, 1f);
         }
 
         if (feedbackText != null)
@@ -460,6 +484,7 @@ public class ShopManager : MonoBehaviour
             feedbackRect.anchoredPosition = new Vector2(0f, -130f);
             feedbackText.fontSizeMin = 16;
             feedbackText.fontSizeMax = 22;
+            feedbackText.color = new Color(0.79f, 0.87f, 0.93f, 1f);
         }
 
         if (backButtonRect != null)
@@ -476,6 +501,15 @@ public class ShopManager : MonoBehaviour
             backButtonText.enableAutoSizing = true;
             backButtonText.fontSizeMin = 18;
             backButtonText.fontSizeMax = 28;
+            backButtonText.color = new Color(0.95f, 0.98f, 0.99f, 1f);
+        }
+
+        if (backButtonRect != null)
+        {
+            Image backButtonImage = backButtonRect.GetComponent<Image>();
+
+            if (backButtonImage != null)
+                backButtonImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.42f);
         }
 
         if (viewportRect != null)

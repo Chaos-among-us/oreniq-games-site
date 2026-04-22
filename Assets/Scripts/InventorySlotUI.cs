@@ -8,14 +8,11 @@ public class InventorySlotUI : MonoBehaviour
     public InventoryMenu inventoryMenu;
 
     public TextMeshProUGUI nameText;
+    public TextMeshProUGUI descriptionText;
     public TextMeshProUGUI ownedText;
     public TextMeshProUGUI statusText;
     public TextMeshProUGUI combinedText;
     public Image backgroundImage;
-
-    public Color normalColor = new Color(0.97f, 0.98f, 1f, 0.96f);
-    public Color selectedColor = new Color(0.78f, 0.93f, 0.82f, 0.98f);
-    public Color unavailableColor = new Color(0.84f, 0.86f, 0.9f, 0.82f);
 
     private Button button;
     private bool clickBound = false;
@@ -62,7 +59,7 @@ public class InventorySlotUI : MonoBehaviour
 
             if (existing != null)
                 combinedText = existing.GetComponent<TextMeshProUGUI>();
-            else if (nameText == null && ownedText == null && statusText == null)
+            else if (nameText == null && descriptionText == null && ownedText == null && statusText == null)
                 combinedText = GetComponentInChildren<TextMeshProUGUI>(true);
         }
 
@@ -98,36 +95,59 @@ public class InventorySlotUI : MonoBehaviour
             isEquipped = UpgradeInventory.Instance.IsEquipped(upgradeType);
         }
 
-        if (combinedText != null)
+        if (nameText != null)
         {
-            string statusLine;
-            string statusColor;
+            nameText.text = UpgradeInventory.GetDisplayName(upgradeType);
+            nameText.color = Color.white;
+            nameText.fontStyle = FontStyles.Bold;
+        }
 
+        if (descriptionText != null)
+        {
+            descriptionText.text = GetUpgradeDescription(upgradeType);
+            descriptionText.color = new Color(0.83f, 0.89f, 0.94f, 0.96f);
+        }
+
+        if (ownedText != null)
+        {
+            ownedText.text = "Owned: " + ownedAmount;
+            ownedText.color = ownedAmount > 0
+                ? new Color(0.86f, 0.93f, 0.97f, 0.96f)
+                : new Color(0.68f, 0.74f, 0.8f, 0.9f);
+        }
+
+        if (statusText != null)
+        {
             if (isEquipped)
             {
-                statusLine = "Owned: " + ownedAmount + "   |   Equipped now";
-                statusColor = "#246641";
+                statusText.text = "Selected";
+                statusText.color = new Color(0.58f, 0.93f, 0.72f, 1f);
             }
             else if (ownedAmount > 0)
             {
-                statusLine = "Owned: " + ownedAmount + "   |   Tap to equip";
-                statusColor = "#425676";
+                statusText.text = "Tap to use";
+                statusText.color = new Color(0.64f, 0.79f, 0.95f, 1f);
             }
             else
             {
-                statusLine = "Owned: 0   |   Buy in shop";
-                statusColor = "#6D7380";
+                statusText.text = "Shop first";
+                statusText.color = new Color(0.82f, 0.74f, 0.54f, 0.96f);
             }
-
-            combinedText.gameObject.SetActive(true);
-            combinedText.text =
-                "<size=125%><b>" + UpgradeInventory.GetDisplayName(upgradeType) + "</b></size>" +
-                "\n<size=88%>" + GetUpgradeDescription(upgradeType) + "</size>" +
-                "\n<size=74%><color=" + statusColor + ">" + statusLine + "</color></size>";
         }
+
+        if (combinedText != null)
+            combinedText.gameObject.SetActive(false);
 
         if (backgroundImage != null)
         {
+            RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+            Color normalColor = Color.Lerp(theme.WallColor, theme.BackgroundBottom, 0.28f);
+            normalColor.a = 0.96f;
+            Color selectedColor = Color.Lerp(theme.AccentColor, theme.CrystalColor, 0.28f);
+            selectedColor.a = 0.97f;
+            Color unavailableColor = Color.Lerp(theme.WallColor, Color.black, 0.22f);
+            unavailableColor.a = 0.9f;
+
             if (isEquipped)
                 backgroundImage.color = selectedColor;
             else if (ownedAmount > 0)
@@ -141,39 +161,169 @@ public class InventorySlotUI : MonoBehaviour
     {
         TMP_FontAsset runtimeFont = ResolveRuntimeFont();
 
-        if (combinedText == null)
+        nameText = EnsureTopBandLabel(
+            "NameText",
+            nameText,
+            runtimeFont,
+            20f,
+            52f,
+            26f,
+            180f,
+            TextAlignmentOptions.TopLeft,
+            24f,
+            38f,
+            FontStyles.Bold);
+
+        descriptionText = EnsureTopBandLabel(
+            "DescriptionText",
+            descriptionText,
+            runtimeFont,
+            82f,
+            30f,
+            26f,
+            26f,
+            TextAlignmentOptions.TopLeft,
+            14f,
+            20f,
+            FontStyles.Normal);
+
+        ownedText = EnsureBottomHalfLabel(
+            "OwnedText",
+            ownedText,
+            runtimeFont,
+            true,
+            18f,
+            32f,
+            26f,
+            TextAlignmentOptions.BottomLeft,
+            14f,
+            20f,
+            FontStyles.Normal);
+
+        statusText = EnsureBottomHalfLabel(
+            "StatusText",
+            statusText,
+            runtimeFont,
+            false,
+            18f,
+            32f,
+            26f,
+            TextAlignmentOptions.BottomRight,
+            14f,
+            20f,
+            FontStyles.Bold);
+
+        if (combinedText != null)
+            combinedText.gameObject.SetActive(false);
+    }
+
+    TextMeshProUGUI EnsureTopBandLabel(
+        string objectName,
+        TextMeshProUGUI label,
+        TMP_FontAsset runtimeFont,
+        float topOffset,
+        float height,
+        float leftInset,
+        float rightInset,
+        TextAlignmentOptions alignment,
+        float minSize,
+        float maxSize,
+        FontStyles fontStyle)
+    {
+        if (label == null)
         {
-            GameObject textObject = new GameObject("CombinedText", typeof(RectTransform));
-            textObject.transform.SetParent(transform, false);
-            combinedText = textObject.AddComponent<TextMeshProUGUI>();
+            Transform existing = transform.Find(objectName);
+
+            if (existing != null)
+                label = existing.GetComponent<TextMeshProUGUI>();
         }
 
-        RectTransform textRect = combinedText.rectTransform;
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(26f, 22f);
-        textRect.offsetMax = new Vector2(-26f, -22f);
+        if (label == null)
+        {
+            GameObject textObject = new GameObject(objectName, typeof(RectTransform));
+            textObject.transform.SetParent(transform, false);
+            label = textObject.AddComponent<TextMeshProUGUI>();
+        }
 
-        combinedText.enableAutoSizing = true;
-        combinedText.fontSizeMin = 18f;
-        combinedText.fontSizeMax = 28f;
-        combinedText.alignment = TextAlignmentOptions.Center;
-        combinedText.margin = new Vector4(4f, 0f, 4f, 0f);
-        combinedText.lineSpacing = 8f;
-        combinedText.color = new Color(0.18f, 0.22f, 0.3f, 1f);
+        RectTransform textRect = label.rectTransform;
+        textRect.anchorMin = new Vector2(0f, 1f);
+        textRect.anchorMax = new Vector2(1f, 1f);
+        textRect.pivot = new Vector2(0.5f, 1f);
+        textRect.offsetMin = new Vector2(leftInset, -(topOffset + height));
+        textRect.offsetMax = new Vector2(-rightInset, -topOffset);
 
-        if (runtimeFont != null && combinedText.font == null)
-            combinedText.font = runtimeFont;
+        label.gameObject.SetActive(true);
+        label.enableAutoSizing = true;
+        label.fontSizeMin = minSize;
+        label.fontSizeMax = maxSize;
+        label.alignment = alignment;
+        label.margin = new Vector4(2f, 0f, 2f, 0f);
+        label.lineSpacing = 2f;
+        label.fontStyle = fontStyle;
 
-        SetOptionalTextVisible(nameText, false);
-        SetOptionalTextVisible(ownedText, false);
-        SetOptionalTextVisible(statusText, false);
+        if (runtimeFont != null && label.font == null)
+            label.font = runtimeFont;
+
+        return label;
+    }
+
+    TextMeshProUGUI EnsureBottomHalfLabel(
+        string objectName,
+        TextMeshProUGUI label,
+        TMP_FontAsset runtimeFont,
+        bool alignLeftHalf,
+        float bottomOffset,
+        float height,
+        float inset,
+        TextAlignmentOptions alignment,
+        float minSize,
+        float maxSize,
+        FontStyles fontStyle)
+    {
+        if (label == null)
+        {
+            Transform existing = transform.Find(objectName);
+
+            if (existing != null)
+                label = existing.GetComponent<TextMeshProUGUI>();
+        }
+
+        if (label == null)
+        {
+            GameObject textObject = new GameObject(objectName, typeof(RectTransform));
+            textObject.transform.SetParent(transform, false);
+            label = textObject.AddComponent<TextMeshProUGUI>();
+        }
+
+        RectTransform textRect = label.rectTransform;
+        textRect.anchorMin = alignLeftHalf ? new Vector2(0f, 0f) : new Vector2(0.5f, 0f);
+        textRect.anchorMax = alignLeftHalf ? new Vector2(0.5f, 0f) : new Vector2(1f, 0f);
+        textRect.pivot = new Vector2(0.5f, 0f);
+        textRect.offsetMin = new Vector2(inset, bottomOffset);
+        textRect.offsetMax = new Vector2(-inset, bottomOffset + height);
+
+        label.gameObject.SetActive(true);
+        label.enableAutoSizing = true;
+        label.fontSizeMin = minSize;
+        label.fontSizeMax = maxSize;
+        label.alignment = alignment;
+        label.margin = new Vector4(0f, 0f, 0f, 0f);
+        label.lineSpacing = 0f;
+        label.fontStyle = fontStyle;
+
+        if (runtimeFont != null && label.font == null)
+            label.font = runtimeFont;
+
+        return label;
     }
 
     TMP_FontAsset ResolveRuntimeFont()
     {
         if (nameText != null && nameText.font != null)
             return nameText.font;
+
+        if (descriptionText != null && descriptionText.font != null)
+            return descriptionText.font;
 
         if (ownedText != null && ownedText.font != null)
             return ownedText.font;
@@ -188,34 +338,28 @@ public class InventorySlotUI : MonoBehaviour
         return fallbackText != null ? fallbackText.font : null;
     }
 
-    void SetOptionalTextVisible(TextMeshProUGUI text, bool isVisible)
-    {
-        if (text != null && text != combinedText)
-            text.gameObject.SetActive(isVisible);
-    }
-
     string GetUpgradeDescription(UpgradeType type)
     {
         switch (type)
         {
             case UpgradeType.Shield:
-                return "Block one hit";
+                return "One-hit barrier";
             case UpgradeType.SpeedBoost:
-                return "Move faster";
+                return "Faster movement";
             case UpgradeType.ExtraLife:
-                return "Revive once";
+                return "One revive";
             case UpgradeType.CoinMagnet:
-                return "Pull in coins";
+                return "Pull coins in";
             case UpgradeType.DoubleCoins:
-                return "Double coin value";
+                return "2x coin value";
             case UpgradeType.SlowTime:
-                return "Slow obstacles";
+                return "Slow hazards";
             case UpgradeType.SmallerPlayer:
-                return "Shrink your hitbox";
+                return "Smaller hitbox";
             case UpgradeType.ScoreBooster:
-                return "Double score gain";
+                return "2x score gain";
             case UpgradeType.Bomb:
-                return "Clear the screen";
+                return "Clear screen";
             case UpgradeType.RareCoinBoost:
                 return "More coin spawns";
             default:

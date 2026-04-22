@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
@@ -12,6 +13,7 @@ public static class AndroidBuildUtility
     private const string OutputDirectoryRelativePath = "Builds/Android";
     private const string DebugApkFileName = "EndlessDodge1-debug.apk";
     private const string GeneratedAndroidProjectRelativePath = "Library/Bee/Android/Prj";
+    private static readonly NamedBuildTarget AndroidNamedBuildTarget = NamedBuildTarget.Android;
 
     [MenuItem("Tools/Android/Build Debug APK")]
     private static void BuildDebugApkFromMenu()
@@ -59,19 +61,45 @@ public static class AndroidBuildUtility
         string previousAliasName = PlayerSettings.Android.keyaliasName;
         string previousAliasPass = PlayerSettings.Android.keyaliasPass;
         bool previousBuildAppBundle = EditorUserBuildSettings.buildAppBundle;
+        ScriptingImplementation previousScriptingBackend = PlayerSettings.GetScriptingBackend(AndroidNamedBuildTarget);
+        AndroidArchitecture previousTargetArchitectures = PlayerSettings.Android.targetArchitectures;
+        int previousArchitectureValue = GetArchitectureValue(previousTargetArchitectures);
+        AndroidSigningResolutionStatus signingResolutionStatus = AndroidSigningConfigResolver.Resolve(
+            out ResolvedAndroidReleaseSigningConfig resolvedSigningConfig,
+            out string signingResolutionMessage);
 
         try
         {
             if (!EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android))
                 return Fail("Unity could not switch the active build target to Android.", interactive);
 
-            // Force a debuggable APK build even when release signing has not been recovered on this machine yet.
             EditorUserBuildSettings.buildAppBundle = false;
-            PlayerSettings.Android.useCustomKeystore = false;
-            PlayerSettings.Android.keystoreName = string.Empty;
-            PlayerSettings.Android.keystorePass = string.Empty;
-            PlayerSettings.Android.keyaliasName = string.Empty;
-            PlayerSettings.Android.keyaliasPass = string.Empty;
+            ConfigureSupportedDebugBuildSettings(previousScriptingBackend, previousTargetArchitectures);
+
+            if (signingResolutionStatus == AndroidSigningResolutionStatus.Success)
+            {
+                ApplySigning(resolvedSigningConfig);
+                UnityEngine.Debug.Log(
+                    "Using shared Android signing from " +
+                    resolvedSigningConfig.ConfigPath +
+                    " for the debug build.");
+            }
+            else if (signingResolutionStatus == AndroidSigningResolutionStatus.Invalid)
+            {
+                return Fail(signingResolutionMessage, interactive);
+            }
+            else
+            {
+                // Fall back to the machine-local debug keystore so day-to-day testing is never blocked.
+                PlayerSettings.Android.useCustomKeystore = false;
+                PlayerSettings.Android.keystoreName = string.Empty;
+                PlayerSettings.Android.keystorePass = string.Empty;
+                PlayerSettings.Android.keyaliasName = string.Empty;
+                PlayerSettings.Android.keyaliasPass = string.Empty;
+                UnityEngine.Debug.Log(
+                    "Shared Android signing was not found. Falling back to machine-local debug signing.\n" +
+                    signingResolutionMessage);
+            }
 
             BuildPlayerOptions options = new BuildPlayerOptions
             {
@@ -117,8 +145,42 @@ public static class AndroidBuildUtility
             PlayerSettings.Android.keyaliasName = previousAliasName;
             PlayerSettings.Android.keyaliasPass = previousAliasPass;
             EditorUserBuildSettings.buildAppBundle = previousBuildAppBundle;
+            PlayerSettings.SetScriptingBackend(AndroidNamedBuildTarget, previousScriptingBackend);
+            PlayerSettings.SetArchitecture(AndroidNamedBuildTarget, previousArchitectureValue);
+            PlayerSettings.Android.targetArchitectures = previousTargetArchitectures;
             AssetDatabase.SaveAssets();
         }
+    }
+
+    private static void ConfigureSupportedDebugBuildSettings(
+        ScriptingImplementation previousScriptingBackend,
+        AndroidArchitecture previousTargetArchitectures)
+    {
+        if (previousScriptingBackend != ScriptingImplementation.IL2CPP)
+        {
+            PlayerSettings.SetScriptingBackend(AndroidNamedBuildTarget, ScriptingImplementation.IL2CPP);
+            UnityEngine.Debug.Log(
+                "Using IL2CPP for Android debug builds so the batch pipeline matches the supported " +
+                "phone build configuration.");
+        }
+
+        int architectureValue = GetArchitectureValue(AndroidArchitecture.ARM64);
+        PlayerSettings.SetArchitecture(AndroidNamedBuildTarget, architectureValue);
+        PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+        UnityEngine.Debug.Log(
+            "Using ARM64 as the Android debug-build architecture for device testing. " +
+            "Previous architecture setting was: " + previousTargetArchitectures + ".");
+    }
+
+    private static int GetArchitectureValue(AndroidArchitecture architecture)
+    {
+        if (architecture == AndroidArchitecture.None)
+            return 0;
+
+        if (architecture == AndroidArchitecture.ARM64)
+            return 1;
+
+        return 2;
     }
 
     private static bool TryFinalizeOutputApk(
@@ -257,6 +319,15 @@ public static class AndroidBuildUtility
         Fail("ADB install did not report success.\n\n" + installOutput, interactive);
     }
 
+    private static void ApplySigning(ResolvedAndroidReleaseSigningConfig resolvedConfig)
+    {
+        PlayerSettings.Android.useCustomKeystore = true;
+        PlayerSettings.Android.keystoreName = NormalizePathForUnity(resolvedConfig.KeystorePath);
+        PlayerSettings.Android.keystorePass = resolvedConfig.Config.keystorePassword;
+        PlayerSettings.Android.keyaliasName = resolvedConfig.Config.keyaliasName;
+        PlayerSettings.Android.keyaliasPass = resolvedConfig.Config.keyaliasPassword;
+    }
+
     private static bool HasConnectedDevice(string adbDevicesOutput)
     {
         string[] lines = adbDevicesOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
@@ -315,6 +386,11 @@ public static class AndroidBuildUtility
     private static string GetProjectRoot()
     {
         return Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+    }
+
+    private static string NormalizePathForUnity(string path)
+    {
+        return path.Replace('\\', '/');
     }
 }
 #endif

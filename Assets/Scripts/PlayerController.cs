@@ -52,6 +52,9 @@ public class PlayerController : MonoBehaviour
         configuredMaxX = maxX;
         configuredMinY = minY;
         configuredMaxY = maxY;
+
+        if (GetComponent<CavePlayerVisuals>() == null)
+            gameObject.AddComponent<CavePlayerVisuals>();
     }
 
     void Start()
@@ -432,5 +435,113 @@ public class PlayerController : MonoBehaviour
     {
         activeTouchFingerId = -1;
         moveInput = Vector2.zero;
+    }
+}
+
+[RequireComponent(typeof(SpriteRenderer))]
+public class CavePlayerVisuals : MonoBehaviour
+{
+    private static Sprite wingsOpenSprite;
+    private static Sprite wingsClosedSprite;
+
+    private SpriteRenderer spriteRenderer;
+    private float animationSeed;
+    private bool showingOpenWings = true;
+
+    void Awake()
+    {
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        animationSeed = Random.Range(0f, 10f);
+        ApplySprite(forceOpen: true);
+        spriteRenderer.sortingOrder = 12;
+    }
+
+    void Update()
+    {
+        float flutter = Mathf.Sin(Time.time * 16f + animationSeed);
+        bool useOpenWings = flutter > 0f;
+
+        if (useOpenWings != showingOpenWings)
+            ApplySprite(useOpenWings);
+
+        float glowPulse = 0.84f + (Mathf.Sin(Time.time * 3.4f + animationSeed) * 0.08f);
+        spriteRenderer.color = new Color(glowPulse, glowPulse, glowPulse, 1f);
+    }
+
+    private void ApplySprite(bool forceOpen)
+    {
+        showingOpenWings = forceOpen;
+        spriteRenderer.sprite = showingOpenWings ? GetWingsOpenSprite() : GetWingsClosedSprite();
+        spriteRenderer.color = Color.white;
+    }
+
+    private static Sprite GetWingsOpenSprite()
+    {
+        if (wingsOpenSprite == null)
+            wingsOpenSprite = BuildGlowBugSprite("GlowBugOpen", wingsOpen: true);
+
+        return wingsOpenSprite;
+    }
+
+    private static Sprite GetWingsClosedSprite()
+    {
+        if (wingsClosedSprite == null)
+            wingsClosedSprite = BuildGlowBugSprite("GlowBugClosed", wingsOpen: false);
+
+        return wingsClosedSprite;
+    }
+
+    private static Sprite BuildGlowBugSprite(string name, bool wingsOpen)
+    {
+        const int size = 128;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        Color[] pixels = new Color[size * size];
+        Vector2 center = new Vector2(size * 0.5f, size * 0.48f);
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                Vector2 point = new Vector2(x, y);
+                Vector2 normalized = (point - center) / size;
+                float bodyDistance = normalized.magnitude;
+                float wingSpread = wingsOpen ? 0.28f : 0.16f;
+                float wingHeight = wingsOpen ? 0.16f : 0.1f;
+
+                bool leftWing = Mathf.Pow((normalized.x + wingSpread) / 0.16f, 2f) + Mathf.Pow((normalized.y + 0.02f) / wingHeight, 2f) < 1f;
+                bool rightWing = Mathf.Pow((normalized.x - wingSpread) / 0.16f, 2f) + Mathf.Pow((normalized.y + 0.02f) / wingHeight, 2f) < 1f;
+                bool body = bodyDistance < 0.14f;
+                bool glow = bodyDistance < 0.24f;
+                Color color = Color.clear;
+
+                if (leftWing || rightWing)
+                    color = new Color(0.78f, 0.96f, 1f, wingsOpen ? 0.62f : 0.42f);
+
+                if (glow)
+                {
+                    float glowBlend = Mathf.InverseLerp(0.24f, 0.03f, bodyDistance);
+                    Color glowColor = Color.Lerp(new Color(0.28f, 0.82f, 1f, 0.28f), new Color(1f, 0.94f, 0.45f, 0.9f), glowBlend);
+                    color = Color.Lerp(color, glowColor, glowColor.a);
+                }
+
+                if (body)
+                {
+                    float bodyBlend = Mathf.InverseLerp(0.14f, 0.01f, bodyDistance);
+                    Color bodyColor = Color.Lerp(new Color(0.42f, 0.28f, 0.08f, 1f), new Color(1f, 0.92f, 0.48f, 1f), bodyBlend);
+                    color = Color.Lerp(color, bodyColor, 0.9f);
+                    color.a = 1f;
+                }
+
+                pixels[y * size + x] = color;
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+        Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+        sprite.name = name;
+        return sprite;
     }
 }

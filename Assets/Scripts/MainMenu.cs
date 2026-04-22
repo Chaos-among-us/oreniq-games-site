@@ -1198,6 +1198,18 @@ public class MainMenu : MonoBehaviour
         Canvas canvas = FindAnyObjectByType<Canvas>();
         SafeAreaUtility.NormalizeCanvas(canvas);
         SafeAreaUtility.ApplySafeArea(menuRootRect);
+
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        MenuBackdropUtility.EnsureBackdrop(menuRootRect, theme, "MainMenuBackdrop");
+        Camera mainCamera = Camera.main;
+
+        if (mainCamera != null)
+            mainCamera.backgroundColor = Color.Lerp(theme.BackgroundBottom, theme.FogColor, 0.24f);
+
+        Image rootImage = menuRootRect != null ? menuRootRect.GetComponent<Image>() : null;
+
+        if (rootImage != null)
+            rootImage.color = new Color(0.02f, 0.03f, 0.05f, 0.08f);
     }
 
     void NormalizeHeaderLayout()
@@ -1223,6 +1235,7 @@ public class MainMenu : MonoBehaviour
             titleText.fontSizeMax = 100f;
             titleText.alignment = TextAlignmentOptions.Center;
             titleText.lineSpacing = -10f;
+            titleText.color = new Color(0.94f, 0.97f, 0.99f, 1f);
         }
 
         if (profileStatsText != null)
@@ -1236,6 +1249,7 @@ public class MainMenu : MonoBehaviour
             profileStatsText.fontSizeMin = 18f;
             profileStatsText.fontSizeMax = 26f;
             profileStatsText.lineSpacing = 0f;
+            profileStatsText.color = new Color(0.8f, 0.88f, 0.94f, 1f);
         }
     }
 
@@ -1251,12 +1265,18 @@ public class MainMenu : MonoBehaviour
 
         float panelWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
         float textWidth = panelWidth - 72f;
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
 
         panelRect.anchorMin = new Vector2(0.5f, 1f);
         panelRect.anchorMax = new Vector2(0.5f, 1f);
         panelRect.pivot = new Vector2(0.5f, 1f);
         panelRect.sizeDelta = new Vector2(panelWidth, 292f);
         panelRect.anchoredPosition = new Vector2(0f, -420f);
+
+        Image panelImage = dailyRewardPanel.GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.26f);
 
         if (dailyRewardTitleText != null)
         {
@@ -1325,12 +1345,18 @@ public class MainMenu : MonoBehaviour
 
         float panelWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
         float textWidth = panelWidth - 72f;
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
 
         panelRect.anchorMin = new Vector2(0.5f, 0f);
         panelRect.anchorMax = new Vector2(0.5f, 0f);
         panelRect.pivot = new Vector2(0.5f, 0f);
         panelRect.sizeDelta = new Vector2(panelWidth, 212f);
         panelRect.anchoredPosition = new Vector2(0f, 18f);
+
+        Image panelImage = missionSummaryPanel.GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = Color.Lerp(theme.WallColor, theme.FogColor, 0.18f);
 
         if (missionSummaryTitleText != null)
         {
@@ -1385,12 +1411,18 @@ public class MainMenu : MonoBehaviour
 
         float panelWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
         float textWidth = panelWidth - 60f;
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
 
         panelRect.anchorMin = new Vector2(0.5f, 0f);
         panelRect.anchorMax = new Vector2(0.5f, 0f);
         panelRect.pivot = new Vector2(0.5f, 0f);
         panelRect.sizeDelta = new Vector2(panelWidth, 344f);
         panelRect.anchoredPosition = new Vector2(0f, 244f);
+
+        Image panelImage = challengeSummaryPanel.GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.22f);
 
         if (challengeSummaryTitleText != null)
         {
@@ -1453,6 +1485,8 @@ public class MainMenu : MonoBehaviour
         if (missionOverlayRoot == null || missionOverlayPanel == null)
             return;
 
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+
         RectTransform rootRect = missionOverlayRoot.GetComponent<RectTransform>();
         rootRect.anchorMin = Vector2.zero;
         rootRect.anchorMax = Vector2.one;
@@ -1465,6 +1499,16 @@ public class MainMenu : MonoBehaviour
         panelRect.pivot = new Vector2(0.5f, 0.5f);
         panelRect.sizeDelta = new Vector2(860f, 980f);
         panelRect.anchoredPosition = new Vector2(0f, -20f);
+
+        Image rootImage = missionOverlayRoot.GetComponent<Image>();
+
+        if (rootImage != null)
+            rootImage.color = new Color(0.01f, 0.02f, 0.04f, 0.88f);
+
+        Image panelImage = missionOverlayPanel.GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.24f);
 
         if (missionOverlayTitleText != null)
         {
@@ -1536,10 +1580,10 @@ public class MainMenu : MonoBehaviour
 
     void NormalizeButtons()
     {
-        SetButtonLayout(playButtonObjectName, 86f);
-        SetButtonLayout(shopButtonObjectName, -50f);
-        SetButtonLayout(inventoryButtonObjectName, -186f);
-        SetButtonLayout(exitButtonObjectName, -322f);
+        SetButtonLayout(playButtonObjectName, 202f);
+        SetButtonLayout(shopButtonObjectName, 60f);
+        SetButtonLayout(inventoryButtonObjectName, -82f);
+        SetButtonLayout(exitButtonObjectName, -224f);
     }
 
     void SetButtonLayout(string objectName, float anchoredY)
@@ -1558,9 +1602,10 @@ public class MainMenu : MonoBehaviour
         }
 
         Image buttonImage = button.GetComponent<Image>();
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
 
         if (buttonImage != null)
-            buttonImage.color = new Color(0.96f, 0.97f, 1f, 0.96f);
+            buttonImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.46f);
 
         TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
 
@@ -1569,7 +1614,7 @@ public class MainMenu : MonoBehaviour
             label.enableAutoSizing = true;
             label.fontSizeMin = 24;
             label.fontSizeMax = 34;
-            label.color = new Color(0.18f, 0.22f, 0.3f, 1f);
+            label.color = new Color(0.96f, 0.98f, 1f, 1f);
         }
     }
 
@@ -1667,5 +1712,117 @@ public static class SafeAreaUtility
 
         float availableWidth = Mathf.Max(320f, rootRect.rect.width - (horizontalPadding * 2f));
         return Mathf.Min(availableWidth, maxWidth);
+    }
+}
+
+public static class MenuBackdropUtility
+{
+    private const int BackdropWidth = 512;
+    private const int BackdropHeight = 1024;
+    private static readonly Dictionary<string, Sprite> spriteCache = new Dictionary<string, Sprite>();
+
+    public static void EnsureBackdrop(RectTransform rootRect, RuntimeCaveTheme theme, string objectName)
+    {
+        if (rootRect == null)
+            return;
+
+        Transform existing = rootRect.Find(objectName);
+        GameObject backdropObject;
+
+        if (existing != null)
+        {
+            backdropObject = existing.gameObject;
+        }
+        else
+        {
+            backdropObject = new GameObject(objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            backdropObject.transform.SetParent(rootRect, false);
+            backdropObject.transform.SetAsFirstSibling();
+        }
+
+        RectTransform backdropRect = backdropObject.GetComponent<RectTransform>();
+        backdropRect.anchorMin = Vector2.zero;
+        backdropRect.anchorMax = Vector2.one;
+        backdropRect.offsetMin = Vector2.zero;
+        backdropRect.offsetMax = Vector2.zero;
+        backdropRect.localScale = Vector3.one;
+
+        Image backdropImage = backdropObject.GetComponent<Image>();
+        backdropImage.raycastTarget = false;
+        backdropImage.preserveAspect = false;
+        backdropImage.color = Color.white;
+        backdropImage.sprite = GetOrCreateBackdropSprite(theme);
+    }
+
+    private static Sprite GetOrCreateBackdropSprite(RuntimeCaveTheme theme)
+    {
+        string key = "MenuBackdrop_" + theme.BiomeIndex;
+
+        if (spriteCache.TryGetValue(key, out Sprite cachedSprite) && cachedSprite != null)
+            return cachedSprite;
+
+        Texture2D texture = new Texture2D(BackdropWidth, BackdropHeight, TextureFormat.RGBA32, false);
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
+
+        Color[] pixels = new Color[BackdropWidth * BackdropHeight];
+        float seed = (theme.Level * 71.19f) + (theme.BiomeIndex * 113.7f);
+        Color upperGlow = Color.Lerp(theme.BackgroundTop, theme.FogColor, 0.18f);
+        Color lowerGlow = Color.Lerp(theme.BackgroundBottom, theme.WallColor, 0.28f);
+        Color tunnelColor = Color.Lerp(theme.BackgroundBottom, theme.FogColor, 0.1f);
+
+        for (int y = 0; y < BackdropHeight; y++)
+        {
+            float y01 = y / (BackdropHeight - 1f);
+            float tunnelCenter = 0.5f + (Mathf.PerlinNoise(seed * 0.012f, y01 * 1.3f + seed * 0.003f) - 0.5f) * 0.08f;
+            float tunnelHalfWidth = 0.2f + Mathf.Sin((y01 * 2.1f) + seed * 0.04f) * 0.04f;
+            tunnelHalfWidth += (Mathf.PerlinNoise(seed * 0.021f, y01 * 3.6f + seed * 0.008f) - 0.5f) * 0.1f;
+            tunnelHalfWidth = Mathf.Clamp(tunnelHalfWidth, 0.15f, 0.32f);
+
+            float topSpikeDepth = 0.08f + Mathf.PerlinNoise(seed * 0.032f, y01 * 0.2f) * 0.06f;
+            float bottomSpikeDepth = 0.07f + Mathf.PerlinNoise(seed * 0.041f, y01 * 0.24f) * 0.05f;
+
+            for (int x = 0; x < BackdropWidth; x++)
+            {
+                float x01 = x / (BackdropWidth - 1f);
+                float xDistance = Mathf.Abs(x01 - tunnelCenter);
+                float caveNoise = (Mathf.PerlinNoise((x + seed * 2.4f) * 0.018f, (y + seed * 1.7f) * 0.014f) - 0.5f) * 0.08f;
+                bool inWall = xDistance > tunnelHalfWidth + caveNoise;
+                inWall |= y01 > 1f - topSpikeDepth - Mathf.Abs(Mathf.Sin((x01 * 7.8f) + seed * 0.03f)) * 0.12f;
+                inWall |= y01 < bottomSpikeDepth + Mathf.Abs(Mathf.Sin((x01 * 9.1f) + seed * 0.06f)) * 0.11f;
+
+                Color pixel = Color.Lerp(lowerGlow, upperGlow, Mathf.Pow(y01, 1.08f));
+
+                if (inWall)
+                {
+                    float rockNoise = Mathf.PerlinNoise((x + seed * 0.9f) * 0.046f, (y + seed * 0.5f) * 0.038f);
+                    float edgeHighlight = Mathf.Clamp01((xDistance - tunnelHalfWidth) / 0.035f);
+                    pixel = Color.Lerp(theme.WallColor, theme.AccentColor, rockNoise * 0.08f + edgeHighlight * 0.16f);
+                    pixel = Color.Lerp(pixel, theme.CrystalColor, Mathf.SmoothStep(0.9f, 1f, rockNoise) * 0.12f);
+                }
+                else
+                {
+                    float fogNoise = Mathf.PerlinNoise((x + seed * 3.1f) * 0.028f, (y + seed * 2.2f) * 0.022f);
+                    float shaft = Mathf.Exp(-Mathf.Pow((x01 - tunnelCenter) * 4.6f, 2f)) * Mathf.SmoothStep(0.25f, 0.95f, y01) * 0.18f;
+                    pixel = Color.Lerp(pixel, tunnelColor, 0.36f);
+                    pixel = Color.Lerp(pixel, theme.FogColor, fogNoise * 0.03f + shaft);
+                }
+
+                pixel.a = 1f;
+                pixels[y * BackdropWidth + x] = pixel;
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+
+        Sprite sprite = Sprite.Create(
+            texture,
+            new Rect(0f, 0f, BackdropWidth, BackdropHeight),
+            new Vector2(0.5f, 0.5f),
+            100f);
+        sprite.name = key;
+        spriteCache[key] = sprite;
+        return sprite;
     }
 }
