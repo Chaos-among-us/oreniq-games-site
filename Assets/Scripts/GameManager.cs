@@ -105,6 +105,7 @@ public class GameManager : MonoBehaviour
         if (isDailyChallengeRun)
             UpdateUpgradeText();
 
+        DynamicBackgroundController.EnsureExists();
         runtimeFont = GetRuntimeFont();
         EnsureRuntimeFeedbackUI();
         RefreshPauseOverlayState();
