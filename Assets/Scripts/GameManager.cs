@@ -165,7 +165,7 @@ public class GameManager : MonoBehaviour
 
         if (equippedUpgrades.Count == 0)
         {
-            upgradeText.text = "No loadout selected";
+            upgradeText.text = "No loadout";
             return;
         }
 
@@ -1006,6 +1006,128 @@ public class GameManager : MonoBehaviour
 
         if (tutorialOverlayRoot == null)
             CreateTutorialOverlay(parentRect);
+
+        NormalizeHudLayout(parentRect);
+    }
+
+    void NormalizeHudLayout(RectTransform parentRect)
+    {
+        if (parentRect == null)
+            return;
+
+        Canvas canvas = FindAnyObjectByType<Canvas>();
+        SafeAreaUtility.NormalizeCanvas(canvas);
+        SafeAreaUtility.ApplySafeArea(parentRect);
+
+        if (pauseButton != null)
+        {
+            RectTransform pauseRect = pauseButton.GetComponent<RectTransform>();
+
+            if (pauseRect != null)
+            {
+                pauseRect.anchorMin = new Vector2(0f, 1f);
+                pauseRect.anchorMax = new Vector2(0f, 1f);
+                pauseRect.pivot = new Vector2(0f, 1f);
+                pauseRect.sizeDelta = new Vector2(200f, 72f);
+                pauseRect.anchoredPosition = new Vector2(20f, -36f);
+            }
+
+            if (pauseButtonText != null)
+            {
+                pauseButtonText.enableAutoSizing = true;
+                pauseButtonText.fontSizeMin = 20f;
+                pauseButtonText.fontSizeMax = 32f;
+            }
+        }
+
+        ConfigureHudText(
+            totalCoinsText,
+            new Vector2(0f, 1f),
+            new Vector2(0f, 1f),
+            new Vector2(0f, 1f),
+            new Vector2(280f, 42f),
+            new Vector2(20f, -124f),
+            TextAlignmentOptions.Left,
+            20f,
+            32f);
+
+        ConfigureHudText(
+            scoreText,
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(360f, 56f),
+            new Vector2(0f, -34f),
+            TextAlignmentOptions.Center,
+            30f,
+            48f);
+
+        ConfigureHudText(
+            bestScoreHudText,
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(360f, 34f),
+            new Vector2(0f, -92f),
+            TextAlignmentOptions.Center,
+            18f,
+            28f);
+
+        ConfigureHudText(
+            levelText,
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(240f, 30f),
+            new Vector2(0f, -126f),
+            TextAlignmentOptions.Center,
+            18f,
+            28f);
+
+        ConfigureHudText(
+            upgradeText,
+            new Vector2(1f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(260f, 120f),
+            new Vector2(-18f, -126f),
+            TextAlignmentOptions.TopRight,
+            16f,
+            24f);
+
+        if (upgradeText != null)
+            upgradeText.lineSpacing = 2f;
+
+        if (runUpgradePanel != null)
+            runUpgradePanel.anchoredPosition = new Vector2(-18f, 26f);
+    }
+
+    void ConfigureHudText(
+        TextMeshProUGUI text,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 pivot,
+        Vector2 size,
+        Vector2 anchoredPosition,
+        TextAlignmentOptions alignment,
+        float minFontSize,
+        float maxFontSize)
+    {
+        if (text == null)
+            return;
+
+        RectTransform textRect = text.rectTransform;
+        textRect.anchorMin = anchorMin;
+        textRect.anchorMax = anchorMax;
+        textRect.pivot = pivot;
+        textRect.sizeDelta = size;
+        textRect.anchoredPosition = anchoredPosition;
+
+        text.alignment = alignment;
+        text.enableAutoSizing = true;
+        text.fontSizeMin = minFontSize;
+        text.fontSizeMax = maxFontSize;
+        text.raycastTarget = false;
     }
 
     TextMeshProUGUI TryBindSceneText(RectTransform parentRect, string objectName)

@@ -23,7 +23,7 @@ public class ShopManager : MonoBehaviour
     public string backButtonObjectName = "BackButton";
 
     public float sidePadding = 18f;
-    public float topPadding = 140f;
+    public float topPadding = 192f;
     public float bottomPadding = 84f;
     public float rowSpacing = 12f;
     public float offerItemHeight = 228f;
@@ -31,8 +31,9 @@ public class ShopManager : MonoBehaviour
     public float sectionHeaderHeight = 42f;
     public float sectionSpacing = 12f;
     public float sectionGap = 20f;
-    [SerializeField] private bool seedEditorCoinsIfEmpty = true;
-    [SerializeField] private int editorSeedCoinsAmount = 250;
+    public float cardHorizontalInset = 22f;
+    public float cardMaxWidth = 720f;
+    public float headerHorizontalInset = 24f;
 
     private int totalCoins;
     private TMP_FontAsset runtimeFont;
@@ -74,10 +75,6 @@ public class ShopManager : MonoBehaviour
     private const string MonetizationHeaderObjectName = "MonetizationHeader";
     private const string ConsumablesHeaderObjectName = "ConsumablesHeader";
 
-#if UNITY_EDITOR
-    private static bool seededEditorCoinsThisSession;
-#endif
-
     void Awake()
     {
         FindStaticReferences();
@@ -89,7 +86,6 @@ public class ShopManager : MonoBehaviour
     void Start()
     {
         ResolveMonetizationManager(true);
-        EnsureEditorTestBalance();
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
         BuildShopButtons();
         shouldSnapScrollToTop = true;
@@ -100,7 +96,6 @@ public class ShopManager : MonoBehaviour
     {
         ResolveMonetizationManager(true);
         SubscribeMonetizationEvents();
-        EnsureEditorTestBalance();
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
         BuildShopButtons();
         shouldSnapScrollToTop = true;
@@ -185,34 +180,12 @@ public class ShopManager : MonoBehaviour
     void NormalizeLegacyRootLayout()
     {
         Canvas canvas = FindAnyObjectByType<Canvas>();
-
-        if (canvas != null)
-        {
-            RectTransform canvasRect = canvas.GetComponent<RectTransform>();
-
-            if (canvasRect != null)
-            {
-                canvasRect.localScale = Vector3.one;
-                canvasRect.anchorMin = Vector2.zero;
-                canvasRect.anchorMax = Vector2.zero;
-                canvasRect.sizeDelta = Vector2.zero;
-            }
-        }
+        SafeAreaUtility.NormalizeCanvas(canvas);
 
         if (uiRootRect == null && totalCoinsText != null)
             uiRootRect = totalCoinsText.rectTransform.parent as RectTransform;
 
-        if (uiRootRect != null)
-        {
-            uiRootRect.localScale = Vector3.one;
-            uiRootRect.anchorMin = Vector2.zero;
-            uiRootRect.anchorMax = Vector2.one;
-            uiRootRect.pivot = new Vector2(0.5f, 0.5f);
-            uiRootRect.anchoredPosition = Vector2.zero;
-            uiRootRect.sizeDelta = Vector2.zero;
-            uiRootRect.offsetMin = Vector2.zero;
-            uiRootRect.offsetMax = Vector2.zero;
-        }
+        SafeAreaUtility.ApplySafeArea(uiRootRect);
     }
 
     void EnsureRuntimeUI()
@@ -270,27 +243,6 @@ public class ShopManager : MonoBehaviour
 
         GameObject managerObject = new GameObject("MonetizationManager");
         return managerObject.AddComponent<MonetizationManager>();
-    }
-
-    void EnsureEditorTestBalance()
-    {
-#if UNITY_EDITOR
-        if (!Application.isPlaying || !seedEditorCoinsIfEmpty || seededEditorCoinsThisSession)
-            return;
-
-        int savedCoins = PlayerPrefs.GetInt("TotalCoins", 0);
-        seededEditorCoinsThisSession = true;
-
-        if (savedCoins > 0)
-            return;
-
-        PlayerPrefs.SetInt("TotalCoins", editorSeedCoinsAmount);
-        PlayerPrefs.Save();
-        totalCoins = editorSeedCoinsAmount;
-
-        if (feedbackText != null)
-            feedbackText.text = "Editor coins: " + editorSeedCoinsAmount;
-#endif
     }
 
     void HideLegacyShopButtons()
@@ -464,15 +416,15 @@ public class ShopManager : MonoBehaviour
             return;
 
         Canvas.ForceUpdateCanvases();
-        float rootWidth = uiRootRect.rect.width;
+        float contentWidth = GetCenteredContentWidth();
 
         if (shopTitleRect != null)
         {
             shopTitleRect.anchorMin = new Vector2(0.5f, 1f);
             shopTitleRect.anchorMax = new Vector2(0.5f, 1f);
             shopTitleRect.pivot = new Vector2(0.5f, 1f);
-            shopTitleRect.sizeDelta = new Vector2(rootWidth - (sidePadding * 2f), 52f);
-            shopTitleRect.anchoredPosition = new Vector2(0f, -18f);
+            shopTitleRect.sizeDelta = new Vector2(contentWidth, 52f);
+            shopTitleRect.anchoredPosition = new Vector2(0f, -48f);
         }
 
         if (shopTitleText != null)
@@ -490,8 +442,8 @@ public class ShopManager : MonoBehaviour
             coinsRect.anchorMin = new Vector2(0.5f, 1f);
             coinsRect.anchorMax = new Vector2(0.5f, 1f);
             coinsRect.pivot = new Vector2(0.5f, 1f);
-            coinsRect.sizeDelta = new Vector2(rootWidth - (sidePadding * 2f), 32f);
-            coinsRect.anchoredPosition = new Vector2(0f, -60f);
+            coinsRect.sizeDelta = new Vector2(contentWidth, 32f);
+            coinsRect.anchoredPosition = new Vector2(0f, -92f);
             totalCoinsText.alignment = TextAlignmentOptions.Center;
             totalCoinsText.enableAutoSizing = true;
             totalCoinsText.fontSizeMin = 16;
@@ -504,8 +456,8 @@ public class ShopManager : MonoBehaviour
             feedbackRect.anchorMin = new Vector2(0.5f, 1f);
             feedbackRect.anchorMax = new Vector2(0.5f, 1f);
             feedbackRect.pivot = new Vector2(0.5f, 1f);
-            feedbackRect.sizeDelta = new Vector2(rootWidth - (sidePadding * 2f), 28f);
-            feedbackRect.anchoredPosition = new Vector2(0f, -92f);
+            feedbackRect.sizeDelta = new Vector2(contentWidth, 34f);
+            feedbackRect.anchoredPosition = new Vector2(0f, -130f);
             feedbackText.fontSizeMin = 16;
             feedbackText.fontSizeMax = 22;
         }
@@ -796,20 +748,42 @@ public class ShopManager : MonoBehaviour
         if (headerRect == null)
             return;
 
-        headerRect.anchorMin = new Vector2(0f, 1f);
-        headerRect.anchorMax = new Vector2(1f, 1f);
+        float headerWidth = GetScrollableCardWidth() - (headerHorizontalInset * 2f);
+
+        headerRect.anchorMin = new Vector2(0.5f, 1f);
+        headerRect.anchorMax = new Vector2(0.5f, 1f);
         headerRect.pivot = new Vector2(0.5f, 1f);
-        headerRect.sizeDelta = new Vector2(0f, sectionHeaderHeight);
+        headerRect.sizeDelta = new Vector2(headerWidth, sectionHeaderHeight);
         headerRect.anchoredPosition = new Vector2(0f, -yOffset);
     }
 
     void LayoutCard(RectTransform cardRect, float height, float yOffset)
     {
-        cardRect.anchorMin = new Vector2(0f, 1f);
-        cardRect.anchorMax = new Vector2(1f, 1f);
+        float cardWidth = GetScrollableCardWidth();
+
+        cardRect.anchorMin = new Vector2(0.5f, 1f);
+        cardRect.anchorMax = new Vector2(0.5f, 1f);
         cardRect.pivot = new Vector2(0.5f, 1f);
-        cardRect.sizeDelta = new Vector2(0f, height);
+        cardRect.sizeDelta = new Vector2(cardWidth, height);
         cardRect.anchoredPosition = new Vector2(0f, -yOffset);
+    }
+
+    float GetCenteredContentWidth()
+    {
+        if (uiRootRect == null)
+            return cardMaxWidth;
+
+        float availableWidth = Mathf.Max(320f, uiRootRect.rect.width - (sidePadding * 2f));
+        return Mathf.Min(availableWidth, cardMaxWidth);
+    }
+
+    float GetScrollableCardWidth()
+    {
+        if (viewportRect == null)
+            return cardMaxWidth;
+
+        float availableWidth = Mathf.Max(320f, viewportRect.rect.width - (cardHorizontalInset * 2f));
+        return Mathf.Min(availableWidth, cardMaxWidth);
     }
 
     void RefreshUI()

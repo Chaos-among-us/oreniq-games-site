@@ -137,10 +137,13 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
 - Do not treat one machine-specific absolute path as the global source of truth. The repo content is the source of truth; the working path depends on the current machine.
 
 ## Open Risks And Blockers
-- Real phone readability and feel still need verification.
+- Real phone readability and feel are now partially verified, but the current Android debug build still needs another focused on-device pass for four remaining issues:
+  - `Inventory` cards still need a final real-phone check after being rebuilt to follow the shop-style card structure
+  - the `MainMenu` daily challenge card still has text overlap
+  - verify the newest spacing change actually clears the daily challenge status line from the CTA button on device
 - Audio, feedback, particles, and transitions are still light or missing.
 - The rewarded flow still needs a real ad provider.
-- Coin-pack IAPs and starter-offer surfaces still need to be built.
+- Coin-pack IAPs and starter-offer surfaces now exist, but they still need production store configuration and polish.
 - Store assets, screenshots, privacy policy, and Play Console setup are still pending.
 - Local Android signing data is intentionally machine-local and must not be committed:
   - `UserSettings/Android/oreniq-release.keystore`
@@ -148,13 +151,11 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
 - When changing machines, re-verify Unity modules, package restore, and release-signing setup.
 
 ## Current Focus
-1. Open Unity on the current machine and confirm package restore, compile state, and Android module readiness.
-2. Verify the local Android release-signing helper still works from `Tools/Android`.
+1. Retest the newest Android debug build on a real phone and verify the rebuilt inventory cards plus the daily challenge panel spacing.
+2. Finish the remaining real-phone UI/layout cleanup in `MainMenu`, `Inventory`, and the in-run HUD before moving on to broader launch polish.
 3. Replace the simulated rewarded flow with a real ad provider.
-4. Add Unity IAP-backed coin packs and a starter offer.
-5. Do a real-phone readability and feel pass.
-6. Add audio and feedback polish needed for launch quality.
-7. Finish store listing assets and release metadata.
+4. Add audio and feedback polish needed for launch quality.
+5. Finish production IAP/store configuration, listing assets, screenshots, privacy policy, and Play Console metadata.
 
 ## When The Other PC Is Available
 1. On the other PC, check the project copy that was actually used there.
@@ -202,6 +203,104 @@ Use this exact format for new entries:
 - Next best action:
 
 ## Structured Change Log
+### 2026-04-21 - Inventory rollback and menu-balance pass
+- Goal:
+  - Undo the bad inventory presentation regression from the previous pass and lightly rebalance the main menu so the larger challenge card does not crowd the core navigation buttons.
+- What changed:
+  - Replaced the failed multi-label inventory card experiment with a single centered card text block in `InventorySlotUI`, keeping the bigger cards but returning to a cleaner shop-like stacked presentation.
+  - Tightened the `Inventory` header stack and viewport spacing so the screen budget goes back to the cards instead of oversized header text.
+  - Fixed `MainMenu.SetButtonLayout` so it actually applies the intended Y offsets, then moved the `Play / Shop / Inventory / Exit` button stack upward slightly to create more breathing room below.
+  - Rebuilt and reinstalled a fresh Android debug APK over ADB on the connected Samsung phone.
+- Decisions / reversions:
+  - The previous three-text inventory card layout was a regression on real hardware and should not be iterated further.
+  - Keep the daily challenge panel improvements, but solve the remaining menu crowding by adjusting the button stack rather than shrinking the challenge card again immediately.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - A fresh batch build completed successfully at `2026-04-21 4:11 PM` and produced an updated `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+- Next best action:
+  - Retest only `Inventory` and the `MainMenu` vertical balance on phone. If either still feels off, capture one fresh screenshot of that exact screen and tune only that surface.
+
+### 2026-04-21 - Inventory shop-style parity pass
+- Goal:
+  - Stop nudging the old inventory list layout around and instead rebuild it toward the same larger card structure that already works well in the shop, while also finally separating the daily challenge status line from its CTA button.
+- What changed:
+  - Reworked `InventorySlotUI` away from the old single combined label into a structured three-line card: title, description, and meta/status, using the same kind of padded stretch-text layout that the shop cards use.
+  - Enlarged the `Inventory` list again with taller cards, narrower centered card width, tighter row spacing, and a lighter header stack so more of the screen budget goes to the actual cards.
+  - Updated the daily challenge status text in `MainMenu` to use shorter labels such as `Best: x/y` and `Goal: x`, then expanded the challenge panel height and spacing so the action button no longer rides on top of the status line.
+  - Rebuilt a fresh Android debug APK and reinstalled it over ADB onto the connected Samsung phone.
+- Decisions / reversions:
+  - The user feedback was right: inventory should follow the same card pattern as the shop instead of staying a compressed list with tiny text.
+  - Keep using phone screenshots as the authority for readability issues instead of assuming editor changes are visible enough on-device.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors after the inventory and challenge layout pass.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - A fresh batch build completed successfully at `2026-04-21 4:00 PM` and produced an updated `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb devices -l` detected the connected phone (`SM_S948U`), and `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+- Next best action:
+  - Retest only two screens now: `Inventory` and the `MainMenu` daily challenge card. If either still fails, capture one fresh screenshot of that exact screen and tune only that surface.
+
+### 2026-04-21 - Third phone polish pass
+- Goal:
+  - Fix the remaining real-device blockers after the second phone retest: laggy mobile controls, inventory cards that still felt too small, daily challenge text overlap in `MainMenu`, and the in-run loadout label crowding the top-right menu area.
+- What changed:
+  - Reworked `PlayerController` mobile input again so active touch drag now moves the player directly by world-space drag delta instead of using the slower velocity-style floating-joystick model.
+  - Enlarged the `Inventory` layout again with taller rows, slightly tighter outer padding, and roomier `InventorySlotUI` typography/padding so the cards read more like tappable shop cards on phone.
+  - Tightened `MainMenu` daily challenge copy and expanded the challenge summary panel layout again so the title, status, and CTA fit more reliably on tall Samsung screens.
+  - Lowered and deconflicted the in-game loadout HUD text in `GameManager`, and disabled its raycast target so it cannot steal taps from the top-right menu button.
+  - Rebuilt a fresh Android debug APK and reinstalled it over ADB after USB debugging became available again.
+- Decisions / reversions:
+  - Reverted away from the slower velocity-style touch model because the real phone test said it felt delayed.
+  - Keep validating from real device screenshots and APK installs rather than trusting the Unity Game view for portrait-phone readability.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors after the latest code pass.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - A fresh batch build completed successfully at `2026-04-21 3:34 PM` and produced an updated `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb devices -l` detected the connected phone (`SM_S948U`), and `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+- Next best action:
+  - Retest the newest phone build and confirm four things only: touch responsiveness, inventory card size, daily challenge card readability, and whether the top-right menu button is now clear and tappable during play.
+
+### 2026-04-21 - Second phone polish pass
+- Goal:
+  - Address the next round of real-device issues after the first phone retest: shop and inventory headers still sitting too close to the punch-hole area, inventory presentation still feeling rough, and touch controls still not matching the intended floating-joystick feel.
+- What changed:
+  - Reworked `PlayerController` mobile input again so drag now drives a virtual joystick-style movement vector instead of using touch delta as an absolute player target position.
+  - Lowered the top header stack in `Shop` and widened the shop cards slightly so the camera area has more breathing room on tall portrait phones.
+  - Reworked the `Inventory` mobile layout with more top clearance, wider cards, taller rows, clearer feedback copy, and stronger card formatting in `InventorySlotUI`.
+  - Removed the old "skip normalization for scene-owned panels" behavior in `MainMenu` so the daily reward, mission summary, and challenge summary panels all go through the same phone layout pass.
+  - Nudged the in-game HUD lower again so the next device check can confirm the runtime build is actually using the latest layout code.
+- Decisions / reversions:
+  - Use real phone screenshots as the source of truth when device behavior disagrees with the editor.
+  - Prefer velocity-style floating-joystick controls over absolute drag-target controls for this game.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - A fresh batch build completed successfully at `2026-04-21 3:02 PM` and produced an updated `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+- Next best action:
+  - Retest the newest phone build and confirm four things only: shop header clearance, inventory header clearance, inventory card readability, and whether the new floating-joystick movement finally feels correct.
+
+### 2026-04-21 - Phone readability and touch-control pass
+- Goal:
+  - Fix the real-device issues found during the first Android phone check: top text colliding with the camera area, crowded main menu panels, and touch controls that felt like jagged chase movement instead of direct drag movement.
+- What changed:
+  - Pulled phone screenshots into `Builds/PhoneScreenshots/` and used them as the source of truth for the next UI pass instead of relying on the tiny Unity Game view.
+  - Reworked `PlayerController` mobile input so touch now behaves like a floating joystick / relative drag: the player mirrors the finger movement from the touch-start position instead of stepping toward the raw touch point with `Mathf.Sign`.
+  - Added safe-area-aware layout normalization to the main menu, shop, inventory, and in-game HUD paths so the top content respects the phone cutout area more reliably.
+  - Tightened the `MainMenu` daily reward, daily challenge, and daily mission summary panel layout so the reward/status text stacks cleanly on phone.
+  - Shortened the in-run loadout fallback label from `No loadout selected` to `No loadout` to reduce top-right HUD crowding on narrow portrait screens.
+  - Rebuilt a fresh Android debug APK and installed it over ADB onto the connected Samsung phone.
+- Decisions / reversions:
+  - Keep fixing the scene-owned UI and runtime normalizers instead of adding editor-only readability hacks.
+  - Prefer direct phone screenshots and APK installs as the validation loop for mobile UI and controls.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors after the UI/control pass.
+  - A closed-editor batch build succeeded and produced an updated `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb devices -l` detected the connected phone (`SM_S948U`), and `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+- Next best action:
+  - Retest the phone build and confirm three things only: the top text no longer collides with the camera area, the main menu panels are readable, and the new drag controls feel closer to the intended joystick-style movement.
+
 ### 2026-04-13 - Workstation sync and handoff standardization
 - Goal:
   - Make the project easier to move between computers and chats without losing track of the active repo or local-only Android signing setup.
@@ -235,6 +334,23 @@ Use this exact format for new entries:
   - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
 - Next best action:
   - Reopen the `Shop` scene in Unity, verify the new offer cards render cleanly, and click through simulated purchases to confirm coin and consumable grants update live.
+
+### 2026-04-21 - Android phone-test helper
+- Goal:
+  - Make it possible to get a phone-installable Android build quickly even before the release keystore is recovered on this machine.
+- What changed:
+  - Added `Assets/Editor/AndroidBuildUtility.cs` with `Tools/Android/Build Debug APK` and `Tools/Android/Build And Install Debug APK`.
+  - The helper builds `Builds/Android/EndlessDodge1-debug.apk`, uses the enabled Build Settings scenes, temporarily disables custom release signing for the build itself, then resolves Unity's generated Gradle output into the stable repo output path.
+  - The install action uses the Unity-bundled `adb.exe` and installs with `adb install -r` when a USB-debuggable phone is connected.
+- Decisions / reversions:
+  - Prefer debug APKs for immediate phone testing instead of blocking on the missing release keystore.
+  - Remove the earlier editor-only seeded-coin workaround from the shop and keep the readability changes focused on responsive layout behavior.
+- Verification:
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors after adding the helper.
+  - A closed-editor batch build succeeded and produced `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb devices` returned no connected Android devices during this session.
+- Next best action:
+  - Connect a phone with USB debugging enabled, then use `Tools/Android/Build And Install Debug APK`, or manually copy/install `Builds/Android/EndlessDodge1-debug.apk`.
 
 ### 2026-04-11 - Launch sprint continuation
 - Goal:

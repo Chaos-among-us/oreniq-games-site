@@ -11,14 +11,14 @@ public class InventoryMenu : MonoBehaviour
     public RectTransform slotParent;
 
     public int columnCount = 1;
-    public float sidePadding = 20f;
-    public float topPadding = 154f;
+    public float sidePadding = 18f;
+    public float topPadding = 176f;
     public float bottomPadding = 92f;
     public float columnSpacing = 18f;
-    public float rowSpacing = 12f;
-    public float slotHeight = 92f;
-    public float cardHorizontalInset = 38f;
-    public float cardMaxWidth = 560f;
+    public float rowSpacing = 14f;
+    public float slotHeight = 176f;
+    public float cardHorizontalInset = 22f;
+    public float cardMaxWidth = 720f;
 
     private RectTransform titleRect;
     private TextMeshProUGUI titleText;
@@ -173,38 +173,10 @@ public class InventoryMenu : MonoBehaviour
     void NormalizeLegacyPanelLayout()
     {
         Canvas canvas = FindAnyObjectByType<Canvas>();
-
-        if (canvas != null)
-        {
-            RectTransform canvasRect = canvas.GetComponent<RectTransform>();
-
-            if (canvasRect != null)
-            {
-                canvasRect.localScale = Vector3.one;
-                canvasRect.anchorMin = Vector2.zero;
-                canvasRect.anchorMax = Vector2.zero;
-                canvasRect.sizeDelta = Vector2.zero;
-            }
-
-            CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
-
-            if (scaler != null)
-            {
-                scaler.referenceResolution = new Vector2(1080f, 1920f);
-                scaler.matchWidthOrHeight = 0.5f;
-            }
-        }
+        SafeAreaUtility.NormalizeCanvas(canvas);
 
         RectTransform panelRect = transform as RectTransform;
-
-        if (panelRect != null)
-        {
-            panelRect.localScale = Vector3.one;
-            panelRect.anchorMin = Vector2.zero;
-            panelRect.anchorMax = Vector2.one;
-            panelRect.offsetMin = Vector2.zero;
-            panelRect.offsetMax = Vector2.zero;
-        }
+        SafeAreaUtility.ApplySafeArea(panelRect);
     }
 
     void EnsureRuntimeLabels()
@@ -305,16 +277,16 @@ public class InventoryMenu : MonoBehaviour
             titleRect.anchorMin = new Vector2(0.5f, 1f);
             titleRect.anchorMax = new Vector2(0.5f, 1f);
             titleRect.pivot = new Vector2(0.5f, 1f);
-            titleRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 62f);
-            titleRect.anchoredPosition = new Vector2(0f, -18f);
+            titleRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 56f);
+            titleRect.anchoredPosition = new Vector2(0f, -34f);
         }
 
         if (titleText != null)
         {
             titleText.text = "Choose 3 Upgrades";
             titleText.enableAutoSizing = true;
-            titleText.fontSizeMin = 26;
-            titleText.fontSizeMax = 40;
+            titleText.fontSizeMin = 24;
+            titleText.fontSizeMax = 34;
             titleText.alignment = TextAlignmentOptions.Center;
         }
 
@@ -325,10 +297,10 @@ public class InventoryMenu : MonoBehaviour
             countRect.anchorMax = new Vector2(0.5f, 1f);
             countRect.pivot = new Vector2(0.5f, 1f);
             countRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 38f);
-            countRect.anchoredPosition = new Vector2(0f, -76f);
+            countRect.anchoredPosition = new Vector2(0f, -72f);
             equippedCountText.enableAutoSizing = true;
-            equippedCountText.fontSizeMin = 20;
-            equippedCountText.fontSizeMax = 30;
+            equippedCountText.fontSizeMin = 16;
+            equippedCountText.fontSizeMax = 22;
         }
 
         if (feedbackText != null)
@@ -337,11 +309,11 @@ public class InventoryMenu : MonoBehaviour
             feedbackRect.anchorMin = new Vector2(0.5f, 1f);
             feedbackRect.anchorMax = new Vector2(0.5f, 1f);
             feedbackRect.pivot = new Vector2(0.5f, 1f);
-            feedbackRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 34f);
-            feedbackRect.anchoredPosition = new Vector2(0f, -114f);
+            feedbackRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 30f);
+            feedbackRect.anchoredPosition = new Vector2(0f, -100f);
             feedbackText.enableAutoSizing = true;
-            feedbackText.fontSizeMin = 18;
-            feedbackText.fontSizeMax = 24;
+            feedbackText.fontSizeMin = 14;
+            feedbackText.fontSizeMax = 18;
         }
 
         if (backButtonRect != null)
@@ -398,8 +370,13 @@ public class InventoryMenu : MonoBehaviour
         if (equippedCountText != null)
             equippedCountText.text = "Equipped: " + equippedCount + "/" + UpgradeInventory.MaxEquippedUpgrades;
 
-        if (feedbackText != null && string.IsNullOrEmpty(feedbackText.text))
-            feedbackText.text = "Tap a card to select it";
+        if (feedbackText != null &&
+            (string.IsNullOrEmpty(feedbackText.text) ||
+             feedbackText.text == "Tap a card to select it" ||
+             feedbackText.text == "Tap a card to equip or remove it"))
+        {
+            feedbackText.text = "Tap a card to equip";
+        }
 
         RebuildSlotArray();
         Canvas.ForceUpdateCanvases();

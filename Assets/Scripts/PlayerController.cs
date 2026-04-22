@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.EventSystems;
 
 public class PlayerController : MonoBehaviour
 {
@@ -14,6 +15,7 @@ public class PlayerController : MonoBehaviour
     public float cameraSidePadding = 0.15f;
     public float cameraBottomPadding = 0.15f;
     public float cameraTopPadding = 1f;
+    public float touchDeadzonePixels = 6f;
     public string leftBorderObjectName = "LeftBorder";
     public string rightBorderObjectName = "RightBorder";
 
@@ -35,7 +37,7 @@ public class PlayerController : MonoBehaviour
     private float lastObstacleHitTime = -10f;
     private int cachedScreenWidth;
     private int cachedScreenHeight;
-
+    private int activeTouchFingerId = -1;
     private const float ObstacleHitCooldown = 0.08f;
 
     void Awake()
@@ -71,8 +73,12 @@ public class PlayerController : MonoBehaviour
         if (isDead)
         {
             moveInput = Vector2.zero;
+            ClearTouchDrag();
             return;
         }
+
+        if (UpdateTouchDragMovement())
+            return;
 
         moveInput = ReadMovementInput();
 
@@ -96,20 +102,6 @@ public class PlayerController : MonoBehaviour
 #if UNITY_EDITOR || UNITY_STANDALONE
         moveX = Input.GetAxisRaw("Horizontal");
         moveY = Input.GetAxisRaw("Vertical");
-#else
-        if (Input.touchCount > 0)
-        {
-            Touch touch = Input.GetTouch(0);
-            Camera touchCamera = Camera.main != null ? Camera.main : mainCamera;
-            Vector3 touchPos = touch.position;
-
-            if (touchCamera != null)
-                touchPos = touchCamera.ScreenToWorldPoint(touch.position);
-
-            Vector3 direction = touchPos - transform.position;
-            moveX = Mathf.Sign(direction.x);
-            moveY = Mathf.Sign(direction.y);
-        }
 #endif
 
         return new Vector2(moveX, moveY);
@@ -118,6 +110,7 @@ public class PlayerController : MonoBehaviour
     void ApplyMovement(float deltaTime, bool useRigidbody)
     {
         Vector2 position = useRigidbody ? playerBody.position : (Vector2)transform.position;
+
         float currentSpeed = moveSpeed;
 
         if (GameManager.instance != null)
@@ -333,5 +326,111 @@ public class PlayerController : MonoBehaviour
     {
         cachedScreenWidth = Screen.width;
         cachedScreenHeight = Screen.height;
+    }
+
+    bool UpdateTouchDragMovement()
+    {
+#if UNITY_EDITOR || UNITY_STANDALONE
+        ClearTouchDrag();
+        return false;
+#else
+        if (Input.touchCount <= 0)
+        {
+            ClearTouchDrag();
+            return false;
+        }
+
+        if (TryGetTouchByFingerId(activeTouchFingerId, out Touch activeTouch))
+        {
+            if (activeTouch.phase == TouchPhase.Canceled || activeTouch.phase == TouchPhase.Ended)
+            {
+                ClearTouchDrag();
+                return false;
+            }
+
+            ApplyTouchDragDelta(activeTouch);
+            return true;
+        }
+
+        for (int i = 0; i < Input.touchCount; i++)
+        {
+            Touch touch = Input.GetTouch(i);
+
+            if (touch.phase == TouchPhase.Canceled || touch.phase == TouchPhase.Ended)
+                continue;
+
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(touch.fingerId))
+                continue;
+
+            BeginTouchDrag(touch);
+            ApplyTouchDragDelta(touch);
+            return true;
+        }
+
+        ClearTouchDrag();
+        return false;
+#endif
+    }
+
+    void BeginTouchDrag(Touch touch)
+    {
+        activeTouchFingerId = touch.fingerId;
+    }
+
+    void ApplyTouchDragDelta(Touch touch)
+    {
+        moveInput = Vector2.zero;
+
+        Camera touchCamera = Camera.main != null ? Camera.main : mainCamera;
+
+        if (touchCamera == null)
+            return;
+
+        if (touch.phase == TouchPhase.Began || touch.phase == TouchPhase.Stationary)
+            return;
+
+        if (touch.deltaPosition.sqrMagnitude < touchDeadzonePixels * touchDeadzonePixels)
+            return;
+
+        float cameraDistance = Mathf.Abs(touchCamera.transform.position.z - transform.position.z);
+        Vector3 previousWorld = touchCamera.ScreenToWorldPoint(
+            new Vector3(
+                touch.position.x - touch.deltaPosition.x,
+                touch.position.y - touch.deltaPosition.y,
+                cameraDistance));
+        Vector3 currentWorld = touchCamera.ScreenToWorldPoint(
+            new Vector3(touch.position.x, touch.position.y, cameraDistance));
+
+        Vector2 worldDelta = currentWorld - previousWorld;
+        Vector2 currentPosition = playerBody != null ? playerBody.position : (Vector2)transform.position;
+        Vector2 nextPosition = ClampToBounds(currentPosition + worldDelta);
+
+        if (playerBody != null)
+            playerBody.position = nextPosition;
+
+        transform.position = new Vector3(nextPosition.x, nextPosition.y, transform.position.z);
+    }
+
+    bool TryGetTouchByFingerId(int fingerId, out Touch matchingTouch)
+    {
+        for (int i = 0; i < Input.touchCount; i++)
+        {
+            Touch touch = Input.GetTouch(i);
+
+            if (touch.fingerId != fingerId)
+                continue;
+
+            matchingTouch = touch;
+            return true;
+        }
+
+        matchingTouch = default;
+        return false;
+    }
+
+    void ClearTouchDrag()
+    {
+        activeTouchFingerId = -1;
+        moveInput = Vector2.zero;
     }
 }
