@@ -1190,6 +1190,49 @@ Use this exact format for new entries:
 - Next best action:
   - On the laptop, open `docs/SECONDARY_PC_SIGNING_QUICKSTART.md` after pulling and follow the commands exactly.
 
+### 2026-04-23 - Wireless ADB quickstart and helper scripts
+- Goal:
+  - Remove the USB-cable bottleneck by giving both PCs a repeatable wireless ADB workflow against the same phone.
+- What changed:
+  - Added `scripts/wireless-adb-common.ps1` to centralize the Unity `adb.exe` path.
+  - Added:
+    - `scripts/pair-wireless-adb.ps1`
+    - `scripts/connect-wireless-adb.ps1`
+    - `scripts/status-wireless-adb.ps1`
+    - `scripts/disconnect-wireless-adb.ps1`
+  - Added `docs/WIRELESS_ADB_QUICKSTART.md` with step-by-step pairing and reconnect instructions for both PCs.
+- Verification:
+  - Unity's bundled `adb.exe` on this PC reports version `36.0.0`.
+  - That `adb` build supports:
+    - `pair`
+    - `connect`
+    - `disconnect`
+    - `mdns`
+  - The current Wi-Fi network profile on the primary PC is `Private`.
+  - With the phone on the Wireless Debugging screen, `adb mdns services` discovered:
+    - pairing endpoint `10.0.0.62:42049`
+    - connect endpoint `10.0.0.62:37195`
+  - This primary PC successfully connected wirelessly to `10.0.0.62:37195`.
+  - `adb devices -l` then showed both:
+    - USB serial `R3GL201XS5L`
+    - wireless serial `10.0.0.62:37195`
+  - Updated `Assets/Editor/AndroidBuildUtility.cs` so `Tools/Android/Build And Install Debug APK` now prefers the wireless target automatically when both transports are present.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors after the install-target fix.
+- Next best action:
+  - Pair the secondary PC from `docs/WIRELESS_ADB_QUICKSTART.md`, then let both PCs use wireless ADB plus shared signing instead of swapping the USB cable.
+
+### 2026-04-23 - Secondary PC wireless ADB session file
+- Goal:
+  - Give the laptop a single repo-tracked file with the live wireless ADB host/port values already filled in for this phone session.
+- What changed:
+  - Added `docs/SECONDARY_PC_WIRELESS_ADB_SESSION.md` with the current pairing endpoint, connect endpoint, and exact copy-paste commands for the laptop.
+- Verification:
+  - The session file matches the live endpoints discovered from `adb mdns services` on the primary PC:
+    - pairing `10.0.0.62:42049`
+    - connect `10.0.0.62:37195`
+- Next best action:
+  - On the laptop, open `docs/SECONDARY_PC_WIRELESS_ADB_SESSION.md`, replace only the six-digit code placeholder, and run the commands exactly.
+
 ### 2026-04-23 - Cave-shop retheme and share-growth pass
 - Goal:
   - Push the game further toward a stronger hybrid-casual launch shape by making the shop feel native to the cave world and by giving players a clearer reason to share the game with other people.

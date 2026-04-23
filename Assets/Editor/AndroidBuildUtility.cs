@@ -362,7 +362,18 @@ public static class AndroidBuildUtility
             return;
         }
 
-        string installOutput = RunProcess(adbPath, "install -r \"" + apkPath + "\"");
+        if (!TryResolveInstallTargetSerial(devicesOutput, out string targetSerial, out string targetDescription))
+        {
+            Fail(
+                "ADB found multiple install targets and could not choose safely.\n\n" +
+                devicesOutput +
+                "\n\nDisconnect duplicate sessions or run `adb disconnect` for old wireless sessions, then try again.",
+                interactive);
+            return;
+        }
+
+        UnityEngine.Debug.Log("Installing Android debug APK to " + targetDescription + ".");
+        string installOutput = RunProcess(adbPath, "-s \"" + targetSerial + "\" install -r \"" + apkPath + "\"");
 
         if (installOutput.IndexOf("Success", StringComparison.OrdinalIgnoreCase) >= 0)
         {
@@ -402,6 +413,54 @@ public static class AndroidBuildUtility
         }
 
         return false;
+    }
+
+    private static bool TryResolveInstallTargetSerial(
+        string adbDevicesOutput,
+        out string targetSerial,
+        out string targetDescription)
+    {
+        targetSerial = string.Empty;
+        targetDescription = string.Empty;
+
+        string[] lines = adbDevicesOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        string[] connectedLines = lines
+            .Where(line => line.EndsWith("\tdevice", StringComparison.OrdinalIgnoreCase) ||
+                           line.IndexOf("\tdevice ", StringComparison.OrdinalIgnoreCase) >= 0)
+            .ToArray();
+
+        if (connectedLines.Length == 0)
+            return false;
+
+        if (connectedLines.Length == 1)
+        {
+            targetSerial = GetSerialFromDeviceLine(connectedLines[0]);
+            targetDescription = targetSerial;
+            return !string.IsNullOrWhiteSpace(targetSerial);
+        }
+
+        string[] wirelessTargets = connectedLines
+            .Select(GetSerialFromDeviceLine)
+            .Where(serial => !string.IsNullOrWhiteSpace(serial) && serial.Contains(":"))
+            .ToArray();
+
+        if (wirelessTargets.Length == 1)
+        {
+            targetSerial = wirelessTargets[0];
+            targetDescription = targetSerial + " (wireless)";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string GetSerialFromDeviceLine(string deviceLine)
+    {
+        if (string.IsNullOrWhiteSpace(deviceLine))
+            return string.Empty;
+
+        string[] tokens = deviceLine.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        return tokens.Length > 0 ? tokens[0] : string.Empty;
     }
 
     private static string RunProcess(string fileName, string arguments)
