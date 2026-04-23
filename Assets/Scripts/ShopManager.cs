@@ -23,7 +23,7 @@ public class ShopManager : MonoBehaviour
     public string backButtonObjectName = "BackButton";
 
     public float sidePadding = 18f;
-    public float topPadding = 140f;
+    public float topPadding = 192f;
     public float bottomPadding = 84f;
     public float rowSpacing = 12f;
     public float offerItemHeight = 228f;
@@ -31,8 +31,9 @@ public class ShopManager : MonoBehaviour
     public float sectionHeaderHeight = 42f;
     public float sectionSpacing = 12f;
     public float sectionGap = 20f;
-    [SerializeField] private bool seedEditorCoinsIfEmpty = true;
-    [SerializeField] private int editorSeedCoinsAmount = 250;
+    public float cardHorizontalInset = 22f;
+    public float cardMaxWidth = 720f;
+    public float headerHorizontalInset = 24f;
 
     private int totalCoins;
     private TMP_FontAsset runtimeFont;
@@ -74,10 +75,6 @@ public class ShopManager : MonoBehaviour
     private const string MonetizationHeaderObjectName = "MonetizationHeader";
     private const string ConsumablesHeaderObjectName = "ConsumablesHeader";
 
-#if UNITY_EDITOR
-    private static bool seededEditorCoinsThisSession;
-#endif
-
     void Awake()
     {
         FindStaticReferences();
@@ -89,7 +86,6 @@ public class ShopManager : MonoBehaviour
     void Start()
     {
         ResolveMonetizationManager(true);
-        EnsureEditorTestBalance();
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
         BuildShopButtons();
         shouldSnapScrollToTop = true;
@@ -100,7 +96,6 @@ public class ShopManager : MonoBehaviour
     {
         ResolveMonetizationManager(true);
         SubscribeMonetizationEvents();
-        EnsureEditorTestBalance();
         totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
         BuildShopButtons();
         shouldSnapScrollToTop = true;
@@ -185,34 +180,28 @@ public class ShopManager : MonoBehaviour
     void NormalizeLegacyRootLayout()
     {
         Canvas canvas = FindAnyObjectByType<Canvas>();
-
-        if (canvas != null)
-        {
-            RectTransform canvasRect = canvas.GetComponent<RectTransform>();
-
-            if (canvasRect != null)
-            {
-                canvasRect.localScale = Vector3.one;
-                canvasRect.anchorMin = Vector2.zero;
-                canvasRect.anchorMax = Vector2.zero;
-                canvasRect.sizeDelta = Vector2.zero;
-            }
-        }
+        SafeAreaUtility.NormalizeCanvas(canvas);
 
         if (uiRootRect == null && totalCoinsText != null)
             uiRootRect = totalCoinsText.rectTransform.parent as RectTransform;
 
-        if (uiRootRect != null)
-        {
-            uiRootRect.localScale = Vector3.one;
-            uiRootRect.anchorMin = Vector2.zero;
-            uiRootRect.anchorMax = Vector2.one;
-            uiRootRect.pivot = new Vector2(0.5f, 0.5f);
-            uiRootRect.anchoredPosition = Vector2.zero;
-            uiRootRect.sizeDelta = Vector2.zero;
-            uiRootRect.offsetMin = Vector2.zero;
-            uiRootRect.offsetMax = Vector2.zero;
-        }
+        SafeAreaUtility.ApplySafeArea(uiRootRect);
+        MenuBackdropUtility.EnsureBackdrop(uiRootRect, CaveThemeLibrary.GetMenuTheme(), "ShopBackdrop");
+        ApplySceneTheme();
+
+        Image rootImage = uiRootRect != null ? uiRootRect.GetComponent<Image>() : null;
+
+        if (rootImage != null)
+            rootImage.color = new Color(0.02f, 0.03f, 0.05f, 0.08f);
+    }
+
+    void ApplySceneTheme()
+    {
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        Camera mainCamera = Camera.main;
+
+        if (mainCamera != null)
+            mainCamera.backgroundColor = Color.Lerp(theme.BackgroundBottom, theme.FogColor, 0.3f);
     }
 
     void EnsureRuntimeUI()
@@ -272,27 +261,6 @@ public class ShopManager : MonoBehaviour
         return managerObject.AddComponent<MonetizationManager>();
     }
 
-    void EnsureEditorTestBalance()
-    {
-#if UNITY_EDITOR
-        if (!Application.isPlaying || !seedEditorCoinsIfEmpty || seededEditorCoinsThisSession)
-            return;
-
-        int savedCoins = PlayerPrefs.GetInt("TotalCoins", 0);
-        seededEditorCoinsThisSession = true;
-
-        if (savedCoins > 0)
-            return;
-
-        PlayerPrefs.SetInt("TotalCoins", editorSeedCoinsAmount);
-        PlayerPrefs.Save();
-        totalCoins = editorSeedCoinsAmount;
-
-        if (feedbackText != null)
-            feedbackText.text = "Editor coins: " + editorSeedCoinsAmount;
-#endif
-    }
-
     void HideLegacyShopButtons()
     {
         string[] legacyButtonNames =
@@ -343,7 +311,7 @@ public class ShopManager : MonoBehaviour
         feedbackText.enableAutoSizing = true;
         feedbackText.fontSizeMin = 16;
         feedbackText.fontSizeMax = 22;
-        feedbackText.color = new Color(0.16f, 0.18f, 0.24f, 1f);
+        feedbackText.color = new Color(0.79f, 0.87f, 0.93f, 1f);
 
         if (runtimeFont != null)
             feedbackText.font = runtimeFont;
@@ -373,11 +341,16 @@ public class ShopManager : MonoBehaviour
             viewportRect = viewportObject.GetComponent<RectTransform>();
 
             Image viewportImage = viewportObject.GetComponent<Image>();
-            viewportImage.color = new Color(1f, 1f, 1f, 0.02f);
+            viewportImage.color = new Color(0.07f, 0.09f, 0.13f, 0.26f);
         }
 
         if (viewportRect.GetComponent<RectMask2D>() == null)
             viewportRect.gameObject.AddComponent<RectMask2D>();
+
+        Image existingViewportImage = viewportRect.GetComponent<Image>();
+
+        if (existingViewportImage != null)
+            existingViewportImage.color = new Color(0.07f, 0.09f, 0.13f, 0.26f);
 
         Transform existingContent = viewportRect.Find(ContentObjectName);
 
@@ -450,7 +423,7 @@ public class ShopManager : MonoBehaviour
         text.fontSizeMin = 18;
         text.fontSizeMax = 28;
         text.fontStyle = FontStyles.Bold;
-        text.color = new Color(0.11f, 0.17f, 0.27f, 0.92f);
+        text.color = new Color(0.9f, 0.95f, 0.98f, 0.96f);
 
         if (runtimeFont != null && text.font == null)
             text.font = runtimeFont;
@@ -463,16 +436,17 @@ public class ShopManager : MonoBehaviour
         if (uiRootRect == null)
             return;
 
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
         Canvas.ForceUpdateCanvases();
-        float rootWidth = uiRootRect.rect.width;
+        float contentWidth = GetCenteredContentWidth();
 
         if (shopTitleRect != null)
         {
             shopTitleRect.anchorMin = new Vector2(0.5f, 1f);
             shopTitleRect.anchorMax = new Vector2(0.5f, 1f);
             shopTitleRect.pivot = new Vector2(0.5f, 1f);
-            shopTitleRect.sizeDelta = new Vector2(rootWidth - (sidePadding * 2f), 52f);
-            shopTitleRect.anchoredPosition = new Vector2(0f, -18f);
+            shopTitleRect.sizeDelta = new Vector2(contentWidth, 52f);
+            shopTitleRect.anchoredPosition = new Vector2(0f, -48f);
         }
 
         if (shopTitleText != null)
@@ -482,6 +456,7 @@ public class ShopManager : MonoBehaviour
             shopTitleText.enableAutoSizing = true;
             shopTitleText.fontSizeMin = 20;
             shopTitleText.fontSizeMax = 30;
+            shopTitleText.color = new Color(0.95f, 0.98f, 0.99f, 1f);
         }
 
         if (totalCoinsText != null)
@@ -490,12 +465,13 @@ public class ShopManager : MonoBehaviour
             coinsRect.anchorMin = new Vector2(0.5f, 1f);
             coinsRect.anchorMax = new Vector2(0.5f, 1f);
             coinsRect.pivot = new Vector2(0.5f, 1f);
-            coinsRect.sizeDelta = new Vector2(rootWidth - (sidePadding * 2f), 32f);
-            coinsRect.anchoredPosition = new Vector2(0f, -60f);
+            coinsRect.sizeDelta = new Vector2(contentWidth, 32f);
+            coinsRect.anchoredPosition = new Vector2(0f, -92f);
             totalCoinsText.alignment = TextAlignmentOptions.Center;
             totalCoinsText.enableAutoSizing = true;
             totalCoinsText.fontSizeMin = 16;
             totalCoinsText.fontSizeMax = 24;
+            totalCoinsText.color = new Color(0.84f, 0.91f, 0.95f, 1f);
         }
 
         if (feedbackText != null)
@@ -504,10 +480,11 @@ public class ShopManager : MonoBehaviour
             feedbackRect.anchorMin = new Vector2(0.5f, 1f);
             feedbackRect.anchorMax = new Vector2(0.5f, 1f);
             feedbackRect.pivot = new Vector2(0.5f, 1f);
-            feedbackRect.sizeDelta = new Vector2(rootWidth - (sidePadding * 2f), 28f);
-            feedbackRect.anchoredPosition = new Vector2(0f, -92f);
+            feedbackRect.sizeDelta = new Vector2(contentWidth, 34f);
+            feedbackRect.anchoredPosition = new Vector2(0f, -130f);
             feedbackText.fontSizeMin = 16;
             feedbackText.fontSizeMax = 22;
+            feedbackText.color = new Color(0.79f, 0.87f, 0.93f, 1f);
         }
 
         if (backButtonRect != null)
@@ -524,6 +501,15 @@ public class ShopManager : MonoBehaviour
             backButtonText.enableAutoSizing = true;
             backButtonText.fontSizeMin = 18;
             backButtonText.fontSizeMax = 28;
+            backButtonText.color = new Color(0.95f, 0.98f, 0.99f, 1f);
+        }
+
+        if (backButtonRect != null)
+        {
+            Image backButtonImage = backButtonRect.GetComponent<Image>();
+
+            if (backButtonImage != null)
+                backButtonImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.42f);
         }
 
         if (viewportRect != null)
@@ -796,20 +782,42 @@ public class ShopManager : MonoBehaviour
         if (headerRect == null)
             return;
 
-        headerRect.anchorMin = new Vector2(0f, 1f);
-        headerRect.anchorMax = new Vector2(1f, 1f);
+        float headerWidth = GetScrollableCardWidth() - (headerHorizontalInset * 2f);
+
+        headerRect.anchorMin = new Vector2(0.5f, 1f);
+        headerRect.anchorMax = new Vector2(0.5f, 1f);
         headerRect.pivot = new Vector2(0.5f, 1f);
-        headerRect.sizeDelta = new Vector2(0f, sectionHeaderHeight);
+        headerRect.sizeDelta = new Vector2(headerWidth, sectionHeaderHeight);
         headerRect.anchoredPosition = new Vector2(0f, -yOffset);
     }
 
     void LayoutCard(RectTransform cardRect, float height, float yOffset)
     {
-        cardRect.anchorMin = new Vector2(0f, 1f);
-        cardRect.anchorMax = new Vector2(1f, 1f);
+        float cardWidth = GetScrollableCardWidth();
+
+        cardRect.anchorMin = new Vector2(0.5f, 1f);
+        cardRect.anchorMax = new Vector2(0.5f, 1f);
         cardRect.pivot = new Vector2(0.5f, 1f);
-        cardRect.sizeDelta = new Vector2(0f, height);
+        cardRect.sizeDelta = new Vector2(cardWidth, height);
         cardRect.anchoredPosition = new Vector2(0f, -yOffset);
+    }
+
+    float GetCenteredContentWidth()
+    {
+        if (uiRootRect == null)
+            return cardMaxWidth;
+
+        float availableWidth = Mathf.Max(320f, uiRootRect.rect.width - (sidePadding * 2f));
+        return Mathf.Min(availableWidth, cardMaxWidth);
+    }
+
+    float GetScrollableCardWidth()
+    {
+        if (viewportRect == null)
+            return cardMaxWidth;
+
+        float availableWidth = Mathf.Max(320f, viewportRect.rect.width - (cardHorizontalInset * 2f));
+        return Mathf.Min(availableWidth, cardMaxWidth);
     }
 
     void RefreshUI()

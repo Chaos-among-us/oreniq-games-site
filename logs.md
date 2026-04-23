@@ -16,18 +16,10 @@
 - Append new dated entries instead of dumping full chat transcripts.
 - Record reversions and decision changes explicitly inside the dated entry that made them.
 - Do not paste secrets into this file.
-- Do record non-secret signing metadata here whenever Android signing changes:
-  - which keystore identity is used
-  - where that keystore lives
-  - alias name
-  - signer certificate fingerprint
-  - which machine created or last verified it
-  - whether it matches the active phone build
-  - where the secure backup lives
 - If switching machines while the repo is dirty, preserve work on a safety branch before syncing.
 
 ## Quick Resume Prompt
-Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.md` as the operational handoff source of truth. Work in the current local checkout path instead of a hardcoded machine path. Preserve the scene-owned UI direction, the consumable upgrade loop, the current restored menu and shop baseline, and the phone-verified monetization build that was installed on the Galaxy S26 Ultra on `2026-04-21`. For a fresh machine, also run `scripts/bootstrap-workstation.ps1`.
+Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.md` as the operational handoff source of truth. Work in the current local checkout path instead of a hardcoded machine path. Preserve the scene-owned UI direction, the consumable upgrade loop, the current restored menu and shop baseline, and the Android release push toward April 17, 2026. For a fresh machine, also run `scripts/bootstrap-workstation.ps1`.
 
 ## Project Snapshot
 - Repo folder name: `Block-dodger1` or `EndlessDodge1` depending on the machine
@@ -40,14 +32,8 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
   - `Shop`
   - `Inventory`
 - Current baseline:
-  - current branch on this machine is `master`
-  - current local head on this machine is commit `682a8a6` (`4-15-2026 1`), pulled locally on `2026-04-21`
-  - the connected Galaxy S26 Ultra currently has a debug build of `com.oreniq.endlessdodge` first installed on `2026-04-21 14:20` and last updated on `2026-04-21 16:12`
-  - the installed Galaxy build is signed by `Android Debug` with SHA-256 fingerprint `b5a482c7ba1b832b8deef10b7170faa0b080f9a409453152320023edf7496601`
-  - the installed phone build contains the April 15 monetization/shop-offer feature set, including `Coin Packs & Offers`, starter pack, coin packs, and the post-run double-coins flow
+  - current active repo on this machine reached remote commit `9b065da` on `2026-04-13`
   - prior multi-computer sync cleanup happened on `2026-04-13`
-  - local Android signing files are currently present on this workstation under `UserSettings/Android`
-  - this workstation's local `Oreniq Games` keystore currently has SHA-256 fingerprint `7abda6c18c6396264270bfa0dc34400181a28f58fd59f7da6adc78e77e97e47e`
 - Release identity:
   - company name: `Oreniq Games`
   - Android package: `com.oreniq.endlessdodge`
@@ -75,8 +61,8 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
 - Nice-to-have polish that delays release-critical work
 
 ## Timeline
-- Previous release target in planning docs: Friday, `2026-04-17`
-- Current phase: active on-device QA and tuning against the Galaxy S26 Ultra build
+- Current release target: Friday, `2026-04-17`
+- Current phase: launch sprint and release-readiness pass
 - Near-term business target: work toward roughly `$1,000/day` within the first month after launch
 
 ## User Workflow Preferences
@@ -92,7 +78,6 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
 - Player movement exists in a portrait play area.
 - Border clamping exists so the player stays inside the lane.
 - Obstacle spawning and difficulty scaling exist.
-- A runtime-generated moving background now runs behind gameplay and rotates themes as the run levels up.
 - Coins spawn and are collected.
 - Coins were updated away from square-looking placeholders toward circular gold pickups.
 - Game over, restart, best score saving, and post-run summary all exist.
@@ -139,13 +124,9 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
   - `Assets/Scripts/Services/UnityServicesBootstrap.cs`
   - `Assets/Scripts/Services/LaunchAnalytics.cs`
   - `Assets/Scripts/Services/MonetizationManager.cs`
-- Shop now surfaces a `Coin Packs & Offers` section with:
-  - starter pack
-  - small coin pack
-  - medium coin pack
-  - large coin pack
-- Unity IAP purchase hooks and IAP analytics exist, with editor-safe simulated purchases still enabled for testing.
-- A post-run rewarded double-coins surface exists and is still simulated until a real ad provider is integrated.
+- A first monetization surface exists:
+  - post-run rewarded double-coins flow
+  - currently simulated until a real ad provider is integrated
 - Analytics instrumentation was added for core run, economy, reward, and challenge events.
 
 ## Important Decisions And Reversions
@@ -156,63 +137,92 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
 - Do not treat one machine-specific absolute path as the global source of truth. The repo content is the source of truth; the working path depends on the current machine.
 
 ## Open Risks And Blockers
-- The current Galaxy S26 Ultra install of `com.oreniq.endlessdodge` is signed with an `Android Debug` certificate from the other PC, while this workstation's local signing path uses the `Oreniq Games` keystore, so in-place updates from this machine currently fail with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
-- Until the original debug keystore from the other PC is recovered, phone installs from this machine require uninstalling the current app first, which would wipe local device save data.
-- Some April 21 phone-side tuning may live in scene-owned Unity content and is not fully described in the older handoff entries yet.
-- Unity import, compile, and scene verification still need a live editor pass on this workstation; the current repo review was file-based plus phone package inspection.
-- Real phone readability and feel still need a side-by-side check against the current Unity scenes.
-- The new dynamic background themes need a live Unity and phone pass to tune contrast, motion speed, and distraction level against gameplay readability.
-- Audio, feedback, particles, and transitions are still light or missing.
-- The rewarded flow still needs a real ad provider.
-- Coin-pack IAP offers exist in code but still need real store-product and device verification.
-- Store assets, screenshots, privacy policy, and Play Console setup are still pending.
-- Local Android signing data is intentionally machine-local and must not be committed:
-  - `UserSettings/Android/oreniq-release.keystore`
-  - `UserSettings/Android/release-signing.json`
-- On this workstation, both local Android signing files are currently present.
-- When changing machines, re-verify Unity modules, package restore, and release-signing setup.
+- Real phone validation is still needed on the newest Android build (`Logs/codex-android-build-15.log`, artifact `Builds/Android/EndlessDodge1-debug.apk`) for:
+  - whether the gameplay music is finally loud enough
+  - whether the loud click at the end of the ambient loop is gone or at least much smaller
+  - whether the new ambient loop feels faster and less synthetic/boring
+  - whether the cave backgrounds are sharp enough and still readable against dark obstacles
+  - Some phone UI polish may still remain in `MainMenu` and `Inventory`; do not assume the earlier layout issues are fully closed until the newest APK is retested.
+  - Cross-PC Android signing must stay out of Git, so the repo needs to point to a safe shared external signing folder instead of storing signing secrets in `logs.md`.
+  - Runtime audio/visual feedback now exists, but it is still procedural placeholder content and may need stronger authored polish.
+  - The post-run rewarded double-coins offer was restored for debug/dev builds and must be re-verified on phone after a run.
+  - A one-time rewarded revive prompt was added and must be re-verified on phone to decide whether it feels good enough to keep.
+  - The rewarded flow still needs a real ad provider before release; current phone testing still uses simulation in debug/dev builds.
+  - Coin-pack IAPs and starter-offer surfaces now exist, but they still need production store configuration and polish.
+  - Store assets, screenshots, privacy policy, and Play Console setup are still pending.
+  - Local Android signing data is intentionally machine-local and must not be committed:
+    - `UserSettings/Android/oreniq-release.keystore`
+    - `UserSettings/Android/release-signing.json`
+  - Secret material must not be pasted into `logs.md`; use the shared external signing folder or the supported environment-variable overrides instead.
+  - When changing machines, re-verify Unity modules, package restore, and release-signing setup.
 
 ## Current Focus
-1. Tomorrow, recover the other PC's original Android debug keystore, verify it matches the phone fingerprint `b5a482c7ba1b832b8deef10b7170faa0b080f9a409453152320023edf7496601`, and copy it to a secure backup plus this workstation.
-2. Record the recovered debug signing metadata in `logs.md` without storing raw secret values, so future machine switches do not lose the phone update path again.
-3. Open Unity on the current machine and tune the new level-based dynamic backgrounds for readability, speed, and theme cadence during real gameplay.
-4. Confirm the `682a8a6` repo state still imports, compiles, and restores packages cleanly in Unity on this workstation.
-5. Compare the current Unity scenes against the Galaxy S26 Ultra build that was installed and updated on `2026-04-21`.
-6. Capture any scene-owned UI, balance, or feel tweaks that exist on the phone build but are not yet spelled out in the handoff docs.
-7. Verify the local Android release-signing helper still works from `Tools/Android` on this workstation.
-8. Verify the shop `Coin Packs & Offers` section, starter pack, simulated IAP flows, and post-run double-coins surface on-device once the phone signing path is resolved.
-9. Replace the simulated rewarded flow with a real ad provider.
-10. Add audio and feedback polish needed for launch quality, then finish store listing assets and release metadata.
+1. Retest Android build 15 on phone with sound on. First checks:
+   - music loudness
+   - loop-end click/pop
+   - music tempo/energy
+   - post-run double-coins button visibility
+   - rewarded revive prompt behavior
+2. Tune the cave atmosphere pass after that retest: background detail, theme transitions, audio mix, and obstacle/player theming.
+3. Finish any remaining real-phone UI/layout cleanup in `MainMenu`, `Inventory`, and the in-run HUD after the audio/rewarded retest is checked.
+4. Use a shared external Android signing folder so different PCs can update the same phone install without committing signing secrets.
+5. Replace the simulated rewarded flow with a real ad provider.
+6. Finish production IAP/store configuration, listing assets, screenshots, privacy policy, Data safety declarations, and Play Console metadata.
 
 ## When The Other PC Is Available
-1. On the other PC, first look for the Android debug keystore that likely signed the current phone build:
-   - `%USERPROFILE%\.android\debug.keystore`
-2. If it is not there, search the other PC for:
-   - `debug.keystore`
-3. If a candidate debug keystore is found, verify its signer fingerprint matches the phone's current signer:
-   - expected phone signer SHA-256: `b5a482c7ba1b832b8deef10b7170faa0b080f9a409453152320023edf7496601`
-4. Copy that debug keystore to:
-   - a secure backup location outside the repo
-   - this workstation so future phone updates can use the same signer
-5. Also check the project copy that was actually used there for the current local release-signing files:
-   - `UserSettings/Android/release-signing.json`
-   - `UserSettings/Android/oreniq-release.keystore`
-6. If those release files are not there, search the other PC for:
+1. Resolve the actual repo root on that PC, pull the latest changes, then read:
+   - `logs.md`
+   - `ROADMAP.md`
+   - `RELEASE_SPRINT.md`
+   - `docs/COMPUTER_SWITCH_CHECKLIST.md`
+2. Run:
+   - `powershell -ExecutionPolicy Bypass -File scripts/bootstrap-workstation.ps1`
+3. Open the project in Unity `6000.4.0f1` and wait for import/compile to finish.
+4. On the other PC, check the project copy that was actually used there for Android signing material.
+5. Look inside that repo's `UserSettings/Android` folder for:
+   - `release-signing.json`
+   - `oreniq-release.keystore`
+6. If they are not there, search the other PC for:
    - `oreniq-release.keystore`
    - `release-signing.json`
-7. Copy the release-signing files into this machine's repo folder:
+7. Put both files in the shared external signing folder if possible:
+   - `Documents/EndlessDodge1/SharedSigning/Android/`
+8. If needed, local project fallback is still:
    - `UserSettings/Android/`
-8. After the debug keystore and release files are recovered, update `logs.md` with all non-secret signing metadata:
-   - keystore type (`Android Debug` or `Oreniq Games` release)
-   - file path on the machine where it was recovered
-   - alias name
-   - signer SHA-256 fingerprint
-   - which machine it came from
-   - date verified
-   - whether it supports in-place updates on the Galaxy phone
-   - secure backup location
-9. Do not paste passwords or raw secret values into `logs.md`.
-10. Do not create a new debug or release keystore unless the old one is truly gone and you intentionally want a new Android signing identity.
+9. Supported secret-location overrides also exist:
+   - `%ENDLESSDODGE_SIGNING_CONFIG%`
+   - `%ENDLESSDODGE_SIGNING_ROOT%`
+10. On that machine, reopen Unity if needed and click:
+   - `Tools/Android/Apply Local Release Signing`
+11. Verify Unity reports signing was applied successfully, then use:
+   - `Tools/Android/Build Debug APK`
+   - or `Tools/Android/Build And Install Debug APK`
+12. Build 15 is the current known-good baseline from this machine:
+   - log: `Logs/codex-android-build-15.log`
+   - artifact: `Builds/Android/EndlessDodge1-debug.apk`
+   - install status on this machine: succeeded on phone via `adb install -r`
+   - important signing note: build 15 did **not** use shared signing yet; it fell back to this machine's local Android debug keystore because shared signing was not found
+   - current machine debug-keystore path:
+     - `C:\Users\antho\.android\debug.keystore`
+13. First manual retest on the other PC should be:
+   - music loudness during gameplay
+   - whether the ambient loop still ends with a loud click
+   - whether the music feels faster and less synthetic
+   - whether the post-run `Watch Ad` double-coins button appears again
+   - whether the mid-run rewarded revive prompt appears and feels good enough to keep
+14. If the other PC needs to update the exact same currently installed app **before** shared/release signing is recovered:
+   - copy this machine's debug keystore file:
+     - `C:\Users\antho\.android\debug.keystore`
+   - place it on the other PC at:
+     - `%USERPROFILE%\.android\debug.keystore`
+   - this makes the other PC's debug builds use the same signing identity as the app currently installed from this PC
+   - do **not** commit this file to Git
+   - this is a temporary bridge only; the preferred long-term fix is still shared signing via:
+     - `Documents/EndlessDodge1/SharedSigning/Android/`
+15. Important secret rule:
+   - do not paste signing keys, keystore passwords, or other secrets into `logs.md` or any repo-tracked file
+   - keep them in the shared external signing folder or environment variables only
+16. Do not create a new release keystore unless the old one is truly gone and you intentionally want a new Android signing identity.
 
 ## Cross-Computer And Cross-Chat Handoff Rules
 - Start by resolving the current repo root on the machine you are using.
@@ -232,7 +242,6 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
   - `Tools/Android/Open Local Signing Folder`
   - `Tools/Android/Create Local Signing Config Template`
 - Keep machine-local secrets and signing files out of source control.
-- Keep `logs.md` updated with non-secret signing metadata any time a new machine, new keystore, or new phone signer is introduced.
 - After every meaningful session, append a structured entry below.
 
 ## Structured Change Log Template
@@ -246,87 +255,248 @@ Use this exact format for new entries:
 - Next best action:
 
 ## Structured Change Log
-### 2026-04-21 - Night handoff and tomorrow signing recovery plan
+### 2026-04-22 - Rewarded-flow recovery and cave-audio tempo pass
 - Goal:
-  - End the night with a clean handoff that explains exactly why the phone could not be updated from this workstation and what to recover tomorrow on the other PC.
+  - Restore the missing rewarded ad surfaces on phone, add a proper one-time rewarded revive prompt, and make the cave ambience louder, faster, and less sleepy for real device testing.
 - What changed:
-  - Added the phone signer's exact SHA-256 fingerprint and this workstation's current release-keystore fingerprint to the handoff snapshot.
-  - Expanded the `When The Other PC Is Available` checklist to prioritize recovering the old Android debug keystore before anything else.
-  - Added an explicit rule that future signing metadata should be written into `logs.md` in non-secret form so future machine switches do not lose the signing trail again.
+  - Updated `MonetizationManager` so rewarded-ad simulation works on development phone builds again instead of being editor-only, which restores the post-run double-coins offer during device testing.
+  - Added a one-time mid-run rewarded revive prompt in `GameManager` with `Watch Ad: Revive` and `End Run` actions, plus analytics events for request/result.
+  - Reworked `EndlessDodgeAudioDirector` toward a shorter, more rhythmic cave loop with stronger percussion/noise texture, higher music gain, and loop-edge fades to reduce the loud end-of-cycle click.
+  - Built a fresh Android debug APK and installed it to the connected phone from this machine.
 - Decisions / reversions:
-  - Keep secrets out of `logs.md`, but do store non-secret signing metadata there from now on.
-  - Treat signing identity history as handoff-critical project state, not as disposable local machine trivia.
+  - Keep rewarded ads simulated in debug/dev builds until a real ad provider is integrated, so monetization UI can still be validated on-device without blocking on SDK setup.
+  - Treat the new rewarded revive as a single-use continue per non-daily run for now so it does not undermine challenge fairness or become an infinite continue loop.
 - Verification:
-  - Confirmed the current phone signer fingerprint is `b5a482c7ba1b832b8deef10b7170faa0b080f9a409453152320023edf7496601`.
-  - Confirmed this workstation's current `Oreniq Games` keystore fingerprint is `7abda6c18c6396264270bfa0dc34400181a28f58fd59f7da6adc78e77e97e47e`.
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity batch build `Logs/codex-android-build-15.log` finished with `Build Finished, Result: Success.`
+  - Fresh artifact written to `Builds/Android/EndlessDodge1-debug.apk` at `2026-04-22 4:53 PM` local time.
+  - `adb install -r` succeeded and the app was relaunched on the phone.
 - Next best action:
-  - Tomorrow, recover the original debug keystore from the other PC, verify its fingerprint, back it up securely, and then log its non-secret metadata here before trying another in-place phone update.
+  - Retest on phone specifically for music loudness/tempo/loop smoothness, confirm the double-coins button is back after a run, and verify whether the new rewarded revive prompt feels worth keeping as a release feature.
 
-### 2026-04-21 - Android deploy automation and phone signing blocker
+### 2026-04-22 - Inventory text geometry and gameplay-audio recovery pass
 - Goal:
-  - Make phone deployment part of the normal coding loop on this workstation so gameplay changes can be pushed to the connected Galaxy device right after implementation.
+  - Fix the remaining inventory illegibility/overlap on phone and restore clearly audible gameplay ambience in the current Android build.
 - What changed:
-  - Added `Assets/Editor/AndroidBuildAutomation.cs` with repeatable Unity menu and batch entry points for Android APK output from this repo.
-  - Built `Builds/Android/EndlessDodge-dev.apk` successfully from the current repo state after the new dynamic background work landed.
-  - Attempted to install the new APK onto the connected Galaxy S26 Ultra and captured the real Android failure instead of assuming the local signing setup matched the phone.
-  - Verified the currently installed phone APK is signed with an `Android Debug` certificate, while this workstation's keystore is the local `Oreniq Games` release identity, so Android blocks the update with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
-  - Stopped a follow-up phone-signed rebuild once the certificate mismatch was confirmed, to avoid wasting more build time on an install path that still could not replace the phone's current package.
+  - Overrode `InventoryMenu` layout values at runtime so old serialized scene values stop silently forcing the smaller legacy inventory sizing.
+  - Reworked `InventorySlotUI` text regions again with explicit top/bottom label bands instead of the broken stretch math that was collapsing and overlapping text on device.
+  - Shortened the inventory description and status copy so each card reads more cleanly at phone scale.
+  - Increased gameplay music gain in `EndlessDodgeAudioDirector`, added a more audible midrange chamber-resonance layer, raised air/drip presence, and added a playback keepalive so the active music source restarts if it ever drops out.
 - Decisions / reversions:
-  - From this point forward, treat "deploy to phone after changes" as the default workflow goal, but only when the signing identity supports a non-destructive update.
-  - Do not uninstall the current phone build automatically, because that would wipe local app data and needs an explicit user decision.
-  - The current workstation can build Android successfully, but it cannot update the phone in place until the signing identity mismatch is resolved.
+  - Keep the inventory on a compact two-line card model rather than trying to fit full shop-style detail density on every inventory card.
+  - Favor more audible cave ambience even if it is slightly less subtle, because silence on the phone is a worse failure than a mix that needs another balancing pass.
 - Verification:
-  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors after adding the Android build automation script.
-  - Unity batch build produced `Builds/Android/EndlessDodge-dev.apk`.
-  - `adb install -r -t -d Builds\\Android\\EndlessDodge-dev.apk` failed with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
-  - APK certificate inspection showed the installed Galaxy build uses the `Android Debug` signer, while this workstation's `UserSettings/Android/oreniq-release.keystore` uses the `Oreniq Games` signer.
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` errors.
+  - Unity batch Android build `codex-android-build-14.log` completed successfully.
+  - Fresh APK `Builds/Android/EndlessDodge1-debug.apk` was written at `2026-04-22 4:25 PM` and installed successfully over ADB.
 - Next best action:
-  - Choose whether to uninstall and reinstall the app on the phone now, or recover the original debug keystore from the other PC so this workstation can resume in-place updates without wiping device data.
+  - Retest only the inventory readability and the gameplay music presence/volume on the phone, then capture only any remaining misses.
 
-### 2026-04-21 - Dynamic level backgrounds
+### 2026-04-22 - Android batch-build recovery and phone UI follow-up pass
 - Goal:
-  - Give the `Game` scene a stronger sense of motion and progression by adding animated backgrounds that change as the player levels up.
+  - Recover the batch Android build path on this PC, then use the newest phone screenshots to fix the inventory regression, finally move the main-menu buttons, and make the cave presentation read more sharply on device.
 - What changed:
-  - Added `Assets/Scripts/DynamicBackgroundController.cs` to generate a full-screen backdrop and drifting foreground-safe scenery at runtime without waiting on imported art.
-  - Implemented multiple rotating background themes that now cycle by difficulty level, including cloud, cave, crystal, storm, and starfield-inspired looks.
-  - Wired `GameManager` to auto-create the dynamic background controller at run start so the effect is present in normal gameplay without scene hand-editing first.
-  - Updated `Assembly-CSharp.csproj` so local command-line compilation includes the new background script until Unity next regenerates project files.
+  - Fixed `Assets/Editor/AndroidBuildUtility.cs` so batch Android debug builds now force the supported `IL2CPP + ARM64` configuration instead of the earlier invalid fast-debug backend combination.
+  - Verified the Android batch build pipeline now completes end-to-end and writes `Builds/Android/EndlessDodge1-debug.apk` successfully on this machine.
+  - Pulled the latest phone screenshots directly from the connected device and used them as the source of truth for this UI pass.
+  - Reworked `InventorySlotUI` into a clearer large-card layout with separate title, description, owned-count, and status regions rather than a single collapsing TMP block.
+  - Updated `InventoryMenu` with larger slot sizing, darker cave-tinted viewport chrome, and a generated cave backdrop so the inventory screen no longer sits on a flat gray field.
+  - Added the same generated cave-backdrop treatment to `MainMenu` and `Shop` so the menus share the cave direction instead of reading like flat tinted panels.
+  - Moved the main menu button stack upward again in `MainMenu` so the spacing change is more visible on phone.
+  - Increased `CaveBackgroundController` cave-sprite resolution and reduced soft fog blending so gameplay caves read less blurry.
 - Decisions / reversions:
-  - Use procedural runtime visuals first so we can tune feel immediately and swap to hand-authored art later if needed.
-  - Keep the generated scenery low-opacity and mostly edge-biased so the main dodge lane stays readable.
-  - Continue running the Unity-generated `dotnet build` targets serially on this workstation because parallel builds still fight over shared `Temp` outputs.
+  - Keep the menu cave backdrops procedural for now; they are meant to provide sharper atmosphere quickly, not lock the final art direction.
+  - Continue using the connected phone screenshots as the deciding QA artifact for UI/layout fixes instead of trusting the desktop Game view.
 - Verification:
-  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors after adding the new script to the project file.
-  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors when rerun serially.
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity batch Android build `codex-android-build-13.log` finished with `Build Finished, Result: Success.`
+  - Fresh APK installed successfully over ADB and the app was relaunched on the connected Samsung phone.
 - Next best action:
-  - Open the `Game` scene in Unity and on the Galaxy phone, then tune background contrast, spawn density, and per-theme motion so the new visuals feel alive without making dodging harder.
+  - Retest the inventory first, then the main menu spacing, then the sharper gameplay cave background, and only capture the remaining misses.
 
-### 2026-04-21 - Galaxy S26 Ultra build verification and log correction
+### 2026-04-22 - Biome transition, visibility, and menu-theme follow-up pass
 - Goal:
-  - Use the connected phone as the stronger source of truth so `logs.md` matches the build that was actually installed and tested today.
+  - Remove the remaining level-up hitch, brighten cave readability, make the inventory cards meaningfully larger, extend the cave theme into the remaining menu surfaces, and capture release-compliance work in repo docs instead of chat only.
 - What changed:
-  - Inspected the connected Galaxy S26 Ultra over ADB and confirmed `com.oreniq.endlessdodge` is installed as a debuggable build that was first installed on `2026-04-21 14:20` and last updated on `2026-04-21 16:12`.
-  - Pulled the installed `base.apk` from the phone and verified its metadata contains the April 15 monetization/shop-offer strings, including `Coin Packs & Offers`, starter pack, small/medium/large coin packs, `Editor purchase simulation enabled`, and the post-run double-coins labels.
-  - Confirmed the phone package name matches the current repo release identity (`Oreniq Games` / `com.oreniq.endlessdodge`) rather than the older `DefaultCompany` copies found in other local folders.
-  - Read the phone's Unity player prefs through `run-as` and confirmed active device testing data exists on `2026-04-21` (for example coins, score, daily systems, and tutorial state).
-  - Corrected `logs.md` so it stays aligned with the phone-verified April 15 feature baseline instead of falling back to the older April 13 snapshot.
+  - Switched `CaveBackgroundController` from effectively changing presentation every level to biome-based presentation blocks, so heavy sprite swaps now happen on real biome changes instead of each level tick.
+  - Brightened `CaveThemeLibrary`, background blending, and obstacle tinting so hazards stand out more clearly against the cave backdrop without going back to flat blue menus.
+  - Rebalanced `EndlessDodgeAudioDirector` toward louder ambient presence and less obviously melodic / synthetic content by leaning more on rumble, air, and drip texture.
+  - Enlarged the inventory list cards again in `InventoryMenu` / `InventorySlotUI` with taller slots, larger text, more padding, and clearer stacked status text.
+  - Applied cave-scene styling to `Shop` and `Inventory` surfaces so they stop reading like the older default-blue baseline.
+  - Added `docs/RELEASE_COMPLIANCE_CHECKLIST.md` to track privacy policy, Data safety, content rating, support/store metadata, and naming-clearance work.
 - Decisions / reversions:
-  - Treat the connected phone build as the stronger source of truth than stale handoff assumptions when the docs and lived device state disagree.
-  - Do not roll `logs.md` back before the April 15 monetization entry, because the phone build clearly contains that feature set.
-  - Keep using the current checkout and `.git` metadata to anchor repo history, but treat phone verification as the tie-breaker for current active state.
-  - Keep Android signing material local-only even when it is present on this workstation.
-  - On this workstation, run the Unity-generated `dotnet build` targets serially instead of in parallel because both projects write into the same `Temp` outputs.
+  - Do not rename the app in code yet; first generate a shortlist and do store + trademark knockout checks before touching package/display identity.
+  - Keep release-signing secrets out of the repo and out of `logs.md`; use the shared external signing-folder workflow instead.
 - Verification:
-  - Read the current repo files directly.
-  - Verified `.git/HEAD` points to `refs/heads/master` and the current local head hash is `682a8a6757b400aadbb5fc7c99585c0d8b791288` by reading `.git` metadata directly on this workstation.
-  - Verified `ProjectSettings/ProjectVersion.txt` is `6000.4.0f1`, `ProjectSettings.asset` still uses `Oreniq Games` and `com.oreniq.endlessdodge`, and `UserSettings/Android` currently contains both local signing files on this workstation.
-  - `adb devices -l` detected the Galaxy S26 Ultra (`SM-S948U`).
-  - `adb shell dumpsys package com.oreniq.endlessdodge` reported the April 21 install/update times and confirmed the package is debuggable.
-  - `adb shell run-as com.oreniq.endlessdodge cat shared_prefs/com.oreniq.endlessdodge.v2.playerprefs.xml` returned active player prefs from phone testing.
-  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors after rerunning it serially.
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors.
   - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
 - Next best action:
-  - Open Unity on this machine, compare the scene-owned UI and feel directly against the Galaxy S26 Ultra build, and capture any unlogged April 21 tuning changes before making the next code or scene edit.
+  - Build and install a fresh Android APK, retest the cave transition / audio / inventory changes on phone, then draft the privacy policy and naming shortlist against the new compliance checklist.
+
+### 2026-04-22 - Transition hitch and cave-direction refinement pass
+- Goal:
+  - Remove the jarring level-up hitch, stop existing obstacles from changing look mid-run, and push the cave presentation away from soft pastel gradients toward a darker cavern feel.
+- What changed:
+  - Reworked `CaveBackgroundController` so cave themes are prewarmed ahead of time instead of being generated on the level-up frame, which should remove the transition-time freeze.
+  - Broadened the crossfade window in `GameManager` so the visual handoff starts earlier and feels less like a late hard swap.
+  - Changed `CaveThemeLibrary` so one cave biome now lasts across multiple levels instead of effectively re-skinning the whole world every single level, while still allowing progression through subtler palette shifts.
+  - Locked `CaveHazardVisuals` to the theme present when an obstacle spawns, so live hazards no longer recolor or reshape themselves during gameplay.
+  - Reworked the default rock obstacle art toward sharper, chunkier silhouettes and switched runtime obstacle textures to crisper sampling so the start-of-run hazards stop reading like tumbleweeds.
+  - Darkened and desaturated the cave palette, reduced the soft fog treatment, and made the cave layers more silhouette-driven so the backgrounds read less like a pastel wash.
+  - Rebalanced `EndlessDodgeAudioDirector` toward heavier rumble / air / drip ambience with much less melodic shimmer so the loop feels less obviously synthetic.
+- Decisions / reversions:
+  - Keep the cave presentation procedural for now, but use it as a stepping stone toward later authored sprites and music instead of treating it as final art.
+  - Preserve the continuous difficulty ramp; the main issue this pass targeted was the transition hitch and visual/audio presentation, not the ramping model itself.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - Unity batch Android build completed successfully and produced a fresh `Builds/Android/EndlessDodge1-debug.apk` at `2026-04-22 11:38 AM`.
+  - `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success` on the connected Samsung phone.
+  - The app was relaunched over ADB after install.
+- Next best action:
+  - Retest the phone build and focus on five things only: whether the level-up freeze is gone, whether backgrounds now read more like caves, whether the obstacle silhouettes feel better, whether the biome transition feels smoother, and whether the ambient audio is closer to the right direction.
+
+### 2026-04-22 - Cave atmosphere and pacing polish pass
+- Goal:
+  - Make the run feel more like moving through a cave instead of sliding over flat gradients, smooth out progression between levels, and give the player stronger audio/visual context during gameplay.
+- What changed:
+  - Rebuilt `CaveBackgroundController` so the runtime background uses layered tunnel silhouettes, spikes, pillars, crystals, and floating cave motes instead of mostly blurry color washes.
+  - Added background crossfading between the current and next cave theme so level changes blend rather than snapping abruptly.
+  - Added `CaveThemeLibrary` plus themed runtime hazard styling in `Obstacle` / `ObstacleZigZag`, so hazards now read more like cave rocks, ledges, crystals, and bats.
+  - Added a cave-themed runtime player visual in `PlayerController` so the character reads more like a cave creature / glow-bug than a generic placeholder.
+  - Smoothed gameplay pacing by adding continuous difficulty helpers in `GameManager` and switching obstacle speed scaling to ramp through the level instead of jumping only on level-up.
+  - Expanded `EndlessDodgeAudioDirector` with a louder, fuller ambient loop, slower theme crossfades, and level-progress-aware music swell so the cave ambience has more presence.
+- Decisions / reversions:
+  - Keep the new cave art direction procedural for now so the game can keep moving without blocking on imported art assets.
+  - Treat authored sprites, obstacle variants, and higher-fidelity music as a later polish step if the direction tests well on phone.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - Unity batch Android build completed successfully and produced a fresh `Builds/Android/EndlessDodge1-debug.apk` at `2026-04-22 11:13 AM`.
+  - `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success` on the connected Samsung phone.
+  - The app was relaunched over ADB after install.
+- Next best action:
+  - Retest the phone build with sound on and focus on five things only: cave detail readability, level-transition smoothness, ambient mix quality, whether obstacle/player theming feels right, and whether the new difficulty ramp feels smoother through each level.
+
+### 2026-04-22 - Shared signing and immersion systems pass
+- Goal:
+  - Improve cross-PC Android build continuity without committing secrets, while also starting a proper immersion pass with scrolling cave backgrounds, level-based visual progression, runtime audio, and visible power-up feedback.
+- What changed:
+  - Added runtime cave-theme generation plus a scrolling layered cave background system that changes palette and mood by difficulty level.
+  - Added a runtime audio director for ambient level music, coin pickup SFX, obstacle-hit feedback, level-up cues, and upgrade activation sounds without blocking on imported audio assets.
+  - Added player power-up visuals for shield, magnet, slow time, speed boost, extra life, and other active buffs so the player's state reads during gameplay.
+  - Wired the new background, audio, and power-up visual systems into `GameManager` so they react to real level changes, coin pickups, collisions, revives, bombs, and upgrade activations.
+  - Added a reusable Android signing resolver plus editor menu support for a shared external signing folder / environment-variable workflow, and updated the Android debug build path to reuse that shared signing automatically when available.
+- Decisions / reversions:
+  - Do not put signing passwords or keystore contents in `logs.md` or Git, even for convenience.
+  - Cross-PC phone continuity should come from a shared external signing location, not from storing secrets in the repo.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors after Unity regenerated the project files for the new scripts.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - Unity batch build completed successfully and produced a fresh `Builds/Android/EndlessDodge1-debug.apk` at `2026-04-22 10:31 AM`.
+  - `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success` on the connected Samsung phone.
+- Next best action:
+  - Retest on phone with sound enabled and focus on four things: moving cave background feel, level-to-level progression readability, audio balance, and whether the active power-up visuals communicate state cleanly without becoming distracting.
+
+### 2026-04-21 - Inventory rollback and menu-balance pass
+- Goal:
+  - Undo the bad inventory presentation regression from the previous pass and lightly rebalance the main menu so the larger challenge card does not crowd the core navigation buttons.
+- What changed:
+  - Replaced the failed multi-label inventory card experiment with a single centered card text block in `InventorySlotUI`, keeping the bigger cards but returning to a cleaner shop-like stacked presentation.
+  - Tightened the `Inventory` header stack and viewport spacing so the screen budget goes back to the cards instead of oversized header text.
+  - Fixed `MainMenu.SetButtonLayout` so it actually applies the intended Y offsets, then moved the `Play / Shop / Inventory / Exit` button stack upward slightly to create more breathing room below.
+  - Rebuilt and reinstalled a fresh Android debug APK over ADB on the connected Samsung phone.
+- Decisions / reversions:
+  - The previous three-text inventory card layout was a regression on real hardware and should not be iterated further.
+  - Keep the daily challenge panel improvements, but solve the remaining menu crowding by adjusting the button stack rather than shrinking the challenge card again immediately.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - A fresh batch build completed successfully at `2026-04-21 4:11 PM` and produced an updated `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+- Next best action:
+  - Retest only `Inventory` and the `MainMenu` vertical balance on phone. If either still feels off, capture one fresh screenshot of that exact screen and tune only that surface.
+
+### 2026-04-21 - Inventory shop-style parity pass
+- Goal:
+  - Stop nudging the old inventory list layout around and instead rebuild it toward the same larger card structure that already works well in the shop, while also finally separating the daily challenge status line from its CTA button.
+- What changed:
+  - Reworked `InventorySlotUI` away from the old single combined label into a structured three-line card: title, description, and meta/status, using the same kind of padded stretch-text layout that the shop cards use.
+  - Enlarged the `Inventory` list again with taller cards, narrower centered card width, tighter row spacing, and a lighter header stack so more of the screen budget goes to the actual cards.
+  - Updated the daily challenge status text in `MainMenu` to use shorter labels such as `Best: x/y` and `Goal: x`, then expanded the challenge panel height and spacing so the action button no longer rides on top of the status line.
+  - Rebuilt a fresh Android debug APK and reinstalled it over ADB onto the connected Samsung phone.
+- Decisions / reversions:
+  - The user feedback was right: inventory should follow the same card pattern as the shop instead of staying a compressed list with tiny text.
+  - Keep using phone screenshots as the authority for readability issues instead of assuming editor changes are visible enough on-device.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors after the inventory and challenge layout pass.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - A fresh batch build completed successfully at `2026-04-21 4:00 PM` and produced an updated `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb devices -l` detected the connected phone (`SM_S948U`), and `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+- Next best action:
+  - Retest only two screens now: `Inventory` and the `MainMenu` daily challenge card. If either still fails, capture one fresh screenshot of that exact screen and tune only that surface.
+
+### 2026-04-21 - Third phone polish pass
+- Goal:
+  - Fix the remaining real-device blockers after the second phone retest: laggy mobile controls, inventory cards that still felt too small, daily challenge text overlap in `MainMenu`, and the in-run loadout label crowding the top-right menu area.
+- What changed:
+  - Reworked `PlayerController` mobile input again so active touch drag now moves the player directly by world-space drag delta instead of using the slower velocity-style floating-joystick model.
+  - Enlarged the `Inventory` layout again with taller rows, slightly tighter outer padding, and roomier `InventorySlotUI` typography/padding so the cards read more like tappable shop cards on phone.
+  - Tightened `MainMenu` daily challenge copy and expanded the challenge summary panel layout again so the title, status, and CTA fit more reliably on tall Samsung screens.
+  - Lowered and deconflicted the in-game loadout HUD text in `GameManager`, and disabled its raycast target so it cannot steal taps from the top-right menu button.
+  - Rebuilt a fresh Android debug APK and reinstalled it over ADB after USB debugging became available again.
+- Decisions / reversions:
+  - Reverted away from the slower velocity-style touch model because the real phone test said it felt delayed.
+  - Keep validating from real device screenshots and APK installs rather than trusting the Unity Game view for portrait-phone readability.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors after the latest code pass.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - A fresh batch build completed successfully at `2026-04-21 3:34 PM` and produced an updated `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb devices -l` detected the connected phone (`SM_S948U`), and `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+- Next best action:
+  - Retest the newest phone build and confirm four things only: touch responsiveness, inventory card size, daily challenge card readability, and whether the top-right menu button is now clear and tappable during play.
+
+### 2026-04-21 - Second phone polish pass
+- Goal:
+  - Address the next round of real-device issues after the first phone retest: shop and inventory headers still sitting too close to the punch-hole area, inventory presentation still feeling rough, and touch controls still not matching the intended floating-joystick feel.
+- What changed:
+  - Reworked `PlayerController` mobile input again so drag now drives a virtual joystick-style movement vector instead of using touch delta as an absolute player target position.
+  - Lowered the top header stack in `Shop` and widened the shop cards slightly so the camera area has more breathing room on tall portrait phones.
+  - Reworked the `Inventory` mobile layout with more top clearance, wider cards, taller rows, clearer feedback copy, and stronger card formatting in `InventorySlotUI`.
+  - Removed the old "skip normalization for scene-owned panels" behavior in `MainMenu` so the daily reward, mission summary, and challenge summary panels all go through the same phone layout pass.
+  - Nudged the in-game HUD lower again so the next device check can confirm the runtime build is actually using the latest layout code.
+- Decisions / reversions:
+  - Use real phone screenshots as the source of truth when device behavior disagrees with the editor.
+  - Prefer velocity-style floating-joystick controls over absolute drag-target controls for this game.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
+  - A fresh batch build completed successfully at `2026-04-21 3:02 PM` and produced an updated `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+- Next best action:
+  - Retest the newest phone build and confirm four things only: shop header clearance, inventory header clearance, inventory card readability, and whether the new floating-joystick movement finally feels correct.
+
+### 2026-04-21 - Phone readability and touch-control pass
+- Goal:
+  - Fix the real-device issues found during the first Android phone check: top text colliding with the camera area, crowded main menu panels, and touch controls that felt like jagged chase movement instead of direct drag movement.
+- What changed:
+  - Pulled phone screenshots into `Builds/PhoneScreenshots/` and used them as the source of truth for the next UI pass instead of relying on the tiny Unity Game view.
+  - Reworked `PlayerController` mobile input so touch now behaves like a floating joystick / relative drag: the player mirrors the finger movement from the touch-start position instead of stepping toward the raw touch point with `Mathf.Sign`.
+  - Added safe-area-aware layout normalization to the main menu, shop, inventory, and in-game HUD paths so the top content respects the phone cutout area more reliably.
+  - Tightened the `MainMenu` daily reward, daily challenge, and daily mission summary panel layout so the reward/status text stacks cleanly on phone.
+  - Shortened the in-run loadout fallback label from `No loadout selected` to `No loadout` to reduce top-right HUD crowding on narrow portrait screens.
+  - Rebuilt a fresh Android debug APK and installed it over ADB onto the connected Samsung phone.
+- Decisions / reversions:
+  - Keep fixing the scene-owned UI and runtime normalizers instead of adding editor-only readability hacks.
+  - Prefer direct phone screenshots and APK installs as the validation loop for mobile UI and controls.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo` succeeded with `0` warnings and `0` errors after the UI/control pass.
+  - A closed-editor batch build succeeded and produced an updated `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb devices -l` detected the connected phone (`SM_S948U`), and `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+- Next best action:
+  - Retest the phone build and confirm three things only: the top text no longer collides with the camera area, the main menu panels are readable, and the new drag controls feel closer to the intended joystick-style movement.
 
 ### 2026-04-13 - Workstation sync and handoff standardization
 - Goal:
@@ -361,6 +531,23 @@ Use this exact format for new entries:
   - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors.
 - Next best action:
   - Reopen the `Shop` scene in Unity, verify the new offer cards render cleanly, and click through simulated purchases to confirm coin and consumable grants update live.
+
+### 2026-04-21 - Android phone-test helper
+- Goal:
+  - Make it possible to get a phone-installable Android build quickly even before the release keystore is recovered on this machine.
+- What changed:
+  - Added `Assets/Editor/AndroidBuildUtility.cs` with `Tools/Android/Build Debug APK` and `Tools/Android/Build And Install Debug APK`.
+  - The helper builds `Builds/Android/EndlessDodge1-debug.apk`, uses the enabled Build Settings scenes, temporarily disables custom release signing for the build itself, then resolves Unity's generated Gradle output into the stable repo output path.
+  - The install action uses the Unity-bundled `adb.exe` and installs with `adb install -r` when a USB-debuggable phone is connected.
+- Decisions / reversions:
+  - Prefer debug APKs for immediate phone testing instead of blocking on the missing release keystore.
+  - Remove the earlier editor-only seeded-coin workaround from the shop and keep the readability changes focused on responsive layout behavior.
+- Verification:
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo` succeeded with `0` warnings and `0` errors after adding the helper.
+  - A closed-editor batch build succeeded and produced `Builds/Android/EndlessDodge1-debug.apk`.
+  - `adb devices` returned no connected Android devices during this session.
+- Next best action:
+  - Connect a phone with USB debugging enabled, then use `Tools/Android/Build And Install Debug APK`, or manually copy/install `Builds/Android/EndlessDodge1-debug.apk`.
 
 ### 2026-04-11 - Launch sprint continuation
 - Goal:

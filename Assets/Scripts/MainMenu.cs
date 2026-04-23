@@ -21,6 +21,8 @@ public class MainMenu : MonoBehaviour
 
     private TMP_FontAsset runtimeFont;
     private RectTransform menuRootRect;
+    private TMP_Text titleText;
+    private RectTransform titleRect;
     private TextMeshProUGUI profileStatsText;
     private bool profileStatsSceneOwned;
 
@@ -30,14 +32,12 @@ public class MainMenu : MonoBehaviour
     private TextMeshProUGUI dailyRewardStatusText;
     private Button claimRewardButton;
     private TextMeshProUGUI claimRewardButtonText;
-    private bool dailyRewardPanelSceneOwned;
 
     private GameObject missionSummaryPanel;
     private TextMeshProUGUI missionSummaryTitleText;
     private TextMeshProUGUI missionSummaryStatusText;
     private Button missionSummaryOpenButton;
     private TextMeshProUGUI missionSummaryOpenButtonText;
-    private bool missionSummaryPanelSceneOwned;
 
     private GameObject challengeSummaryPanel;
     private TextMeshProUGUI challengeSummaryTitleText;
@@ -45,7 +45,6 @@ public class MainMenu : MonoBehaviour
     private TextMeshProUGUI challengeSummaryStatusText;
     private Button challengeSummaryActionButton;
     private TextMeshProUGUI challengeSummaryActionButtonText;
-    private bool challengeSummaryPanelSceneOwned;
 
     private GameObject missionOverlayRoot;
     private GameObject missionOverlayPanel;
@@ -81,6 +80,8 @@ public class MainMenu : MonoBehaviour
 
         runtimeFont = ResolveRuntimeFont();
         menuRootRect = GetMenuRoot();
+        titleText = FindText(titleObjectName);
+        titleRect = titleText != null ? titleText.rectTransform : null;
 
         if (createInventoryButtonAtRuntime)
             EnsureInventoryButtonExists();
@@ -96,6 +97,15 @@ public class MainMenu : MonoBehaviour
         NormalizeMenuLayout();
         RefreshMenuHud();
         SetMissionOverlayVisible(false);
+    }
+
+    void OnRectTransformDimensionsChange()
+    {
+        if (!isActiveAndEnabled || SceneManager.GetActiveScene().name != ExpectedSceneName)
+            return;
+
+        NormalizeMenuLayout();
+        RefreshMenuHud();
     }
 
     public void PlayGame()
@@ -287,13 +297,11 @@ public class MainMenu : MonoBehaviour
 
         if (existing != null)
         {
-            dailyRewardPanelSceneOwned = true;
             dailyRewardPanel = existing.gameObject;
             CacheDailyRewardPanelReferences();
             return;
         }
 
-        dailyRewardPanelSceneOwned = false;
         dailyRewardPanel = new GameObject(DailyRewardPanelObjectName, typeof(RectTransform), typeof(Image));
         dailyRewardPanel.transform.SetParent(menuRootRect, false);
 
@@ -373,13 +381,11 @@ public class MainMenu : MonoBehaviour
 
         if (existing != null)
         {
-            challengeSummaryPanelSceneOwned = true;
             challengeSummaryPanel = existing.gameObject;
             CacheChallengeSummaryReferences();
             return;
         }
 
-        challengeSummaryPanelSceneOwned = false;
         challengeSummaryPanel = new GameObject(ChallengeSummaryPanelObjectName, typeof(RectTransform), typeof(Image));
         challengeSummaryPanel.transform.SetParent(menuRootRect, false);
 
@@ -459,13 +465,11 @@ public class MainMenu : MonoBehaviour
 
         if (existing != null)
         {
-            missionSummaryPanelSceneOwned = true;
             missionSummaryPanel = existing.gameObject;
             CacheMissionSummaryReferences();
             return;
         }
 
-        missionSummaryPanelSceneOwned = false;
         missionSummaryPanel = new GameObject(MissionSummaryPanelObjectName, typeof(RectTransform), typeof(Image));
         missionSummaryPanel.transform.SetParent(menuRootRect, false);
 
@@ -1030,15 +1034,22 @@ public class MainMenu : MonoBehaviour
         {
             if (rewardClaimed)
             {
-                challengeSummaryStatusText.text = "Completed today";
+                challengeSummaryStatusText.text = "Reward claimed";
             }
             else if (canClaimReward)
             {
-                challengeSummaryStatusText.text = "Reward: " + DailyChallengeSystem.GetRewardLabel(challenge);
+                challengeSummaryStatusText.text = "Reward ready";
+            }
+            else if (challenge.bestScore > 0)
+            {
+                string unitLabel = challenge.goalType == DailyChallengeGoalType.CollectCoins ? "coins" : "score";
+                challengeSummaryStatusText.text = "Best: " + challenge.bestScore + "/" + challenge.targetScore + " " + unitLabel;
             }
             else
             {
-                challengeSummaryStatusText.text = DailyChallengeSystem.GetObjectiveLabel(challenge);
+                challengeSummaryStatusText.text = challenge.goalType == DailyChallengeGoalType.CollectCoins
+                    ? "Goal: " + challenge.targetScore + " coins"
+                    : "Goal: " + challenge.targetScore + " score";
             }
         }
 
@@ -1048,10 +1059,10 @@ public class MainMenu : MonoBehaviour
         if (challengeSummaryActionButtonText != null)
         {
             challengeSummaryActionButtonText.text = rewardClaimed
-                ? "Done Today"
+                ? "Done"
                 : canClaimReward
-                    ? "Claim Reward"
-                    : "Play Challenge";
+                    ? "Claim"
+                    : "Play";
         }
 
         if (buttonImage != null)
@@ -1170,6 +1181,8 @@ public class MainMenu : MonoBehaviour
 
     void NormalizeMenuLayout()
     {
+        NormalizeMenuRoot();
+        NormalizeHeaderLayout();
         NormalizeDailyRewardPanel();
         NormalizeChallengeSummaryPanel();
         NormalizeMissionSummaryPanel();
@@ -1177,12 +1190,72 @@ public class MainMenu : MonoBehaviour
         NormalizeButtons();
     }
 
+    void NormalizeMenuRoot()
+    {
+        if (menuRootRect == null)
+            menuRootRect = GetMenuRoot();
+
+        Canvas canvas = FindAnyObjectByType<Canvas>();
+        SafeAreaUtility.NormalizeCanvas(canvas);
+        SafeAreaUtility.ApplySafeArea(menuRootRect);
+
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        MenuBackdropUtility.EnsureBackdrop(menuRootRect, theme, "MainMenuBackdrop");
+        Camera mainCamera = Camera.main;
+
+        if (mainCamera != null)
+            mainCamera.backgroundColor = Color.Lerp(theme.BackgroundBottom, theme.FogColor, 0.24f);
+
+        Image rootImage = menuRootRect != null ? menuRootRect.GetComponent<Image>() : null;
+
+        if (rootImage != null)
+            rootImage.color = new Color(0.02f, 0.03f, 0.05f, 0.08f);
+    }
+
+    void NormalizeHeaderLayout()
+    {
+        float contentWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
+
+        if (titleText == null)
+            titleText = FindText(titleObjectName);
+
+        if (titleText != null)
+        {
+            if (titleRect == null)
+                titleRect = titleText.rectTransform;
+
+            titleRect.anchorMin = new Vector2(0.5f, 1f);
+            titleRect.anchorMax = new Vector2(0.5f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.sizeDelta = new Vector2(contentWidth, 240f);
+            titleRect.anchoredPosition = new Vector2(0f, -44f);
+
+            titleText.enableAutoSizing = true;
+            titleText.fontSizeMin = 52f;
+            titleText.fontSizeMax = 100f;
+            titleText.alignment = TextAlignmentOptions.Center;
+            titleText.lineSpacing = -10f;
+            titleText.color = new Color(0.94f, 0.97f, 0.99f, 1f);
+        }
+
+        if (profileStatsText != null)
+        {
+            RectTransform statsRect = profileStatsText.rectTransform;
+            statsRect.anchorMin = new Vector2(0.5f, 1f);
+            statsRect.anchorMax = new Vector2(0.5f, 1f);
+            statsRect.pivot = new Vector2(0.5f, 1f);
+            statsRect.sizeDelta = new Vector2(contentWidth, 50f);
+            statsRect.anchoredPosition = new Vector2(0f, -324f);
+            profileStatsText.fontSizeMin = 18f;
+            profileStatsText.fontSizeMax = 26f;
+            profileStatsText.lineSpacing = 0f;
+            profileStatsText.color = new Color(0.8f, 0.88f, 0.94f, 1f);
+        }
+    }
+
     void NormalizeDailyRewardPanel()
     {
         if (dailyRewardPanel == null)
-            return;
-
-        if (dailyRewardPanelSceneOwned)
             return;
 
         RectTransform panelRect = dailyRewardPanel.GetComponent<RectTransform>();
@@ -1190,38 +1263,56 @@ public class MainMenu : MonoBehaviour
         if (panelRect == null)
             return;
 
+        float panelWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
+        float textWidth = panelWidth - 72f;
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+
         panelRect.anchorMin = new Vector2(0.5f, 1f);
         panelRect.anchorMax = new Vector2(0.5f, 1f);
         panelRect.pivot = new Vector2(0.5f, 1f);
-        panelRect.sizeDelta = new Vector2(760f, 260f);
-        panelRect.anchoredPosition = new Vector2(0f, -440f);
+        panelRect.sizeDelta = new Vector2(panelWidth, 292f);
+        panelRect.anchoredPosition = new Vector2(0f, -420f);
+
+        Image panelImage = dailyRewardPanel.GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.26f);
 
         if (dailyRewardTitleText != null)
         {
             RectTransform titleRect = dailyRewardTitleText.rectTransform;
-            titleRect.sizeDelta = new Vector2(680f, 42f);
-            titleRect.anchoredPosition = new Vector2(0f, -18f);
-            dailyRewardTitleText.fontSizeMin = 26f;
-            dailyRewardTitleText.fontSizeMax = 36f;
+            titleRect.anchorMin = new Vector2(0.5f, 1f);
+            titleRect.anchorMax = new Vector2(0.5f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.sizeDelta = new Vector2(textWidth, 42f);
+            titleRect.anchoredPosition = new Vector2(0f, -22f);
+            dailyRewardTitleText.fontSizeMin = 24f;
+            dailyRewardTitleText.fontSizeMax = 34f;
         }
 
         if (dailyRewardBodyText != null)
         {
             RectTransform bodyRect = dailyRewardBodyText.rectTransform;
-            bodyRect.sizeDelta = new Vector2(680f, 64f);
-            bodyRect.anchoredPosition = new Vector2(0f, -92f);
-            dailyRewardBodyText.lineSpacing = -4f;
-            dailyRewardBodyText.fontSizeMin = 22f;
-            dailyRewardBodyText.fontSizeMax = 32f;
+            bodyRect.anchorMin = new Vector2(0.5f, 1f);
+            bodyRect.anchorMax = new Vector2(0.5f, 1f);
+            bodyRect.pivot = new Vector2(0.5f, 1f);
+            bodyRect.sizeDelta = new Vector2(textWidth, 82f);
+            bodyRect.anchoredPosition = new Vector2(0f, -84f);
+            dailyRewardBodyText.lineSpacing = 4f;
+            dailyRewardBodyText.fontSizeMin = 18f;
+            dailyRewardBodyText.fontSizeMax = 28f;
         }
 
         if (dailyRewardStatusText != null)
         {
             RectTransform statusRect = dailyRewardStatusText.rectTransform;
-            statusRect.sizeDelta = new Vector2(680f, 24f);
-            statusRect.anchoredPosition = new Vector2(0f, 90f);
-            dailyRewardStatusText.fontSizeMin = 20f;
-            dailyRewardStatusText.fontSizeMax = 26f;
+            statusRect.anchorMin = new Vector2(0.5f, 1f);
+            statusRect.anchorMax = new Vector2(0.5f, 1f);
+            statusRect.pivot = new Vector2(0.5f, 1f);
+            statusRect.sizeDelta = new Vector2(textWidth, 28f);
+            statusRect.anchoredPosition = new Vector2(0f, -176f);
+            dailyRewardStatusText.fontSizeMin = 18f;
+            dailyRewardStatusText.fontSizeMax = 24f;
         }
 
         if (claimRewardButton != null)
@@ -1247,35 +1338,47 @@ public class MainMenu : MonoBehaviour
         if (missionSummaryPanel == null)
             return;
 
-        if (missionSummaryPanelSceneOwned)
-            return;
-
         RectTransform panelRect = missionSummaryPanel.GetComponent<RectTransform>();
 
         if (panelRect == null)
             return;
 
+        float panelWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
+        float textWidth = panelWidth - 72f;
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+
         panelRect.anchorMin = new Vector2(0.5f, 0f);
         panelRect.anchorMax = new Vector2(0.5f, 0f);
         panelRect.pivot = new Vector2(0.5f, 0f);
-        panelRect.sizeDelta = new Vector2(760f, 200f);
+        panelRect.sizeDelta = new Vector2(panelWidth, 212f);
         panelRect.anchoredPosition = new Vector2(0f, 18f);
+
+        Image panelImage = missionSummaryPanel.GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = Color.Lerp(theme.WallColor, theme.FogColor, 0.18f);
 
         if (missionSummaryTitleText != null)
         {
             RectTransform titleRect = missionSummaryTitleText.rectTransform;
-            titleRect.sizeDelta = new Vector2(680f, 40f);
+            titleRect.anchorMin = new Vector2(0.5f, 1f);
+            titleRect.anchorMax = new Vector2(0.5f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.sizeDelta = new Vector2(textWidth, 40f);
             titleRect.anchoredPosition = new Vector2(0f, -20f);
         }
 
         if (missionSummaryStatusText != null)
         {
             RectTransform statusRect = missionSummaryStatusText.rectTransform;
-            statusRect.sizeDelta = new Vector2(680f, 40f);
-            statusRect.anchoredPosition = new Vector2(0f, -82f);
-            missionSummaryStatusText.fontSizeMin = 24f;
-            missionSummaryStatusText.fontSizeMax = 32f;
-            missionSummaryStatusText.lineSpacing = 0f;
+            statusRect.anchorMin = new Vector2(0.5f, 1f);
+            statusRect.anchorMax = new Vector2(0.5f, 1f);
+            statusRect.pivot = new Vector2(0.5f, 1f);
+            statusRect.sizeDelta = new Vector2(textWidth, 36f);
+            statusRect.anchoredPosition = new Vector2(0f, -78f);
+            missionSummaryStatusText.fontSizeMin = 20f;
+            missionSummaryStatusText.fontSizeMax = 28f;
+            missionSummaryStatusText.lineSpacing = 2f;
         }
 
         if (missionSummaryOpenButton != null)
@@ -1301,47 +1404,62 @@ public class MainMenu : MonoBehaviour
         if (challengeSummaryPanel == null)
             return;
 
-        if (challengeSummaryPanelSceneOwned)
-            return;
-
         RectTransform panelRect = challengeSummaryPanel.GetComponent<RectTransform>();
 
         if (panelRect == null)
             return;
 
+        float panelWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
+        float textWidth = panelWidth - 60f;
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+
         panelRect.anchorMin = new Vector2(0.5f, 0f);
         panelRect.anchorMax = new Vector2(0.5f, 0f);
         panelRect.pivot = new Vector2(0.5f, 0f);
-        panelRect.sizeDelta = new Vector2(760f, 240f);
+        panelRect.sizeDelta = new Vector2(panelWidth, 344f);
         panelRect.anchoredPosition = new Vector2(0f, 244f);
+
+        Image panelImage = challengeSummaryPanel.GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.22f);
 
         if (challengeSummaryTitleText != null)
         {
             RectTransform titleRect = challengeSummaryTitleText.rectTransform;
-            titleRect.sizeDelta = new Vector2(700f, 46f);
-            titleRect.anchoredPosition = new Vector2(0f, -18f);
-            challengeSummaryTitleText.fontSizeMin = 30f;
-            challengeSummaryTitleText.fontSizeMax = 42f;
+            titleRect.anchorMin = new Vector2(0.5f, 1f);
+            titleRect.anchorMax = new Vector2(0.5f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.sizeDelta = new Vector2(textWidth, 46f);
+            titleRect.anchoredPosition = new Vector2(0f, -20f);
+            challengeSummaryTitleText.fontSizeMin = 26f;
+            challengeSummaryTitleText.fontSizeMax = 36f;
         }
 
         if (challengeSummaryBodyText != null)
         {
             RectTransform bodyRect = challengeSummaryBodyText.rectTransform;
-            bodyRect.sizeDelta = new Vector2(700f, 50f);
-            bodyRect.anchoredPosition = new Vector2(0f, -82f);
-            challengeSummaryBodyText.fontSizeMin = 28f;
-            challengeSummaryBodyText.fontSizeMax = 40f;
-            challengeSummaryBodyText.lineSpacing = 0f;
+            bodyRect.anchorMin = new Vector2(0.5f, 1f);
+            bodyRect.anchorMax = new Vector2(0.5f, 1f);
+            bodyRect.pivot = new Vector2(0.5f, 1f);
+            bodyRect.sizeDelta = new Vector2(textWidth, 52f);
+            bodyRect.anchoredPosition = new Vector2(0f, -84f);
+            challengeSummaryBodyText.fontSizeMin = 24f;
+            challengeSummaryBodyText.fontSizeMax = 34f;
+            challengeSummaryBodyText.lineSpacing = 2f;
         }
 
         if (challengeSummaryStatusText != null)
         {
             RectTransform statusRect = challengeSummaryStatusText.rectTransform;
-            statusRect.sizeDelta = new Vector2(700f, 46f);
-            statusRect.anchoredPosition = new Vector2(0f, -138f);
-            challengeSummaryStatusText.fontSizeMin = 24f;
-            challengeSummaryStatusText.fontSizeMax = 34f;
-            challengeSummaryStatusText.lineSpacing = 0f;
+            statusRect.anchorMin = new Vector2(0.5f, 1f);
+            statusRect.anchorMax = new Vector2(0.5f, 1f);
+            statusRect.pivot = new Vector2(0.5f, 1f);
+            statusRect.sizeDelta = new Vector2(textWidth, 50f);
+            statusRect.anchoredPosition = new Vector2(0f, -146f);
+            challengeSummaryStatusText.fontSizeMin = 20f;
+            challengeSummaryStatusText.fontSizeMax = 28f;
+            challengeSummaryStatusText.lineSpacing = 2f;
         }
 
         if (challengeSummaryActionButton != null)
@@ -1350,8 +1468,8 @@ public class MainMenu : MonoBehaviour
 
             if (buttonRect != null)
             {
-                buttonRect.sizeDelta = new Vector2(420f, 64f);
-                buttonRect.anchoredPosition = new Vector2(0f, 20f);
+                buttonRect.sizeDelta = new Vector2(440f, 62f);
+                buttonRect.anchoredPosition = new Vector2(0f, 22f);
             }
         }
 
@@ -1367,6 +1485,8 @@ public class MainMenu : MonoBehaviour
         if (missionOverlayRoot == null || missionOverlayPanel == null)
             return;
 
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+
         RectTransform rootRect = missionOverlayRoot.GetComponent<RectTransform>();
         rootRect.anchorMin = Vector2.zero;
         rootRect.anchorMax = Vector2.one;
@@ -1379,6 +1499,16 @@ public class MainMenu : MonoBehaviour
         panelRect.pivot = new Vector2(0.5f, 0.5f);
         panelRect.sizeDelta = new Vector2(860f, 980f);
         panelRect.anchoredPosition = new Vector2(0f, -20f);
+
+        Image rootImage = missionOverlayRoot.GetComponent<Image>();
+
+        if (rootImage != null)
+            rootImage.color = new Color(0.01f, 0.02f, 0.04f, 0.88f);
+
+        Image panelImage = missionOverlayPanel.GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.24f);
 
         if (missionOverlayTitleText != null)
         {
@@ -1450,10 +1580,10 @@ public class MainMenu : MonoBehaviour
 
     void NormalizeButtons()
     {
-        SetButtonLayout(playButtonObjectName, 50f);
-        SetButtonLayout(shopButtonObjectName, -88f);
-        SetButtonLayout(inventoryButtonObjectName, -226f);
-        SetButtonLayout(exitButtonObjectName, -364f);
+        SetButtonLayout(playButtonObjectName, 202f);
+        SetButtonLayout(shopButtonObjectName, 60f);
+        SetButtonLayout(inventoryButtonObjectName, -82f);
+        SetButtonLayout(exitButtonObjectName, -224f);
     }
 
     void SetButtonLayout(string objectName, float anchoredY)
@@ -1463,10 +1593,19 @@ public class MainMenu : MonoBehaviour
         if (button == null)
             return;
 
+        RectTransform buttonRect = button.GetComponent<RectTransform>();
+
+        if (buttonRect != null)
+        {
+            Vector2 anchoredPosition = buttonRect.anchoredPosition;
+            buttonRect.anchoredPosition = new Vector2(anchoredPosition.x, anchoredY);
+        }
+
         Image buttonImage = button.GetComponent<Image>();
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
 
         if (buttonImage != null)
-            buttonImage.color = new Color(0.96f, 0.97f, 1f, 0.96f);
+            buttonImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.46f);
 
         TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
 
@@ -1475,7 +1614,7 @@ public class MainMenu : MonoBehaviour
             label.enableAutoSizing = true;
             label.fontSizeMin = 24;
             label.fontSizeMax = 34;
-            label.color = new Color(0.18f, 0.22f, 0.3f, 1f);
+            label.color = new Color(0.96f, 0.98f, 1f, 1f);
         }
     }
 
@@ -1512,5 +1651,178 @@ public class MainMenu : MonoBehaviour
             return null;
 
         return buttonObject.GetComponent<Button>();
+    }
+}
+
+public static class SafeAreaUtility
+{
+    private static readonly Vector2 DefaultReferenceResolution = new Vector2(1080f, 1920f);
+
+    public static void NormalizeCanvas(Canvas canvas, float matchWidthOrHeight = 0.5f)
+    {
+        if (canvas == null)
+            return;
+
+        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+
+        if (canvasRect != null)
+        {
+            canvasRect.localScale = Vector3.one;
+            canvasRect.anchorMin = Vector2.zero;
+            canvasRect.anchorMax = Vector2.zero;
+            canvasRect.sizeDelta = Vector2.zero;
+        }
+
+        CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
+
+        if (scaler != null)
+        {
+            scaler.referenceResolution = DefaultReferenceResolution;
+            scaler.matchWidthOrHeight = matchWidthOrHeight;
+        }
+    }
+
+    public static void ApplySafeArea(RectTransform targetRect)
+    {
+        if (targetRect == null || Screen.width <= 0 || Screen.height <= 0)
+            return;
+
+        Rect safeArea = Screen.safeArea;
+        Vector2 anchorMin = safeArea.position;
+        Vector2 anchorMax = safeArea.position + safeArea.size;
+
+        anchorMin.x /= Screen.width;
+        anchorMin.y /= Screen.height;
+        anchorMax.x /= Screen.width;
+        anchorMax.y /= Screen.height;
+
+        targetRect.localScale = Vector3.one;
+        targetRect.anchorMin = anchorMin;
+        targetRect.anchorMax = anchorMax;
+        targetRect.offsetMin = Vector2.zero;
+        targetRect.offsetMax = Vector2.zero;
+        targetRect.anchoredPosition = Vector2.zero;
+        targetRect.sizeDelta = Vector2.zero;
+    }
+
+    public static float GetContentWidth(RectTransform rootRect, float maxWidth, float horizontalPadding)
+    {
+        if (rootRect == null)
+            return maxWidth;
+
+        float availableWidth = Mathf.Max(320f, rootRect.rect.width - (horizontalPadding * 2f));
+        return Mathf.Min(availableWidth, maxWidth);
+    }
+}
+
+public static class MenuBackdropUtility
+{
+    private const int BackdropWidth = 512;
+    private const int BackdropHeight = 1024;
+    private static readonly Dictionary<string, Sprite> spriteCache = new Dictionary<string, Sprite>();
+
+    public static void EnsureBackdrop(RectTransform rootRect, RuntimeCaveTheme theme, string objectName)
+    {
+        if (rootRect == null)
+            return;
+
+        Transform existing = rootRect.Find(objectName);
+        GameObject backdropObject;
+
+        if (existing != null)
+        {
+            backdropObject = existing.gameObject;
+        }
+        else
+        {
+            backdropObject = new GameObject(objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            backdropObject.transform.SetParent(rootRect, false);
+            backdropObject.transform.SetAsFirstSibling();
+        }
+
+        RectTransform backdropRect = backdropObject.GetComponent<RectTransform>();
+        backdropRect.anchorMin = Vector2.zero;
+        backdropRect.anchorMax = Vector2.one;
+        backdropRect.offsetMin = Vector2.zero;
+        backdropRect.offsetMax = Vector2.zero;
+        backdropRect.localScale = Vector3.one;
+
+        Image backdropImage = backdropObject.GetComponent<Image>();
+        backdropImage.raycastTarget = false;
+        backdropImage.preserveAspect = false;
+        backdropImage.color = Color.white;
+        backdropImage.sprite = GetOrCreateBackdropSprite(theme);
+    }
+
+    private static Sprite GetOrCreateBackdropSprite(RuntimeCaveTheme theme)
+    {
+        string key = "MenuBackdrop_" + theme.BiomeIndex;
+
+        if (spriteCache.TryGetValue(key, out Sprite cachedSprite) && cachedSprite != null)
+            return cachedSprite;
+
+        Texture2D texture = new Texture2D(BackdropWidth, BackdropHeight, TextureFormat.RGBA32, false);
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
+
+        Color[] pixels = new Color[BackdropWidth * BackdropHeight];
+        float seed = (theme.Level * 71.19f) + (theme.BiomeIndex * 113.7f);
+        Color upperGlow = Color.Lerp(theme.BackgroundTop, theme.FogColor, 0.18f);
+        Color lowerGlow = Color.Lerp(theme.BackgroundBottom, theme.WallColor, 0.28f);
+        Color tunnelColor = Color.Lerp(theme.BackgroundBottom, theme.FogColor, 0.1f);
+
+        for (int y = 0; y < BackdropHeight; y++)
+        {
+            float y01 = y / (BackdropHeight - 1f);
+            float tunnelCenter = 0.5f + (Mathf.PerlinNoise(seed * 0.012f, y01 * 1.3f + seed * 0.003f) - 0.5f) * 0.08f;
+            float tunnelHalfWidth = 0.2f + Mathf.Sin((y01 * 2.1f) + seed * 0.04f) * 0.04f;
+            tunnelHalfWidth += (Mathf.PerlinNoise(seed * 0.021f, y01 * 3.6f + seed * 0.008f) - 0.5f) * 0.1f;
+            tunnelHalfWidth = Mathf.Clamp(tunnelHalfWidth, 0.15f, 0.32f);
+
+            float topSpikeDepth = 0.08f + Mathf.PerlinNoise(seed * 0.032f, y01 * 0.2f) * 0.06f;
+            float bottomSpikeDepth = 0.07f + Mathf.PerlinNoise(seed * 0.041f, y01 * 0.24f) * 0.05f;
+
+            for (int x = 0; x < BackdropWidth; x++)
+            {
+                float x01 = x / (BackdropWidth - 1f);
+                float xDistance = Mathf.Abs(x01 - tunnelCenter);
+                float caveNoise = (Mathf.PerlinNoise((x + seed * 2.4f) * 0.018f, (y + seed * 1.7f) * 0.014f) - 0.5f) * 0.08f;
+                bool inWall = xDistance > tunnelHalfWidth + caveNoise;
+                inWall |= y01 > 1f - topSpikeDepth - Mathf.Abs(Mathf.Sin((x01 * 7.8f) + seed * 0.03f)) * 0.12f;
+                inWall |= y01 < bottomSpikeDepth + Mathf.Abs(Mathf.Sin((x01 * 9.1f) + seed * 0.06f)) * 0.11f;
+
+                Color pixel = Color.Lerp(lowerGlow, upperGlow, Mathf.Pow(y01, 1.08f));
+
+                if (inWall)
+                {
+                    float rockNoise = Mathf.PerlinNoise((x + seed * 0.9f) * 0.046f, (y + seed * 0.5f) * 0.038f);
+                    float edgeHighlight = Mathf.Clamp01((xDistance - tunnelHalfWidth) / 0.035f);
+                    pixel = Color.Lerp(theme.WallColor, theme.AccentColor, rockNoise * 0.08f + edgeHighlight * 0.16f);
+                    pixel = Color.Lerp(pixel, theme.CrystalColor, Mathf.SmoothStep(0.9f, 1f, rockNoise) * 0.12f);
+                }
+                else
+                {
+                    float fogNoise = Mathf.PerlinNoise((x + seed * 3.1f) * 0.028f, (y + seed * 2.2f) * 0.022f);
+                    float shaft = Mathf.Exp(-Mathf.Pow((x01 - tunnelCenter) * 4.6f, 2f)) * Mathf.SmoothStep(0.25f, 0.95f, y01) * 0.18f;
+                    pixel = Color.Lerp(pixel, tunnelColor, 0.36f);
+                    pixel = Color.Lerp(pixel, theme.FogColor, fogNoise * 0.03f + shaft);
+                }
+
+                pixel.a = 1f;
+                pixels[y * BackdropWidth + x] = pixel;
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+
+        Sprite sprite = Sprite.Create(
+            texture,
+            new Rect(0f, 0f, BackdropWidth, BackdropHeight),
+            new Vector2(0.5f, 0.5f),
+            100f);
+        sprite.name = key;
+        spriteCache[key] = sprite;
+        return sprite;
     }
 }

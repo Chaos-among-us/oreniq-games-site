@@ -1,23 +1,11 @@
-﻿#if UNITY_EDITOR
+#if UNITY_EDITOR
 using System;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-[Serializable]
-public sealed class AndroidReleaseSigningConfig
-{
-    public string keystoreName;
-    public string keystorePassword;
-    public string keyaliasName;
-    public string keyaliasPassword;
-}
-
 public static class AndroidReleaseSigningConfigurator
 {
-    private const string ConfigRelativePath = "UserSettings/Android/release-signing.json";
-    private const string TemplateRelativePath = "UserSettings/Android/release-signing.template.json";
-
     [InitializeOnLoadMethod]
     private static void TryApplyOnEditorLoad()
     {
@@ -31,7 +19,7 @@ public static class AndroidReleaseSigningConfigurator
         {
             EditorUtility.DisplayDialog(
                 "Android Release Signing",
-                "Applied local Android release signing from UserSettings/Android/release-signing.json.",
+                "Applied Android signing from the resolved shared/local signing config.",
                 "OK");
         }
     }
@@ -39,30 +27,44 @@ public static class AndroidReleaseSigningConfigurator
     [MenuItem("Tools/Android/Create Local Signing Config Template")]
     private static void CreateLocalSigningConfigTemplate()
     {
-        string templateFullPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), TemplateRelativePath));
+        string templateFullPath = Path.GetFullPath(Path.Combine(
+            AndroidSigningConfigResolver.GetProjectRoot(),
+            AndroidSigningConfigResolver.LocalTemplateRelativePath));
         Directory.CreateDirectory(Path.GetDirectoryName(templateFullPath) ?? string.Empty);
-
-        AndroidReleaseSigningConfig template = new AndroidReleaseSigningConfig
-        {
-            keystoreName = "UserSettings/Android/oreniq-release.keystore",
-            keystorePassword = "replace-with-your-keystore-password",
-            keyaliasName = "oreniq-release",
-            keyaliasPassword = "replace-with-your-key-password"
-        };
-
-        File.WriteAllText(templateFullPath, JsonUtility.ToJson(template, prettyPrint: true));
+        File.WriteAllText(templateFullPath, AndroidSigningConfigResolver.GetTemplateJson());
 
         EditorUtility.RevealInFinder(templateFullPath);
         EditorUtility.DisplayDialog(
             "Android Release Signing",
-            "Created UserSettings/Android/release-signing.template.json. Copy its values into release-signing.json on this machine and fill in the real passwords.",
+            "Created a local signing template in UserSettings/Android. Copy it to release-signing.json on this machine only, or use the shared external signing folder instead.",
             "OK");
     }
 
     [MenuItem("Tools/Android/Open Local Signing Folder")]
     private static void OpenLocalSigningFolder()
     {
-        string folderPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), "UserSettings/Android"));
+        string folderPath = AndroidSigningConfigResolver.GetProjectLocalSigningFolder();
+        Directory.CreateDirectory(folderPath);
+        EditorUtility.RevealInFinder(folderPath);
+    }
+
+    [MenuItem("Tools/Android/Create Shared Signing Config Template")]
+    private static void CreateSharedSigningConfigTemplate()
+    {
+        string templateFullPath = AndroidSigningConfigResolver.GetSharedTemplatePath();
+        Directory.CreateDirectory(Path.GetDirectoryName(templateFullPath) ?? string.Empty);
+        File.WriteAllText(templateFullPath, AndroidSigningConfigResolver.GetTemplateJson());
+        EditorUtility.RevealInFinder(templateFullPath);
+        EditorUtility.DisplayDialog(
+            "Android Release Signing",
+            "Created a shared signing template outside the repo. Put the real release-signing.json and keystore beside it so multiple PCs can reuse the same signing identity without committing secrets.",
+            "OK");
+    }
+
+    [MenuItem("Tools/Android/Open Shared Signing Folder")]
+    private static void OpenSharedSigningFolder()
+    {
+        string folderPath = AndroidSigningConfigResolver.GetPreferredSharedSigningFolder();
         Directory.CreateDirectory(folderPath);
         EditorUtility.RevealInFinder(folderPath);
     }
@@ -71,80 +73,48 @@ public static class AndroidReleaseSigningConfigurator
     {
         try
         {
-            string configFullPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), ConfigRelativePath));
+            AndroidSigningResolutionStatus resolutionStatus = AndroidSigningConfigResolver.Resolve(
+                out ResolvedAndroidReleaseSigningConfig resolvedConfig,
+                out string resolutionMessage);
 
-            if (!File.Exists(configFullPath))
-            {
-                return Fail(
-                    "Local Android signing config was not found in UserSettings/Android. This is expected on a fresh machine until release-signing.json is created locally.",
-                    interactiveFailure,
-                    logWarning: warnIfConfigMissing);
-            }
+            if (resolutionStatus != AndroidSigningResolutionStatus.Success)
+                return Fail(resolutionMessage, interactiveFailure, logWarning: warnIfConfigMissing);
 
-            AndroidReleaseSigningConfig config = JsonUtility.FromJson<AndroidReleaseSigningConfig>(File.ReadAllText(configFullPath));
-
-            if (config == null)
-            {
-                return Fail("Local Android signing config could not be parsed.", interactiveFailure);
-            }
-
-            if (string.IsNullOrWhiteSpace(config.keystoreName) ||
-                string.IsNullOrWhiteSpace(config.keystorePassword) ||
-                string.IsNullOrWhiteSpace(config.keyaliasName) ||
-                string.IsNullOrWhiteSpace(config.keyaliasPassword))
-            {
-                return Fail("Local Android signing config is missing required fields.", interactiveFailure);
-            }
-
-            string keystoreFullPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), config.keystoreName));
-
-            if (!File.Exists(keystoreFullPath))
-            {
-                return Fail("Configured Android keystore file was not found.", interactiveFailure);
-            }
-
-            PlayerSettings.Android.useCustomKeystore = true;
-            PlayerSettings.Android.keystoreName = NormalizeProjectRelativePath(config.keystoreName);
-            PlayerSettings.Android.keystorePass = config.keystorePassword;
-            PlayerSettings.Android.keyaliasName = config.keyaliasName;
-            PlayerSettings.Android.keyaliasPass = config.keyaliasPassword;
-
-            AssetDatabase.SaveAssets();
+            ApplySigning(resolvedConfig);
 
             if (logSuccess)
-            {
-                Debug.Log("Applied local Android release signing from UserSettings/Android.");
-            }
+                Debug.Log("Applied Android signing from " + resolvedConfig.ConfigPath + ".");
 
             return true;
         }
         catch (Exception ex)
         {
-            return Fail("Failed to apply local Android signing: " + ex.Message, interactiveFailure);
+            return Fail("Failed to apply Android signing: " + ex.Message, interactiveFailure);
         }
+    }
+
+    private static void ApplySigning(ResolvedAndroidReleaseSigningConfig resolvedConfig)
+    {
+        PlayerSettings.Android.useCustomKeystore = true;
+        PlayerSettings.Android.keystoreName = NormalizePathForUnity(resolvedConfig.KeystorePath);
+        PlayerSettings.Android.keystorePass = resolvedConfig.Config.keystorePassword;
+        PlayerSettings.Android.keyaliasName = resolvedConfig.Config.keyaliasName;
+        PlayerSettings.Android.keyaliasPass = resolvedConfig.Config.keyaliasPassword;
+        AssetDatabase.SaveAssets();
     }
 
     private static bool Fail(string message, bool interactiveFailure, bool logWarning = true)
     {
         if (interactiveFailure)
-        {
             EditorUtility.DisplayDialog("Android Release Signing", message, "OK");
-        }
 
         if (logWarning)
-        {
             Debug.LogWarning(message);
-        }
 
         return false;
     }
 
-    private static string GetProjectRoot()
-    {
-        return Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-    }
-
-    private static string NormalizeProjectRelativePath(string path)
+    private static string NormalizePathForUnity(string path)
     {
         return path.Replace('\\', '/');
     }

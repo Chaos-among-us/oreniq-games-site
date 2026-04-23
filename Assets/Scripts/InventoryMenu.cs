@@ -11,14 +11,14 @@ public class InventoryMenu : MonoBehaviour
     public RectTransform slotParent;
 
     public int columnCount = 1;
-    public float sidePadding = 20f;
-    public float topPadding = 154f;
+    public float sidePadding = 16f;
+    public float topPadding = 176f;
     public float bottomPadding = 92f;
     public float columnSpacing = 18f;
-    public float rowSpacing = 12f;
-    public float slotHeight = 92f;
-    public float cardHorizontalInset = 38f;
-    public float cardMaxWidth = 560f;
+    public float rowSpacing = 26f;
+    public float slotHeight = 352f;
+    public float cardHorizontalInset = 18f;
+    public float cardMaxWidth = 820f;
 
     private RectTransform titleRect;
     private TextMeshProUGUI titleText;
@@ -44,6 +44,7 @@ public class InventoryMenu : MonoBehaviour
 
     void Awake()
     {
+        ApplyRuntimeLayoutDefaults();
         NormalizeLegacyPanelLayout();
 
         if (slotParent == null)
@@ -56,6 +57,18 @@ public class InventoryMenu : MonoBehaviour
         EnsureRuntimeLabels();
         EnsureScrollArea();
         RebuildSlotArray();
+    }
+
+    void ApplyRuntimeLayoutDefaults()
+    {
+        sidePadding = 18f;
+        topPadding = 188f;
+        bottomPadding = 96f;
+        columnSpacing = 18f;
+        rowSpacing = 22f;
+        slotHeight = 248f;
+        cardHorizontalInset = 18f;
+        cardMaxWidth = 820f;
     }
 
     void Start()
@@ -173,38 +186,26 @@ public class InventoryMenu : MonoBehaviour
     void NormalizeLegacyPanelLayout()
     {
         Canvas canvas = FindAnyObjectByType<Canvas>();
-
-        if (canvas != null)
-        {
-            RectTransform canvasRect = canvas.GetComponent<RectTransform>();
-
-            if (canvasRect != null)
-            {
-                canvasRect.localScale = Vector3.one;
-                canvasRect.anchorMin = Vector2.zero;
-                canvasRect.anchorMax = Vector2.zero;
-                canvasRect.sizeDelta = Vector2.zero;
-            }
-
-            CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
-
-            if (scaler != null)
-            {
-                scaler.referenceResolution = new Vector2(1080f, 1920f);
-                scaler.matchWidthOrHeight = 0.5f;
-            }
-        }
+        SafeAreaUtility.NormalizeCanvas(canvas);
 
         RectTransform panelRect = transform as RectTransform;
+        SafeAreaUtility.ApplySafeArea(panelRect);
+        MenuBackdropUtility.EnsureBackdrop(panelRect, CaveThemeLibrary.GetMenuTheme(), "InventoryBackdrop");
+        ApplySceneTheme();
 
-        if (panelRect != null)
-        {
-            panelRect.localScale = Vector3.one;
-            panelRect.anchorMin = Vector2.zero;
-            panelRect.anchorMax = Vector2.one;
-            panelRect.offsetMin = Vector2.zero;
-            panelRect.offsetMax = Vector2.zero;
-        }
+        Image panelImage = GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = new Color(0.02f, 0.03f, 0.05f, 0.16f);
+    }
+
+    void ApplySceneTheme()
+    {
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        Camera mainCamera = Camera.main;
+
+        if (mainCamera != null)
+            mainCamera.backgroundColor = Color.Lerp(theme.BackgroundBottom, theme.FogColor, 0.3f);
     }
 
     void EnsureRuntimeLabels()
@@ -229,10 +230,10 @@ public class InventoryMenu : MonoBehaviour
         TextMeshProUGUI label = labelObject.AddComponent<TextMeshProUGUI>();
         label.fontSize = 20;
         label.enableAutoSizing = true;
-        label.fontSizeMin = 14;
-        label.fontSizeMax = 20;
+        label.fontSizeMin = 18;
+        label.fontSizeMax = 24;
         label.alignment = TextAlignmentOptions.Center;
-        label.color = new Color(0.16f, 0.18f, 0.24f, 1f);
+        label.color = new Color(0.8f, 0.88f, 0.94f, 1f);
 
         return label;
     }
@@ -260,6 +261,14 @@ public class InventoryMenu : MonoBehaviour
 
         if (slotViewport.GetComponent<RectMask2D>() == null)
             slotViewport.gameObject.AddComponent<RectMask2D>();
+
+        Image viewportImage = slotViewport.GetComponent<Image>();
+
+        if (viewportImage == null)
+            viewportImage = slotViewport.gameObject.AddComponent<Image>();
+
+        viewportImage.color = new Color(0.03f, 0.05f, 0.07f, 0.18f);
+        viewportImage.raycastTarget = false;
 
         if (slotContent == null)
         {
@@ -290,7 +299,7 @@ public class InventoryMenu : MonoBehaviour
         slotScrollRect.horizontal = false;
         slotScrollRect.vertical = true;
         slotScrollRect.movementType = ScrollRect.MovementType.Clamped;
-        slotScrollRect.scrollSensitivity = 30f;
+        slotScrollRect.scrollSensitivity = 36f;
     }
 
     void LayoutStaticElements()
@@ -299,23 +308,25 @@ public class InventoryMenu : MonoBehaviour
 
         float panelWidth = slotParent.rect.width;
         float panelHeight = slotParent.rect.height;
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
 
         if (titleRect != null)
         {
             titleRect.anchorMin = new Vector2(0.5f, 1f);
             titleRect.anchorMax = new Vector2(0.5f, 1f);
             titleRect.pivot = new Vector2(0.5f, 1f);
-            titleRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 62f);
-            titleRect.anchoredPosition = new Vector2(0f, -18f);
+            titleRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 56f);
+            titleRect.anchoredPosition = new Vector2(0f, -40f);
         }
 
         if (titleText != null)
         {
             titleText.text = "Choose 3 Upgrades";
             titleText.enableAutoSizing = true;
-            titleText.fontSizeMin = 26;
-            titleText.fontSizeMax = 40;
+            titleText.fontSizeMin = 30;
+            titleText.fontSizeMax = 42;
             titleText.alignment = TextAlignmentOptions.Center;
+            titleText.color = new Color(0.94f, 0.97f, 0.99f, 1f);
         }
 
         if (equippedCountText != null)
@@ -325,10 +336,11 @@ public class InventoryMenu : MonoBehaviour
             countRect.anchorMax = new Vector2(0.5f, 1f);
             countRect.pivot = new Vector2(0.5f, 1f);
             countRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 38f);
-            countRect.anchoredPosition = new Vector2(0f, -76f);
+            countRect.anchoredPosition = new Vector2(0f, -88f);
             equippedCountText.enableAutoSizing = true;
             equippedCountText.fontSizeMin = 20;
-            equippedCountText.fontSizeMax = 30;
+            equippedCountText.fontSizeMax = 28;
+            equippedCountText.color = new Color(0.84f, 0.9f, 0.95f, 1f);
         }
 
         if (feedbackText != null)
@@ -338,10 +350,11 @@ public class InventoryMenu : MonoBehaviour
             feedbackRect.anchorMax = new Vector2(0.5f, 1f);
             feedbackRect.pivot = new Vector2(0.5f, 1f);
             feedbackRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 34f);
-            feedbackRect.anchoredPosition = new Vector2(0f, -114f);
+            feedbackRect.anchoredPosition = new Vector2(0f, -124f);
             feedbackText.enableAutoSizing = true;
             feedbackText.fontSizeMin = 18;
             feedbackText.fontSizeMax = 24;
+            feedbackText.color = new Color(0.76f, 0.85f, 0.92f, 1f);
         }
 
         if (backButtonRect != null)
@@ -358,6 +371,15 @@ public class InventoryMenu : MonoBehaviour
             backButtonText.enableAutoSizing = true;
             backButtonText.fontSizeMin = 18;
             backButtonText.fontSizeMax = 28;
+            backButtonText.color = new Color(0.95f, 0.98f, 0.99f, 1f);
+        }
+
+        if (backButtonRect != null)
+        {
+            Image backButtonImage = backButtonRect.GetComponent<Image>();
+
+            if (backButtonImage != null)
+                backButtonImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.42f);
         }
 
         if (slotViewport != null)
@@ -398,8 +420,13 @@ public class InventoryMenu : MonoBehaviour
         if (equippedCountText != null)
             equippedCountText.text = "Equipped: " + equippedCount + "/" + UpgradeInventory.MaxEquippedUpgrades;
 
-        if (feedbackText != null && string.IsNullOrEmpty(feedbackText.text))
-            feedbackText.text = "Tap a card to select it";
+        if (feedbackText != null &&
+            (string.IsNullOrEmpty(feedbackText.text) ||
+             feedbackText.text == "Tap a card to select it" ||
+             feedbackText.text == "Tap a card to equip or remove it"))
+        {
+            feedbackText.text = "Tap a card to select";
+        }
 
         RebuildSlotArray();
         Canvas.ForceUpdateCanvases();

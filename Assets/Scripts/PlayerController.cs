@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.EventSystems;
 
 public class PlayerController : MonoBehaviour
 {
@@ -14,6 +15,7 @@ public class PlayerController : MonoBehaviour
     public float cameraSidePadding = 0.15f;
     public float cameraBottomPadding = 0.15f;
     public float cameraTopPadding = 1f;
+    public float touchDeadzonePixels = 6f;
     public string leftBorderObjectName = "LeftBorder";
     public string rightBorderObjectName = "RightBorder";
 
@@ -35,7 +37,7 @@ public class PlayerController : MonoBehaviour
     private float lastObstacleHitTime = -10f;
     private int cachedScreenWidth;
     private int cachedScreenHeight;
-
+    private int activeTouchFingerId = -1;
     private const float ObstacleHitCooldown = 0.08f;
 
     void Awake()
@@ -50,6 +52,9 @@ public class PlayerController : MonoBehaviour
         configuredMaxX = maxX;
         configuredMinY = minY;
         configuredMaxY = maxY;
+
+        if (GetComponent<CavePlayerVisuals>() == null)
+            gameObject.AddComponent<CavePlayerVisuals>();
     }
 
     void Start()
@@ -71,8 +76,12 @@ public class PlayerController : MonoBehaviour
         if (isDead)
         {
             moveInput = Vector2.zero;
+            ClearTouchDrag();
             return;
         }
+
+        if (UpdateTouchDragMovement())
+            return;
 
         moveInput = ReadMovementInput();
 
@@ -96,20 +105,6 @@ public class PlayerController : MonoBehaviour
 #if UNITY_EDITOR || UNITY_STANDALONE
         moveX = Input.GetAxisRaw("Horizontal");
         moveY = Input.GetAxisRaw("Vertical");
-#else
-        if (Input.touchCount > 0)
-        {
-            Touch touch = Input.GetTouch(0);
-            Camera touchCamera = Camera.main != null ? Camera.main : mainCamera;
-            Vector3 touchPos = touch.position;
-
-            if (touchCamera != null)
-                touchPos = touchCamera.ScreenToWorldPoint(touch.position);
-
-            Vector3 direction = touchPos - transform.position;
-            moveX = Mathf.Sign(direction.x);
-            moveY = Mathf.Sign(direction.y);
-        }
 #endif
 
         return new Vector2(moveX, moveY);
@@ -118,6 +113,7 @@ public class PlayerController : MonoBehaviour
     void ApplyMovement(float deltaTime, bool useRigidbody)
     {
         Vector2 position = useRigidbody ? playerBody.position : (Vector2)transform.position;
+
         float currentSpeed = moveSpeed;
 
         if (GameManager.instance != null)
@@ -333,5 +329,219 @@ public class PlayerController : MonoBehaviour
     {
         cachedScreenWidth = Screen.width;
         cachedScreenHeight = Screen.height;
+    }
+
+    bool UpdateTouchDragMovement()
+    {
+#if UNITY_EDITOR || UNITY_STANDALONE
+        ClearTouchDrag();
+        return false;
+#else
+        if (Input.touchCount <= 0)
+        {
+            ClearTouchDrag();
+            return false;
+        }
+
+        if (TryGetTouchByFingerId(activeTouchFingerId, out Touch activeTouch))
+        {
+            if (activeTouch.phase == TouchPhase.Canceled || activeTouch.phase == TouchPhase.Ended)
+            {
+                ClearTouchDrag();
+                return false;
+            }
+
+            ApplyTouchDragDelta(activeTouch);
+            return true;
+        }
+
+        for (int i = 0; i < Input.touchCount; i++)
+        {
+            Touch touch = Input.GetTouch(i);
+
+            if (touch.phase == TouchPhase.Canceled || touch.phase == TouchPhase.Ended)
+                continue;
+
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(touch.fingerId))
+                continue;
+
+            BeginTouchDrag(touch);
+            ApplyTouchDragDelta(touch);
+            return true;
+        }
+
+        ClearTouchDrag();
+        return false;
+#endif
+    }
+
+    void BeginTouchDrag(Touch touch)
+    {
+        activeTouchFingerId = touch.fingerId;
+    }
+
+    void ApplyTouchDragDelta(Touch touch)
+    {
+        moveInput = Vector2.zero;
+
+        Camera touchCamera = Camera.main != null ? Camera.main : mainCamera;
+
+        if (touchCamera == null)
+            return;
+
+        if (touch.phase == TouchPhase.Began || touch.phase == TouchPhase.Stationary)
+            return;
+
+        if (touch.deltaPosition.sqrMagnitude < touchDeadzonePixels * touchDeadzonePixels)
+            return;
+
+        float cameraDistance = Mathf.Abs(touchCamera.transform.position.z - transform.position.z);
+        Vector3 previousWorld = touchCamera.ScreenToWorldPoint(
+            new Vector3(
+                touch.position.x - touch.deltaPosition.x,
+                touch.position.y - touch.deltaPosition.y,
+                cameraDistance));
+        Vector3 currentWorld = touchCamera.ScreenToWorldPoint(
+            new Vector3(touch.position.x, touch.position.y, cameraDistance));
+
+        Vector2 worldDelta = currentWorld - previousWorld;
+        Vector2 currentPosition = playerBody != null ? playerBody.position : (Vector2)transform.position;
+        Vector2 nextPosition = ClampToBounds(currentPosition + worldDelta);
+
+        if (playerBody != null)
+            playerBody.position = nextPosition;
+
+        transform.position = new Vector3(nextPosition.x, nextPosition.y, transform.position.z);
+    }
+
+    bool TryGetTouchByFingerId(int fingerId, out Touch matchingTouch)
+    {
+        for (int i = 0; i < Input.touchCount; i++)
+        {
+            Touch touch = Input.GetTouch(i);
+
+            if (touch.fingerId != fingerId)
+                continue;
+
+            matchingTouch = touch;
+            return true;
+        }
+
+        matchingTouch = default;
+        return false;
+    }
+
+    void ClearTouchDrag()
+    {
+        activeTouchFingerId = -1;
+        moveInput = Vector2.zero;
+    }
+}
+
+[RequireComponent(typeof(SpriteRenderer))]
+public class CavePlayerVisuals : MonoBehaviour
+{
+    private static Sprite wingsOpenSprite;
+    private static Sprite wingsClosedSprite;
+
+    private SpriteRenderer spriteRenderer;
+    private float animationSeed;
+    private bool showingOpenWings = true;
+
+    void Awake()
+    {
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        animationSeed = Random.Range(0f, 10f);
+        ApplySprite(forceOpen: true);
+        spriteRenderer.sortingOrder = 12;
+    }
+
+    void Update()
+    {
+        float flutter = Mathf.Sin(Time.time * 16f + animationSeed);
+        bool useOpenWings = flutter > 0f;
+
+        if (useOpenWings != showingOpenWings)
+            ApplySprite(useOpenWings);
+
+        float glowPulse = 0.84f + (Mathf.Sin(Time.time * 3.4f + animationSeed) * 0.08f);
+        spriteRenderer.color = new Color(glowPulse, glowPulse, glowPulse, 1f);
+    }
+
+    private void ApplySprite(bool forceOpen)
+    {
+        showingOpenWings = forceOpen;
+        spriteRenderer.sprite = showingOpenWings ? GetWingsOpenSprite() : GetWingsClosedSprite();
+        spriteRenderer.color = Color.white;
+    }
+
+    private static Sprite GetWingsOpenSprite()
+    {
+        if (wingsOpenSprite == null)
+            wingsOpenSprite = BuildGlowBugSprite("GlowBugOpen", wingsOpen: true);
+
+        return wingsOpenSprite;
+    }
+
+    private static Sprite GetWingsClosedSprite()
+    {
+        if (wingsClosedSprite == null)
+            wingsClosedSprite = BuildGlowBugSprite("GlowBugClosed", wingsOpen: false);
+
+        return wingsClosedSprite;
+    }
+
+    private static Sprite BuildGlowBugSprite(string name, bool wingsOpen)
+    {
+        const int size = 128;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        Color[] pixels = new Color[size * size];
+        Vector2 center = new Vector2(size * 0.5f, size * 0.48f);
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                Vector2 point = new Vector2(x, y);
+                Vector2 normalized = (point - center) / size;
+                float bodyDistance = normalized.magnitude;
+                float wingSpread = wingsOpen ? 0.28f : 0.16f;
+                float wingHeight = wingsOpen ? 0.16f : 0.1f;
+
+                bool leftWing = Mathf.Pow((normalized.x + wingSpread) / 0.16f, 2f) + Mathf.Pow((normalized.y + 0.02f) / wingHeight, 2f) < 1f;
+                bool rightWing = Mathf.Pow((normalized.x - wingSpread) / 0.16f, 2f) + Mathf.Pow((normalized.y + 0.02f) / wingHeight, 2f) < 1f;
+                bool body = bodyDistance < 0.14f;
+                bool glow = bodyDistance < 0.24f;
+                Color color = Color.clear;
+
+                if (leftWing || rightWing)
+                    color = new Color(0.78f, 0.96f, 1f, wingsOpen ? 0.62f : 0.42f);
+
+                if (glow)
+                {
+                    float glowBlend = Mathf.InverseLerp(0.24f, 0.03f, bodyDistance);
+                    Color glowColor = Color.Lerp(new Color(0.28f, 0.82f, 1f, 0.28f), new Color(1f, 0.94f, 0.45f, 0.9f), glowBlend);
+                    color = Color.Lerp(color, glowColor, glowColor.a);
+                }
+
+                if (body)
+                {
+                    float bodyBlend = Mathf.InverseLerp(0.14f, 0.01f, bodyDistance);
+                    Color bodyColor = Color.Lerp(new Color(0.42f, 0.28f, 0.08f, 1f), new Color(1f, 0.92f, 0.48f, 1f), bodyBlend);
+                    color = Color.Lerp(color, bodyColor, 0.9f);
+                    color.a = 1f;
+                }
+
+                pixels[y * size + x] = color;
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+        Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+        sprite.name = name;
+        return sprite;
     }
 }
