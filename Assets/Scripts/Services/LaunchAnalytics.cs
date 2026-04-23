@@ -116,6 +116,34 @@ public static class LaunchAnalytics
             ("reward_amount", rewardAmount));
     }
 
+    public static void RecordShareTapped(string surface, bool isDailyChallenge, int finalScore, int levelReached)
+    {
+        RecordEvent(
+            "share_tapped",
+            ("surface", surface),
+            ("daily_challenge", isDailyChallenge),
+            ("final_score", finalScore),
+            ("level_reached", levelReached));
+    }
+
+    public static void RecordReviewPromptShown(string surface, int completedRuns, int finalScore, bool newBestScore)
+    {
+        RecordEvent(
+            "review_prompt_shown",
+            ("surface", surface),
+            ("completed_runs", completedRuns),
+            ("final_score", finalScore),
+            ("new_best_score", newBestScore));
+    }
+
+    public static void RecordReviewTapped(string surface, bool launchedStoreListing)
+    {
+        RecordEvent(
+            "review_tapped",
+            ("surface", surface),
+            ("launched_store_listing", launchedStoreListing));
+    }
+
     public static void RecordIapPurchaseRequested(string offerName, string productId, bool simulated)
     {
         RecordEvent(

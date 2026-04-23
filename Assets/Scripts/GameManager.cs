@@ -45,10 +45,15 @@ public class GameManager : MonoBehaviour
     private CaveBackgroundController caveBackgroundController;
     private EndlessDodgeAudioDirector audioDirector;
     private PlayerPowerupVisuals playerPowerupVisuals;
+    private PlayfieldBorderController playfieldBorderController;
     private GameObject postRunPanel;
     private TextMeshProUGUI postRunSummaryText;
     private Button postRunDoubleCoinsButton;
     private TextMeshProUGUI postRunDoubleCoinsButtonText;
+    private Button postRunShareButton;
+    private TextMeshProUGUI postRunShareButtonText;
+    private Button postRunReviewButton;
+    private TextMeshProUGUI postRunReviewButtonText;
     private TextMeshProUGUI bestScoreHudText;
     private Button pauseButton;
     private TextMeshProUGUI pauseButtonText;
@@ -71,6 +76,10 @@ public class GameManager : MonoBehaviour
     private bool postRunDoubleCoinsClaimed;
     private bool rewardedReviveUsed;
     private bool isAwaitingRewardedRevive;
+    private bool showPostRunReviewButton;
+    private int completedRunsCount;
+    private int lastFinishedScore;
+    private int lastFinishedLevel;
 
     private const float RunUpgradeButtonWidth = 230f;
     private const float RunUpgradeButtonHeight = 78f;
@@ -111,6 +120,10 @@ public class GameManager : MonoBehaviour
         postRunDoubleCoinsClaimed = false;
         rewardedReviveUsed = false;
         isAwaitingRewardedRevive = false;
+        showPostRunReviewButton = false;
+        completedRunsCount = GameSettings.GetCompletedRunCount();
+        lastFinishedScore = 0;
+        lastFinishedLevel = 1;
 
         if (totalCoinsText != null)
             totalCoinsText.text = "Coins: " + totalCoins;
@@ -996,6 +1009,25 @@ public class GameManager : MonoBehaviour
         }
 
         postRunDoubleCoinsClaimed = false;
+        lastFinishedScore = finalScore;
+        lastFinishedLevel = currentLevel;
+        completedRunsCount = GameSettings.RegisterCompletedRun();
+        showPostRunReviewButton = GameSettings.ShouldShowReviewPrompt(
+            completedRunsCount,
+            finalScore,
+            newBestScore,
+            isDailyChallengeRun);
+
+        if (showPostRunReviewButton)
+        {
+            GameSettings.DeferReviewPrompt(3);
+            LaunchAnalytics.RecordReviewPromptShown(
+                "post_run",
+                completedRunsCount,
+                finalScore,
+                newBestScore);
+        }
+
         LaunchAnalytics.RecordRunFinished(
             finalScore,
             runCoinsEarned,
@@ -1065,7 +1097,7 @@ public class GameManager : MonoBehaviour
         }
 
         ConfigurePostRunSummaryText(postRunSummaryText);
-        EnsurePostRunDoubleCoinsButton();
+        EnsurePostRunActionButtons();
 
         if (pauseButton == null)
         {
@@ -1265,6 +1297,22 @@ public class GameManager : MonoBehaviour
             postRunDoubleCoinsButtonText = buttonTransform.GetComponentInChildren<TextMeshProUGUI>(true);
         }
 
+        Transform shareButtonTransform = panelTransform.Find("ShareRunButton");
+
+        if (shareButtonTransform != null)
+        {
+            postRunShareButton = shareButtonTransform.GetComponent<Button>();
+            postRunShareButtonText = shareButtonTransform.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+
+        Transform reviewButtonTransform = panelTransform.Find("RateGameButton");
+
+        if (reviewButtonTransform != null)
+        {
+            postRunReviewButton = reviewButtonTransform.GetComponent<Button>();
+            postRunReviewButtonText = reviewButtonTransform.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+
         if (postRunPanel != null)
             postRunPanel.SetActive(false);
 
@@ -1287,7 +1335,7 @@ public class GameManager : MonoBehaviour
             summaryText.font = runtimeFont;
     }
 
-    void EnsurePostRunDoubleCoinsButton()
+    void EnsurePostRunActionButtons()
     {
         if (postRunPanel == null)
             return;
@@ -1297,6 +1345,9 @@ public class GameManager : MonoBehaviour
         if (panelRect == null)
             return;
 
+        panelRect.sizeDelta = new Vector2(620f, 430f);
+        panelRect.anchoredPosition = new Vector2(0f, -250f);
+
         if (postRunDoubleCoinsButton == null)
         {
             postRunDoubleCoinsButton = CreateRuntimeButton(
@@ -1305,11 +1356,41 @@ public class GameManager : MonoBehaviour
                 new Vector2(0.5f, 0f),
                 new Vector2(0.5f, 0f),
                 new Vector2(0.5f, 0f),
-                new Vector2(380f, 54f),
-                new Vector2(0f, 18f),
+                new Vector2(420f, 52f),
+                new Vector2(0f, 82f),
                 "Watch Ad: 2x Coins",
                 new Color(0.94f, 0.73f, 0.23f, 1f),
                 out postRunDoubleCoinsButtonText);
+        }
+
+        if (postRunShareButton == null)
+        {
+            postRunShareButton = CreateRuntimeButton(
+                panelRect,
+                "ShareRunButton",
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(420f, 52f),
+                new Vector2(0f, 22f),
+                "Share Result",
+                new Color(0.23f, 0.5f, 0.66f, 1f),
+                out postRunShareButtonText);
+        }
+
+        if (postRunReviewButton == null)
+        {
+            postRunReviewButton = CreateRuntimeButton(
+                panelRect,
+                "RateGameButton",
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(420f, 52f),
+                new Vector2(0f, 142f),
+                "Rate on Google Play",
+                new Color(0.26f, 0.58f, 0.34f, 1f),
+                out postRunReviewButtonText);
         }
 
         if (postRunDoubleCoinsButton != null)
@@ -1318,21 +1399,60 @@ public class GameManager : MonoBehaviour
             postRunDoubleCoinsButton.onClick.AddListener(ClaimPostRunDoubleCoins);
         }
 
-        if (postRunDoubleCoinsButtonText != null)
+        if (postRunShareButton != null)
         {
-            postRunDoubleCoinsButtonText.enableAutoSizing = true;
-            postRunDoubleCoinsButtonText.fontSizeMin = 18f;
-            postRunDoubleCoinsButtonText.fontSizeMax = 28f;
+            postRunShareButton.onClick.RemoveAllListeners();
+            postRunShareButton.onClick.AddListener(SharePostRunResult);
         }
+
+        if (postRunReviewButton != null)
+        {
+            postRunReviewButton.onClick.RemoveAllListeners();
+            postRunReviewButton.onClick.AddListener(OpenStoreReviewPage);
+        }
+
+        ConfigurePostRunActionButton(postRunDoubleCoinsButton, new Vector2(420f, 52f), new Vector2(0f, 82f));
+        ConfigurePostRunActionButton(postRunShareButton, new Vector2(420f, 52f), new Vector2(0f, 22f));
+        ConfigurePostRunActionButton(postRunReviewButton, new Vector2(420f, 52f), new Vector2(0f, 142f));
+        ConfigurePostRunActionButtonText(postRunDoubleCoinsButtonText);
+        ConfigurePostRunActionButtonText(postRunShareButtonText);
+        ConfigurePostRunActionButtonText(postRunReviewButtonText);
 
         if (postRunSummaryText != null)
         {
             RectTransform summaryRect = postRunSummaryText.rectTransform;
-            summaryRect.offsetMin = new Vector2(28f, 88f);
+            summaryRect.offsetMin = new Vector2(28f, 204f);
             summaryRect.offsetMax = new Vector2(-28f, -24f);
         }
 
-        RefreshPostRunDoubleCoinsButton();
+        RefreshPostRunActionButtons();
+    }
+
+    void ConfigurePostRunActionButton(Button actionButton, Vector2 size, Vector2 anchoredPosition)
+    {
+        if (actionButton == null)
+            return;
+
+        RectTransform buttonRect = actionButton.GetComponent<RectTransform>();
+
+        if (buttonRect == null)
+            return;
+
+        buttonRect.anchorMin = new Vector2(0.5f, 0f);
+        buttonRect.anchorMax = new Vector2(0.5f, 0f);
+        buttonRect.pivot = new Vector2(0.5f, 0f);
+        buttonRect.sizeDelta = size;
+        buttonRect.anchoredPosition = anchoredPosition;
+    }
+
+    void ConfigurePostRunActionButtonText(TextMeshProUGUI actionButtonText)
+    {
+        if (actionButtonText == null)
+            return;
+
+        actionButtonText.enableAutoSizing = true;
+        actionButtonText.fontSizeMin = 18f;
+        actionButtonText.fontSizeMax = 28f;
     }
 
     TextMeshProUGUI CreateRuntimeLabel(
@@ -1380,8 +1500,8 @@ public class GameManager : MonoBehaviour
         panelRect.anchorMin = new Vector2(0.5f, 0.5f);
         panelRect.anchorMax = new Vector2(0.5f, 0.5f);
         panelRect.pivot = new Vector2(0.5f, 0.5f);
-        panelRect.sizeDelta = new Vector2(560f, 250f);
-        panelRect.anchoredPosition = new Vector2(0f, -290f);
+        panelRect.sizeDelta = new Vector2(620f, 430f);
+        panelRect.anchoredPosition = new Vector2(0f, -250f);
 
         Image panelImage = postRunPanel.GetComponent<Image>();
         panelImage.color = new Color(0.12f, 0.18f, 0.3f, 0.9f);
@@ -1404,11 +1524,11 @@ public class GameManager : MonoBehaviour
         if (postRunSummaryText != null)
         {
             RectTransform summaryRect = postRunSummaryText.rectTransform;
-            summaryRect.offsetMin = new Vector2(28f, 88f);
+            summaryRect.offsetMin = new Vector2(28f, 204f);
             summaryRect.offsetMax = new Vector2(-28f, -24f);
         }
 
-        EnsurePostRunDoubleCoinsButton();
+        EnsurePostRunActionButtons();
         postRunPanel.SetActive(false);
     }
 
@@ -1910,9 +2030,12 @@ public class GameManager : MonoBehaviour
         if (newBestScore)
             summaryText += "\n<color=#7FF0A6>New Best!</color>";
 
+        if (showPostRunReviewButton)
+            summaryText += "\n<color=#A9F3BC>Enjoying the run? Rate it on Google Play.</color>";
+
         postRunSummaryText.text = summaryText;
         postRunPanel.SetActive(true);
-        RefreshPostRunDoubleCoinsButton();
+        RefreshPostRunActionButtons();
     }
 
     bool CanOfferRewardedRevive()
@@ -1983,6 +2106,111 @@ public class GameManager : MonoBehaviour
             else
                 postRunDoubleCoinsButtonText.text = "Watch Ad: +" + runCoinsEarned + " Coins";
         }
+    }
+
+    void RefreshPostRunShareButton()
+    {
+        if (postRunShareButton == null)
+            return;
+
+        bool canShare = gameEnded;
+        postRunShareButton.gameObject.SetActive(canShare);
+        postRunShareButton.interactable = canShare;
+
+        if (postRunShareButtonText != null)
+            postRunShareButtonText.text = isDailyChallengeRun ? "Share Challenge Run" : "Share Result";
+    }
+
+    void RefreshPostRunReviewButton()
+    {
+        if (postRunReviewButton == null)
+            return;
+
+        postRunReviewButton.gameObject.SetActive(gameEnded && showPostRunReviewButton);
+        postRunReviewButton.interactable = showPostRunReviewButton;
+
+        if (postRunReviewButtonText != null)
+            postRunReviewButtonText.text = "Rate on Google Play";
+    }
+
+    void RefreshPostRunActionButtons()
+    {
+        RefreshPostRunDoubleCoinsButton();
+        RefreshPostRunShareButton();
+        RefreshPostRunReviewButton();
+    }
+
+    public void SharePostRunResult()
+    {
+        if (!gameEnded)
+            return;
+
+        LaunchAnalytics.RecordShareTapped("post_run", isDailyChallengeRun, lastFinishedScore, lastFinishedLevel);
+        bool launchedShareSheet = MobileGrowthActions.ShareText(
+            "Share your run",
+            BuildShareSubject(),
+            BuildShareBody());
+        GameSettings.TriggerHaptic();
+
+        if (!launchedShareSheet && postRunShareButtonText != null)
+            postRunShareButtonText.text = "Copied Result";
+    }
+
+    public void OpenStoreReviewPage()
+    {
+        if (!showPostRunReviewButton)
+            return;
+
+        bool launchedStoreListing = MobileGrowthActions.OpenStoreListing();
+        LaunchAnalytics.RecordReviewTapped("post_run", launchedStoreListing);
+
+        if (launchedStoreListing)
+        {
+            GameSettings.MarkReviewPromptCompleted();
+            showPostRunReviewButton = false;
+            GameSettings.TriggerHaptic();
+            ShowPostRunSummary(lastFinishedScore);
+        }
+    }
+
+    string BuildShareSubject()
+    {
+        if (isDailyChallengeRun)
+            return "Can you beat my Endless Dodge challenge run?";
+
+        if (newBestScore)
+            return "New Endless Dodge high score";
+
+        return "Endless Dodge run result";
+    }
+
+    string BuildShareBody()
+    {
+        string storeUrl = MobileGrowthActions.GetProductionStoreUrl();
+
+        if (isDailyChallengeRun)
+        {
+            return
+                "I just finished today's \"" + activeDailyChallenge.title + "\" challenge in Endless Dodge.\n" +
+                "Score " + lastFinishedScore + " | Coins +" + GetDisplayedRunCoinGain() + "\n" +
+                "Think you can beat it?\n" +
+                storeUrl;
+        }
+
+        string openingLine = newBestScore
+            ? "New best in Endless Dodge."
+            : "Just finished another Endless Dodge run.";
+
+        return
+            openingLine + "\n" +
+            "Score " + lastFinishedScore + " | Level " + lastFinishedLevel + " | Coins +" + GetDisplayedRunCoinGain() + "\n" +
+            "Can you top that?\n" +
+            storeUrl;
+    }
+
+    int GetDisplayedRunCoinGain()
+    {
+        return runCoinsEarned * (postRunDoubleCoinsClaimed ? 2 : 1);
     }
 
     public void ClaimPostRunDoubleCoins()
@@ -2198,6 +2426,24 @@ public class GameManager : MonoBehaviour
             {
                 GameObject audioRoot = new GameObject("EndlessDodgeAudioDirector");
                 audioDirector = audioRoot.AddComponent<EndlessDodgeAudioDirector>();
+            }
+        }
+
+        if (playfieldBorderController == null)
+        {
+            playfieldBorderController = FindAnyObjectByType<PlayfieldBorderController>();
+
+            if (playfieldBorderController == null)
+            {
+                GameObject bordersRoot = GameObject.Find("Borders");
+
+                if (bordersRoot == null)
+                    bordersRoot = new GameObject("Borders");
+
+                playfieldBorderController = bordersRoot.GetComponent<PlayfieldBorderController>();
+
+                if (playfieldBorderController == null)
+                    playfieldBorderController = bordersRoot.AddComponent<PlayfieldBorderController>();
             }
         }
 

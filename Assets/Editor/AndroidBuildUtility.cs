@@ -12,6 +12,9 @@ public static class AndroidBuildUtility
 {
     private const string OutputDirectoryRelativePath = "Builds/Android";
     private const string DebugApkFileName = "EndlessDodge1-debug.apk";
+    private const string SecondaryDebugApkFileName = "EndlessDodge1-secondary-debug.apk";
+    private const string SecondaryApplicationIdentifier = "com.oreniq.endlessdodge.secondary";
+    private const string SecondaryProductName = "Endless Dodge Test";
     private const string GeneratedAndroidProjectRelativePath = "Library/Bee/Android/Prj";
     private static readonly NamedBuildTarget AndroidNamedBuildTarget = NamedBuildTarget.Android;
 
@@ -33,6 +36,24 @@ public static class AndroidBuildUtility
         InstallDebugApk(outputPath, interactive: true);
     }
 
+    [MenuItem("Tools/Android/Build Secondary Test APK")]
+    private static void BuildSecondaryDebugApkFromMenu()
+    {
+        if (BuildSecondaryDebugApk(interactive: true, out string outputPath))
+        {
+            EditorUtility.RevealInFinder(outputPath);
+        }
+    }
+
+    [MenuItem("Tools/Android/Build And Install Secondary Test APK")]
+    private static void BuildAndInstallSecondaryDebugApkFromMenu()
+    {
+        if (!BuildSecondaryDebugApk(interactive: true, out string outputPath))
+            return;
+
+        InstallDebugApk(outputPath, interactive: true);
+    }
+
     public static void BuildDebugApkBatchmode()
     {
         if (!BuildDebugApk(interactive: false, out string outputPath))
@@ -41,9 +62,45 @@ public static class AndroidBuildUtility
         UnityEngine.Debug.Log("Android debug APK created at: " + outputPath);
     }
 
+    public static void BuildSecondaryDebugApkBatchmode()
+    {
+        if (!BuildSecondaryDebugApk(interactive: false, out string outputPath))
+            throw new Exception("Android secondary debug build failed.");
+
+        UnityEngine.Debug.Log("Android secondary debug APK created at: " + outputPath);
+    }
+
     private static bool BuildDebugApk(bool interactive, out string outputPath)
     {
-        string requestedOutputPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), OutputDirectoryRelativePath, DebugApkFileName));
+        return BuildDebugVariant(
+            interactive,
+            DebugApkFileName,
+            PlayerSettings.GetApplicationIdentifier(AndroidNamedBuildTarget),
+            PlayerSettings.productName,
+            "debug",
+            out outputPath);
+    }
+
+    private static bool BuildSecondaryDebugApk(bool interactive, out string outputPath)
+    {
+        return BuildDebugVariant(
+            interactive,
+            SecondaryDebugApkFileName,
+            SecondaryApplicationIdentifier,
+            SecondaryProductName,
+            "secondary debug",
+            out outputPath);
+    }
+
+    private static bool BuildDebugVariant(
+        bool interactive,
+        string apkFileName,
+        string applicationIdentifier,
+        string productName,
+        string buildLabel,
+        out string outputPath)
+    {
+        string requestedOutputPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), OutputDirectoryRelativePath, apkFileName));
         outputPath = requestedOutputPath;
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? string.Empty);
 
@@ -64,6 +121,8 @@ public static class AndroidBuildUtility
         ScriptingImplementation previousScriptingBackend = PlayerSettings.GetScriptingBackend(AndroidNamedBuildTarget);
         AndroidArchitecture previousTargetArchitectures = PlayerSettings.Android.targetArchitectures;
         int previousArchitectureValue = GetArchitectureValue(previousTargetArchitectures);
+        string previousApplicationIdentifier = PlayerSettings.GetApplicationIdentifier(AndroidNamedBuildTarget);
+        string previousProductName = PlayerSettings.productName;
         AndroidSigningResolutionStatus signingResolutionStatus = AndroidSigningConfigResolver.Resolve(
             out ResolvedAndroidReleaseSigningConfig resolvedSigningConfig,
             out string signingResolutionMessage);
@@ -75,6 +134,8 @@ public static class AndroidBuildUtility
 
             EditorUserBuildSettings.buildAppBundle = false;
             ConfigureSupportedDebugBuildSettings(previousScriptingBackend, previousTargetArchitectures);
+            PlayerSettings.SetApplicationIdentifier(AndroidNamedBuildTarget, applicationIdentifier);
+            PlayerSettings.productName = productName;
 
             if (signingResolutionStatus == AndroidSigningResolutionStatus.Success)
             {
@@ -82,7 +143,7 @@ public static class AndroidBuildUtility
                 UnityEngine.Debug.Log(
                     "Using shared Android signing from " +
                     resolvedSigningConfig.ConfigPath +
-                    " for the debug build.");
+                    " for the " + buildLabel + " build.");
             }
             else if (signingResolutionStatus == AndroidSigningResolutionStatus.Invalid)
             {
@@ -114,20 +175,20 @@ public static class AndroidBuildUtility
             if (report.summary.result != BuildResult.Succeeded)
             {
                 return Fail(
-                    "Android debug build failed. Check the Unity Console or batchmode log for details.",
+                    "Android " + buildLabel + " build failed. Check the Unity Console or batchmode log for details.",
                     interactive);
             }
 
             if (!TryFinalizeOutputApk(report, requestedOutputPath, out outputPath, out string finalizeError))
                 return Fail(finalizeError, interactive);
 
-            UnityEngine.Debug.Log("Android debug APK created at: " + outputPath);
+            UnityEngine.Debug.Log("Android " + buildLabel + " APK created at: " + outputPath);
 
             if (interactive)
             {
                 EditorUtility.DisplayDialog(
                     "Android Build",
-                    "Debug APK created:\n" + outputPath,
+                    buildLabel + " APK created:\n" + outputPath,
                     "OK");
             }
 
@@ -135,7 +196,7 @@ public static class AndroidBuildUtility
         }
         catch (Exception ex)
         {
-            return Fail("Android debug build failed: " + ex.Message, interactive);
+            return Fail("Android " + buildLabel + " build failed: " + ex.Message, interactive);
         }
         finally
         {
@@ -148,6 +209,8 @@ public static class AndroidBuildUtility
             PlayerSettings.SetScriptingBackend(AndroidNamedBuildTarget, previousScriptingBackend);
             PlayerSettings.SetArchitecture(AndroidNamedBuildTarget, previousArchitectureValue);
             PlayerSettings.Android.targetArchitectures = previousTargetArchitectures;
+            PlayerSettings.SetApplicationIdentifier(AndroidNamedBuildTarget, previousApplicationIdentifier);
+            PlayerSettings.productName = previousProductName;
             AssetDatabase.SaveAssets();
         }
     }

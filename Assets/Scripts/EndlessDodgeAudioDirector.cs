@@ -4,9 +4,21 @@ using UnityEngine;
 
 public class EndlessDodgeAudioDirector : MonoBehaviour
 {
+    private static readonly int[] MajorScaleSemitones = { 0, 2, 4, 5, 7, 9, 11 };
+    private static readonly int[][] BiomeChordProgressions =
+    {
+        new[] { 0, 4, 5, 3, 0, 4, 3, 5, 0, 4, 5, 3, 5, 4, 3, 4 },
+        new[] { 5, 3, 0, 4, 5, 3, 4, 0, 5, 3, 0, 4, 4, 5, 3, 0 },
+        new[] { 0, 5, 3, 4, 0, 5, 4, 3, 0, 5, 3, 4, 3, 4, 5, 4 },
+        new[] { 3, 0, 4, 5, 3, 0, 5, 4, 3, 0, 4, 5, 5, 4, 3, 0 }
+    };
+    private static readonly float[] BiomeSongRoots = { 220f, 246.94f, 196f, 261.63f };
+
     private readonly Dictionary<int, AudioClip> ambientLoops = new Dictionary<int, AudioClip>();
     private readonly Dictionary<string, AudioClip> sfxLibrary = new Dictionary<string, AudioClip>();
     private readonly List<AudioSource> sfxVoices = new List<AudioSource>();
+    private readonly Queue<int> pendingBiomeWarmups = new Queue<int>();
+    private readonly HashSet<int> queuedBiomeWarmups = new HashSet<int>();
 
     private GameManager gameManager;
     private AudioSource musicSourceA;
@@ -15,12 +27,13 @@ public class EndlessDodgeAudioDirector : MonoBehaviour
     private int lastAppliedBiomeIndex = -1;
     private RuntimeCaveTheme currentTheme;
     private Coroutine musicFadeRoutine;
+    private Coroutine biomeWarmupRoutine;
     private int sfxVoiceIndex;
 
     private const int SampleRate = 22050;
-    private const float AmbientLoopLength = 8f;
-    private const float BaseMusicVolume = 0.94f;
-    private const float PeakMusicVolume = 1f;
+    private const float AmbientLoopLength = 32f;
+    private const float BaseMusicVolume = 0.76f;
+    private const float PeakMusicVolume = 0.86f;
 
     void Awake()
     {
@@ -31,7 +44,10 @@ public class EndlessDodgeAudioDirector : MonoBehaviour
 
     void Start()
     {
-        ApplyTheme(CaveThemeLibrary.GetThemeForLevel(GetCurrentLevel()), immediate: true);
+        RuntimeCaveTheme initialTheme = CaveThemeLibrary.GetThemeForLevel(GetCurrentLevel());
+        WarmBiomeImmediate(initialTheme.BiomeIndex);
+        QueueRemainingBiomeWarmups(initialTheme.BiomeIndex);
+        ApplyTheme(initialTheme, immediate: true);
     }
 
     void Update()
@@ -227,6 +243,43 @@ public class EndlessDodgeAudioDirector : MonoBehaviour
         return clip;
     }
 
+    private void QueueRemainingBiomeWarmups(int activeBiomeIndex)
+    {
+        for (int biomeIndex = 0; biomeIndex < BiomeSongRoots.Length; biomeIndex++)
+        {
+            if (biomeIndex == activeBiomeIndex || ambientLoops.ContainsKey(biomeIndex) || queuedBiomeWarmups.Contains(biomeIndex))
+                continue;
+
+            queuedBiomeWarmups.Add(biomeIndex);
+            pendingBiomeWarmups.Enqueue(biomeIndex);
+        }
+
+        if (biomeWarmupRoutine == null && pendingBiomeWarmups.Count > 0)
+            biomeWarmupRoutine = StartCoroutine(PrewarmQueuedBiomes());
+    }
+
+    private IEnumerator PrewarmQueuedBiomes()
+    {
+        while (pendingBiomeWarmups.Count > 0)
+        {
+            int biomeIndex = pendingBiomeWarmups.Dequeue();
+            queuedBiomeWarmups.Remove(biomeIndex);
+            WarmBiomeImmediate(biomeIndex);
+            yield return null;
+        }
+
+        biomeWarmupRoutine = null;
+    }
+
+    private void WarmBiomeImmediate(int biomeIndex)
+    {
+        if (ambientLoops.ContainsKey(biomeIndex))
+            return;
+
+        RuntimeCaveTheme representativeTheme = CaveThemeLibrary.GetThemeForLevel((biomeIndex * CaveThemeLibrary.LevelsPerBiome) + 1);
+        ambientLoops[biomeIndex] = BuildAmbientLoop(representativeTheme);
+    }
+
     private void BuildSfxLibrary()
     {
         sfxLibrary["coin"] = BuildCoinClip();
@@ -284,18 +337,18 @@ public class EndlessDodgeAudioDirector : MonoBehaviour
     {
         int sampleCount = Mathf.RoundToInt(SampleRate * AmbientLoopLength);
         float[] data = new float[sampleCount];
-        float root = QuantizeFrequency(theme.RootFrequency, AmbientLoopLength);
-        float accent = QuantizeFrequency(theme.AccentFrequency, AmbientLoopLength);
+        float root = GetSongRootFrequency(theme.BiomeIndex);
+        int[] progression = GetChordProgression(theme.BiomeIndex);
 
-        AddDrone(data, root * 0.5f, 0.08f, 0.04f);
-        AddDrone(data, root * 0.98f, 0.035f, 0.03f);
-        AddChamberResonance(data, root * 1.5f, accent * 0.98f, 0.042f);
-        AddCaveRumble(data, theme.Level, 0.19f);
-        AddAirNoise(data, theme.Level, 0.11f);
-        AddRhythmBed(data, root * 0.5f, accent, 112f + theme.BiomeIndex * 8f, 0.18f);
-        AddStonePercussion(data, theme.Level, 0.085f);
-        AddDripEchoes(data, root, accent, 0.07f);
-        ApplyLoopEdgeFade(data, 0.22f);
+        AddBassGroove(data, root, progression, 0.24f);
+        AddPadProgression(data, root, progression, 0.17f);
+        AddTensionOstinato(data, root, progression, theme.BiomeIndex, 0.075f);
+        AddAccentStabs(data, root, progression, theme.BiomeIndex, 0.094f);
+        AddResponseLine(data, root, progression, theme.BiomeIndex, 0.055f);
+        AddKickPattern(data, progression.Length, root * 0.5f, 0.22f);
+        AddSnarePattern(data, progression.Length, 0.09f);
+        AddHiHatPattern(data, progression.Length, 0.026f);
+        ApplyLoopEdgeFade(data, 0.14f);
         Normalize(data, 0.96f);
 
         AudioClip clip = AudioClip.Create(
@@ -306,6 +359,356 @@ public class EndlessDodgeAudioDirector : MonoBehaviour
             false);
         clip.SetData(data, 0);
         return clip;
+    }
+
+    private int[] GetChordProgression(int biomeIndex)
+    {
+        return BiomeChordProgressions[Mathf.Abs(biomeIndex) % BiomeChordProgressions.Length];
+    }
+
+    private float GetSongRootFrequency(int biomeIndex)
+    {
+        return QuantizeFrequency(BiomeSongRoots[Mathf.Abs(biomeIndex) % BiomeSongRoots.Length], AmbientLoopLength);
+    }
+
+    private void AddPadProgression(float[] data, float rootFrequency, int[] progression, float amplitude)
+    {
+        float barDuration = AmbientLoopLength / progression.Length;
+
+        for (int bar = 0; bar < progression.Length; bar++)
+        {
+            float startTime = bar * barDuration;
+            float noteDuration = barDuration * 0.94f;
+            int degree = progression[bar];
+            float sectionLift = GetSectionLift(bar, progression.Length);
+
+            AddSynthNote(data, GetScaleFrequency(rootFrequency, degree, 0), amplitude * (0.78f + sectionLift * 0.2f), startTime, noteDuration, 0.22f, 0.7f, 0.0008f, 0.45f, 0.06f, 0f);
+            AddSynthNote(data, GetScaleFrequency(rootFrequency, degree + 2, 0), amplitude * (0.54f + sectionLift * 0.16f), startTime, noteDuration, 0.26f, 0.74f, 0.0007f, 0.4f, 0.05f, 0f);
+            AddSynthNote(data, GetScaleFrequency(rootFrequency, degree + 4, 0), amplitude * (0.44f + sectionLift * 0.14f), startTime, noteDuration, 0.3f, 0.78f, 0.0006f, 0.35f, 0.04f, 0f);
+            AddSynthNote(data, GetScaleFrequency(rootFrequency, degree + 7, 0), amplitude * (0.12f + sectionLift * 0.08f), startTime, noteDuration, 0.2f, 0.64f, 0.0006f, 0.4f, 0.03f, 0f);
+        }
+    }
+
+    private void AddBassGroove(float[] data, float rootFrequency, int[] progression, float amplitude)
+    {
+        float barDuration = AmbientLoopLength / progression.Length;
+        float beatDuration = barDuration / 4f;
+
+        for (int bar = 0; bar < progression.Length; bar++)
+        {
+            int degree = progression[bar];
+            float barStart = bar * barDuration;
+            float sectionEnergy = GetSectionEnergy(bar, progression.Length);
+            int passingDegree = bar >= progression.Length - 4 ? degree + 6 : degree + 4;
+
+            AddSynthNote(data, GetScaleFrequency(rootFrequency * 0.5f, degree, 0), amplitude * sectionEnergy, barStart, beatDuration * 0.92f, 0.005f, 0.14f, 0.0005f, 0.2f, 0.03f, 0f);
+            AddSynthNote(data, GetScaleFrequency(rootFrequency * 0.5f, degree, 0), amplitude * sectionEnergy * 0.84f, barStart + beatDuration * 2f, beatDuration * 0.78f, 0.005f, 0.12f, 0.0005f, 0.2f, 0.03f, 0f);
+            AddSynthNote(data, GetScaleFrequency(rootFrequency * 0.5f, passingDegree, 0), amplitude * sectionEnergy * 0.5f, barStart + beatDuration * 3.2f, beatDuration * 0.5f, 0.005f, 0.1f, 0.0005f, 0.2f, 0.025f, 0f);
+        }
+    }
+
+    private void AddTensionOstinato(float[] data, float rootFrequency, int[] progression, int biomeIndex, float amplitude)
+    {
+        float barDuration = AmbientLoopLength / progression.Length;
+        float stepDuration = barDuration / 8f;
+        int[][] patterns =
+        {
+            new[] { 0, 2, 4, 2, 0, 2, 4, 2 },
+            new[] { 0, 2, 4, 6, 4, 2, 4, 2 },
+            new[] { 0, 4, 2, 4, 0, 4, 2, 6 },
+            new[] { 0, 2, 4, 2, 4, 2, 0, 2 }
+        };
+
+        int[] pattern = patterns[Mathf.Abs(biomeIndex) % patterns.Length];
+
+        for (int bar = 0; bar < progression.Length; bar++)
+        {
+            int degree = progression[bar];
+            float barStart = bar * barDuration;
+            float sectionEnergy = GetSectionEnergy(bar, progression.Length);
+
+            if (bar < 2)
+                continue;
+
+            for (int step = 0; step < pattern.Length; step++)
+            {
+                float stepStart = barStart + step * stepDuration;
+                float noteDuration = stepDuration * 0.5f;
+                float velocity = step % 4 == 0 ? 1f : (step % 2 == 0 ? 0.76f : 0.58f);
+                int noteDegree = degree + pattern[step];
+                AddSynthNote(data, GetScaleFrequency(rootFrequency, noteDegree, 0), amplitude * sectionEnergy * velocity, stepStart, noteDuration, 0.008f, 0.08f, 0.0008f, 0.3f, 0.06f, 0f);
+            }
+        }
+    }
+
+    private void AddAccentStabs(float[] data, float rootFrequency, int[] progression, int biomeIndex, float amplitude)
+    {
+        float sectionDuration = AmbientLoopLength / 4f;
+        float[] teaserTimes = { 4.4f, 5.3f, 6.2f };
+        int[] teaserPhrase = { 2, 4, 5 };
+        float[] phraseTimes = { 0.78f, 1.54f, 2.26f, 3.0f, 3.88f, 4.7f, 5.5f };
+        int[] phraseA = { 4, 4, 5, 4, 2, 4, 7 };
+        int[] phraseB = { 7, 5, 4, 2, 4, 5, 9 };
+        int[] phraseC = { 4, 5, 7, 9, 7, 5, 4 };
+        int[] turnaroundPhrase = { 9, 7, 5, 4, 2, 4, 0 };
+
+        AddHookPhrase(data, rootFrequency, 0f, teaserTimes, teaserPhrase, amplitude * 0.42f);
+        AddHookPhrase(data, rootFrequency, sectionDuration, phraseTimes, phraseA, amplitude * 0.94f);
+        AddHookPhrase(data, rootFrequency, sectionDuration * 2f, phraseTimes, phraseB, amplitude);
+        AddHookPhrase(data, rootFrequency, sectionDuration * 3f, phraseTimes, phraseC, amplitude * 1.03f);
+        AddHookPhrase(data, rootFrequency, sectionDuration * 3f + 0.2f, new[] { 5.95f, 6.35f, 6.75f, 7.15f, 7.52f, 7.88f, 8.2f }, turnaroundPhrase, amplitude * 0.52f);
+    }
+
+    private void AddHookPhrase(float[] data, float rootFrequency, float sectionStart, float[] noteTimes, int[] scaleDegrees, float amplitude)
+    {
+        for (int i = 0; i < Mathf.Min(noteTimes.Length, scaleDegrees.Length); i++)
+        {
+            AddSynthNote(
+                data,
+                GetScaleFrequency(rootFrequency, scaleDegrees[i], 0),
+                amplitude * (i == scaleDegrees.Length - 1 ? 0.9f : 1f),
+                sectionStart + noteTimes[i],
+                0.34f,
+                0.02f,
+                0.18f,
+                0.0007f,
+                0.35f,
+                0.05f,
+                0f);
+        }
+    }
+
+    private void AddResponseLine(float[] data, float rootFrequency, int[] progression, int biomeIndex, float amplitude)
+    {
+        float sectionDuration = AmbientLoopLength / 4f;
+        float[] responseTimes = { 1.18f, 2.02f, 2.86f, 3.78f, 4.64f, 5.48f };
+        int[][] phrases =
+        {
+            new[] { 9, 7, 5, 7, 9, 7 },
+            new[] { 7, 5, 4, 5, 7, 9 },
+            new[] { 9, 11, 9, 7, 5, 4 },
+            new[] { 7, 9, 11, 9, 7, 5 }
+        };
+
+        int[] phrase = phrases[Mathf.Abs(biomeIndex) % phrases.Length];
+        AddHookPhrase(data, rootFrequency, sectionDuration * 2f, responseTimes, phrase, amplitude * 0.85f);
+        AddHookPhrase(data, rootFrequency, sectionDuration * 3f, responseTimes, phrase, amplitude);
+    }
+
+    private void AddKickPattern(float[] data, int barCount, float frequency, float amplitude)
+    {
+        float barDuration = AmbientLoopLength / barCount;
+        float beatDuration = barDuration / 4f;
+
+        for (int bar = 0; bar < barCount; bar++)
+        {
+            float barStart = bar * barDuration;
+            int section = GetSectionIndex(bar, barCount);
+
+            AddKickHit(data, barStart, frequency, amplitude);
+
+            if (section == 0)
+            {
+                AddKickHit(data, barStart + beatDuration * 2f, frequency, amplitude * 0.72f);
+            }
+            else if (section == 1)
+            {
+                AddKickHit(data, barStart + beatDuration * 2f, frequency, amplitude * 0.88f);
+
+                if (bar % 2 == 1)
+                    AddKickHit(data, barStart + beatDuration * 3.45f, frequency, amplitude * 0.44f);
+            }
+            else if (section == 2)
+            {
+                AddKickHit(data, barStart + beatDuration * 1.5f, frequency, amplitude * 0.48f);
+                AddKickHit(data, barStart + beatDuration * 2.95f, frequency, amplitude * 0.84f);
+            }
+            else
+            {
+                AddKickHit(data, barStart + beatDuration * 2f, frequency, amplitude * 0.9f);
+                AddKickHit(data, barStart + beatDuration * 3.25f, frequency, amplitude * 0.42f);
+                AddKickHit(data, barStart + beatDuration * 3.7f, frequency, amplitude * 0.34f);
+            }
+        }
+    }
+
+    private void AddSnarePattern(float[] data, int barCount, float amplitude)
+    {
+        float barDuration = AmbientLoopLength / barCount;
+        float beatDuration = barDuration / 4f;
+
+        for (int bar = 0; bar < barCount; bar++)
+        {
+            float barStart = bar * barDuration;
+            float sectionScale = GetSectionIndex(bar, barCount) == 0 ? 0.72f : 1f;
+            AddNoiseHit(data, barStart + beatDuration, beatDuration * 0.26f, amplitude * sectionScale, 1900f, 0.08f);
+            AddNoiseHit(data, barStart + beatDuration * 3f, beatDuration * 0.28f, amplitude * 1.06f * sectionScale, 2050f, 0.09f);
+
+            if (bar == barCount - 1)
+            {
+                AddNoiseHit(data, barStart + beatDuration * 3.35f, beatDuration * 0.16f, amplitude * 0.58f, 2400f, 0.1f);
+                AddNoiseHit(data, barStart + beatDuration * 3.7f, beatDuration * 0.14f, amplitude * 0.52f, 2650f, 0.1f);
+            }
+        }
+    }
+
+    private void AddHiHatPattern(float[] data, int barCount, float amplitude)
+    {
+        float barDuration = AmbientLoopLength / barCount;
+        float stepDuration = barDuration / 8f;
+
+        for (int bar = 0; bar < barCount; bar++)
+        {
+            float barStart = bar * barDuration;
+            int section = GetSectionIndex(bar, barCount);
+
+            for (int step = 0; step < 8; step++)
+            {
+                if (section == 0 && step % 2 == 0)
+                    continue;
+
+                float velocity = step % 2 == 0 ? 0.55f : 0.8f;
+
+                if (section == 2)
+                    velocity *= 0.88f;
+                else if (section == 3)
+                    velocity *= 1.08f;
+
+                AddNoiseHit(data, barStart + step * stepDuration, stepDuration * 0.12f, amplitude * velocity, 4300f, 0.025f);
+            }
+        }
+    }
+
+    private float GetSectionLift(int barIndex, int barCount)
+    {
+        switch (GetSectionIndex(barIndex, barCount))
+        {
+            case 0:
+                return 0.1f;
+            case 1:
+                return 0.42f;
+            case 2:
+                return 0.3f;
+            default:
+                return 0.56f;
+        }
+    }
+
+    private float GetSectionEnergy(int barIndex, int barCount)
+    {
+        switch (GetSectionIndex(barIndex, barCount))
+        {
+            case 0:
+                return 0.78f;
+            case 1:
+                return 1f;
+            case 2:
+                return 0.9f;
+            default:
+                return 1.08f;
+        }
+    }
+
+    private int GetSectionIndex(int barIndex, int barCount)
+    {
+        int sectionLength = Mathf.Max(1, barCount / 4);
+        return Mathf.Clamp(barIndex / sectionLength, 0, 3);
+    }
+
+    private void AddKickHit(float[] data, float startTime, float baseFrequency, float amplitude)
+    {
+        float duration = 0.22f;
+        int startSample = Mathf.Clamp(Mathf.RoundToInt(startTime * SampleRate), 0, data.Length - 1);
+        int endSample = Mathf.Clamp(Mathf.RoundToInt((startTime + duration) * SampleRate), startSample + 1, data.Length);
+
+        for (int i = startSample; i < endSample; i++)
+        {
+            float localTime = (i - startSample) / (float)SampleRate;
+            float normalized = Mathf.Clamp01(localTime / duration);
+            float envelope = Mathf.Exp(-localTime * 14f);
+            float frequency = Mathf.Lerp(baseFrequency * 2.3f, baseFrequency, normalized * normalized);
+            float tone = Mathf.Sin(localTime * frequency * Mathf.PI * 2f);
+            float click = Mathf.Sin(localTime * frequency * 4.5f * Mathf.PI * 2f) * Mathf.Exp(-localTime * 42f) * 0.24f;
+            data[i] += (tone + click) * amplitude * envelope;
+        }
+    }
+
+    private void AddNoiseHit(float[] data, float startTime, float duration, float amplitude, float carrierFrequency, float noiseBlend)
+    {
+        int startSample = Mathf.Clamp(Mathf.RoundToInt(startTime * SampleRate), 0, data.Length - 1);
+        int endSample = Mathf.Clamp(Mathf.RoundToInt((startTime + duration) * SampleRate), startSample + 1, data.Length);
+        float seed = startTime * 17.13f + carrierFrequency * 0.0017f;
+
+        for (int i = startSample; i < endSample; i++)
+        {
+            float localTime = (i - startSample) / (float)SampleRate;
+            float normalized = Mathf.Clamp01(localTime / Mathf.Max(0.001f, duration));
+            float envelope = Mathf.Exp(-normalized * 9f);
+            float tone = Mathf.Sin(localTime * carrierFrequency * Mathf.PI * 2f) * 0.28f;
+            float overtone = Mathf.Sin(localTime * carrierFrequency * 1.9f * Mathf.PI * 2f) * 0.17f;
+            float noise = (Mathf.PerlinNoise(seed, localTime * 240f) * 2f - 1f) * noiseBlend;
+            data[i] += (tone + overtone + noise) * amplitude * envelope;
+        }
+    }
+
+    private void AddSynthNote(
+        float[] data,
+        float frequency,
+        float amplitude,
+        float startTime,
+        float duration,
+        float attackTime,
+        float releaseTime,
+        float vibratoDepth,
+        float vibratoSpeed,
+        float harmonicBlend,
+        float noiseBlend)
+    {
+        int startSample = Mathf.Clamp(Mathf.RoundToInt(startTime * SampleRate), 0, data.Length - 1);
+        int endSample = Mathf.Clamp(Mathf.RoundToInt((startTime + duration) * SampleRate), startSample + 1, data.Length);
+        float sustainEnd = Mathf.Max(attackTime, duration - releaseTime);
+        float seed = startTime * 7.31f + frequency * 0.013f;
+
+        for (int i = startSample; i < endSample; i++)
+        {
+            float localTime = (i - startSample) / (float)SampleRate;
+            float envelope;
+
+            if (localTime < attackTime)
+            {
+                envelope = Mathf.Clamp01(localTime / Mathf.Max(0.001f, attackTime));
+            }
+            else if (localTime > sustainEnd)
+            {
+                float releaseNormalized = (localTime - sustainEnd) / Mathf.Max(0.001f, duration - sustainEnd);
+                envelope = Mathf.Clamp01(1f - releaseNormalized);
+            }
+            else
+            {
+                envelope = 1f;
+            }
+
+            envelope *= 0.86f + 0.14f * Mathf.Cos(Mathf.Clamp01(localTime / Mathf.Max(0.001f, duration)) * Mathf.PI);
+
+            float vibrato = 1f + Mathf.Sin(localTime * vibratoSpeed * Mathf.PI * 2f) * vibratoDepth;
+            float phaseFrequency = frequency * vibrato;
+            float fundamental = Mathf.Sin(localTime * phaseFrequency * Mathf.PI * 2f);
+            float second = Mathf.Sin(localTime * phaseFrequency * 2.01f * Mathf.PI * 2f) * harmonicBlend;
+            float third = Mathf.Sin(localTime * phaseFrequency * 3.02f * Mathf.PI * 2f) * harmonicBlend * 0.46f;
+            float noise = (Mathf.PerlinNoise(seed, localTime * 38f) * 2f - 1f) * noiseBlend;
+
+            data[i] += (fundamental * 0.72f + second * 0.22f + third * 0.12f + noise) * amplitude * envelope;
+        }
+    }
+
+    private float GetScaleFrequency(float rootFrequency, int scaleDegree, int octaveOffset)
+    {
+        int scaleLength = MajorScaleSemitones.Length;
+        int wrappedDegree = Mathf.FloorToInt(Mathf.Repeat(scaleDegree, scaleLength));
+        int octaveCarry = Mathf.FloorToInt(scaleDegree / (float)scaleLength);
+        int semitoneOffset = MajorScaleSemitones[wrappedDegree] + (octaveOffset + octaveCarry) * 12;
+        float frequency = rootFrequency * Mathf.Pow(2f, semitoneOffset / 12f);
+        return QuantizeFrequency(frequency, AmbientLoopLength);
     }
 
     private void AddDrone(float[] data, float frequency, float amplitude, float wobbleSpeed)

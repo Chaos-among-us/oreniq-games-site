@@ -4,6 +4,9 @@ public static class GameSettings
 {
     private const string HapticsEnabledKey = "Settings_HapticsEnabled";
     private const string TutorialSeenKey = "Settings_TutorialSeen";
+    private const string CompletedRunsKey = "Growth_CompletedRuns";
+    private const string NextReviewPromptRunKey = "Growth_NextReviewPromptRun";
+    private const string ReviewPromptCompletedKey = "Growth_ReviewPromptCompleted";
 
     public static bool IsHapticsEnabled()
     {
@@ -24,6 +27,53 @@ public static class GameSettings
     public static void MarkTutorialSeen()
     {
         PlayerPrefs.SetInt(TutorialSeenKey, 1);
+        PlayerPrefs.Save();
+    }
+
+    public static int RegisterCompletedRun()
+    {
+        int completedRuns = PlayerPrefs.GetInt(CompletedRunsKey, 0) + 1;
+        PlayerPrefs.SetInt(CompletedRunsKey, completedRuns);
+        PlayerPrefs.Save();
+        return completedRuns;
+    }
+
+    public static int GetCompletedRunCount()
+    {
+        return PlayerPrefs.GetInt(CompletedRunsKey, 0);
+    }
+
+    public static bool HasCompletedReviewPrompt()
+    {
+        return PlayerPrefs.GetInt(ReviewPromptCompletedKey, 0) == 1;
+    }
+
+    public static bool ShouldShowReviewPrompt(int completedRuns, int finalScore, bool newBestScore, bool isDailyChallengeRun)
+    {
+        if (isDailyChallengeRun || HasCompletedReviewPrompt())
+            return false;
+
+        int nextEligibleRun = PlayerPrefs.GetInt(NextReviewPromptRunKey, 4);
+        int minimumRuns = Mathf.Max(4, nextEligibleRun);
+
+        if (completedRuns < minimumRuns)
+            return false;
+
+        return newBestScore || finalScore >= 45;
+    }
+
+    public static void DeferReviewPrompt(int additionalRuns)
+    {
+        int completedRuns = GetCompletedRunCount();
+        int nextEligibleRun = completedRuns + Mathf.Max(1, additionalRuns);
+        int existingNextPromptRun = PlayerPrefs.GetInt(NextReviewPromptRunKey, 4);
+        PlayerPrefs.SetInt(NextReviewPromptRunKey, Mathf.Max(existingNextPromptRun, nextEligibleRun));
+        PlayerPrefs.Save();
+    }
+
+    public static void MarkReviewPromptCompleted()
+    {
+        PlayerPrefs.SetInt(ReviewPromptCompletedKey, 1);
         PlayerPrefs.Save();
     }
 

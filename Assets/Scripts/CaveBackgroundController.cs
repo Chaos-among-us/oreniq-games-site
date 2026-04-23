@@ -66,6 +66,7 @@ public class CaveBackgroundController : MonoBehaviour
         int baseLevel = GetBaseThemeLevel();
         WarmThemeImmediate(baseLevel);
         WarmThemeImmediate(baseLevel + CaveThemeLibrary.LevelsPerBiome);
+        QueueAllBiomeThemes();
         RefreshThemeSprites(forceRefresh: true);
         QueueThemePrewarm(baseLevel + (CaveThemeLibrary.LevelsPerBiome * 2));
         UpdateThemeBlend();
@@ -184,6 +185,12 @@ public class CaveBackgroundController : MonoBehaviour
         int baseLevel = GetBaseThemeLevel();
         QueueThemePrewarm(baseLevel + CaveThemeLibrary.LevelsPerBiome);
         QueueThemePrewarm(baseLevel + (CaveThemeLibrary.LevelsPerBiome * 2));
+    }
+
+    private void QueueAllBiomeThemes()
+    {
+        for (int biomeIndex = 0; biomeIndex < 4; biomeIndex++)
+            QueueThemePrewarm((biomeIndex * CaveThemeLibrary.LevelsPerBiome) + 1);
     }
 
     private void QueueThemePrewarm(int themeLevel)

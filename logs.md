@@ -32,8 +32,16 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
   - `Shop`
   - `Inventory`
 - Current baseline:
-  - current active repo on this machine reached remote commit `9b065da` on `2026-04-13`
+  - current branch on this workstation is `master`
+  - current local head on this workstation is `8270e89`
   - prior multi-computer sync cleanup happened on `2026-04-13`
+  - workstation role clarification on `2026-04-22`: the desktop remains the primary machine and this laptop is the secondary machine
+  - a secondary phone-test package is now available for this laptop workflow: `com.oreniq.endlessdodge.secondary` (`Endless Dodge Test`)
+  - this workstation currently has the local release-signing files in `UserSettings/Android`
+  - this workstation does not currently have `%USERPROFILE%\.android\debug.keystore`
+  - this workstation does not currently have the shared external signing folder at `Documents/EndlessDodge1/SharedSigning/Android/`
+  - this workstation does not currently have `%ENDLESSDODGE_SIGNING_CONFIG%` or `%ENDLESSDODGE_SIGNING_ROOT%` configured
+  - the older notes about `Builds/Android/EndlessDodge1-debug.apk` build 15 do not match the files currently present in this checkout on this workstation
 - Release identity:
   - company name: `Oreniq Games`
   - Android package: `com.oreniq.endlessdodge`
@@ -137,10 +145,14 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
 - Do not treat one machine-specific absolute path as the global source of truth. The repo content is the source of truth; the working path depends on the current machine.
 
 ## Open Risks And Blockers
-- Real phone validation is still needed on the newest Android build (`Logs/codex-android-build-15.log`, artifact `Builds/Android/EndlessDodge1-debug.apk`) for:
-  - whether the gameplay music is finally loud enough
-  - whether the loud click at the end of the ambient loop is gone or at least much smaller
-  - whether the new ambient loop feels faster and less synthetic/boring
+- The newer repo docs explain the cross-PC signing workflow, but the actual other-PC signing material is still not present on this workstation: no `%USERPROFILE%\.android\debug.keystore`, no shared signing folder, and no signing override environment variables.
+- This laptop can now install and update a side-by-side secondary phone app (`com.oreniq.endlessdodge.secondary`) for testing, but it still cannot update the original desktop-owned package (`com.oreniq.endlessdodge`) in place until both machines share the same signing identity.
+- Real phone validation is still needed on the newest laptop-test Android build (`Builds/Android/EndlessDodge1-secondary-debug.apk`, installed as `com.oreniq.endlessdodge.secondary`) for:
+  - whether the slight hitch on every biome change / every third level-up is now fully gone after prewarming music + all biome background themes ahead of time
+  - whether the cave-tinted side borders feel like the right width/opacity in gameplay after being stretched to the full visible play area
+  - whether the new longer 4-section background track finally reduces the remaining repetition enough to feel comfortable over repeated runs
+  - whether the gameplay music is loud enough on phone without drowning out important SFX
+  - whether the loop seam / end-of-loop click is gone or at least much smaller
   - whether the cave backgrounds are sharp enough and still readable against dark obstacles
   - Some phone UI polish may still remain in `MainMenu` and `Inventory`; do not assume the earlier layout issues are fully closed until the newest APK is retested.
   - Cross-PC Android signing must stay out of Git, so the repo needs to point to a safe shared external signing folder instead of storing signing secrets in `logs.md`.
@@ -149,25 +161,43 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
   - A one-time rewarded revive prompt was added and must be re-verified on phone to decide whether it feels good enough to keep.
   - The rewarded flow still needs a real ad provider before release; current phone testing still uses simulation in debug/dev builds.
   - Coin-pack IAPs and starter-offer surfaces now exist, but they still need production store configuration and polish.
+  - The new post-run `Share Result` button and conditional `Rate on Google Play` prompt are live and phone-verified on the secondary package, but the review action currently validates only Android's market/store handoff path, not a live public Play listing or a true in-app review API flow yet.
   - Store assets, screenshots, privacy policy, and Play Console setup are still pending.
   - Local Android signing data is intentionally machine-local and must not be committed:
     - `UserSettings/Android/oreniq-release.keystore`
     - `UserSettings/Android/release-signing.json`
   - Secret material must not be pasted into `logs.md`; use the shared external signing folder or the supported environment-variable overrides instead.
+  - Two Android build paths now exist in `Assets/Editor`, and they are not equivalent:
+    - `AndroidBuildUtility` matches the newer shared-signing/debug-fallback workflow in the docs
+    - `AndroidBuildAutomation` still uses the older local-release-signing-only behavior and can produce the wrong signer for phone update testing on this workstation
   - When changing machines, re-verify Unity modules, package restore, and release-signing setup.
 
 ## Current Focus
-1. Retest Android build 15 on phone with sound on. First checks:
-   - music loudness
+1. On the primary desktop, pull the latest repo, keep the original package signer intact, then build/install the original app (`com.oreniq.endlessdodge`) onto the phone so the laptop-tested changes become the real phone baseline.
+2. Keep the desktop as the primary machine for the original production package (`com.oreniq.endlessdodge`) and use this laptop's side-by-side secondary package (`com.oreniq.endlessdodge.secondary`) for rapid phone testing until signing is intentionally shared.
+3. Use the newer `AndroidBuildUtility` workflow on this laptop for phone testing:
+   - `Tools/Android/Build Secondary Test APK`
+   - `Tools/Android/Build And Install Secondary Test APK`
+4. Pre-launch product scope should stay narrow now:
+   - real rewarded ads instead of simulated rewarded flow
+   - real IAP / starter-pack readiness
+   - first-session clarity / polish on phone
+   - post-run growth surfaces that spread well without widening scope
+   - release/store/compliance tasks
+5. After the desktop installs the original app again, retest these exact items on the real package: biome-change hitch, cave border feel, music/SFX balance, post-run double-coins visibility, rewarded revive feel, and whether the new share/review post-run actions still feel right outside the secondary test package.
+6. If both machines need to update the same installed original phone app, choose one of these supported paths:
+   - temporary bridge: copy the desktop's `%USERPROFILE%\.android\debug.keystore` to the same path on this laptop
+   - preferred long-term path: configure `Documents/EndlessDodge1/SharedSigning/Android/` so both machines use the same shared signing identity
+7. After the desktop signer is present on this workstation, rebuild and reinstall the original debug APK, then retest on phone with sound on. First checks:
+   - music identity and loudness
    - loop-end click/pop
-   - music tempo/energy
+   - music feel / energy
    - post-run double-coins button visibility
    - rewarded revive prompt behavior
-2. Tune the cave atmosphere pass after that retest: background detail, theme transitions, audio mix, and obstacle/player theming.
-3. Finish any remaining real-phone UI/layout cleanup in `MainMenu`, `Inventory`, and the in-run HUD after the audio/rewarded retest is checked.
-4. Use a shared external Android signing folder so different PCs can update the same phone install without committing signing secrets.
-5. Replace the simulated rewarded flow with a real ad provider.
-6. Finish production IAP/store configuration, listing assets, screenshots, privacy policy, Data safety declarations, and Play Console metadata.
+8. Finish any remaining real-phone UI/layout cleanup in `MainMenu`, `Inventory`, and the in-run HUD after the audio/rewarded retest is checked.
+9. Replace the simulated rewarded flow with a real ad provider.
+10. Finish production IAP/store configuration, listing assets, screenshots, privacy policy, Data safety declarations, and Play Console metadata.
+11. Avoid adding broad new gameplay systems until the above launch-critical items are done.
 
 ## When The Other PC Is Available
 1. Resolve the actual repo root on that PC, pull the latest changes, then read:
@@ -197,20 +227,28 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
 11. Verify Unity reports signing was applied successfully, then use:
    - `Tools/Android/Build Debug APK`
    - or `Tools/Android/Build And Install Debug APK`
-12. Build 15 is the current known-good baseline from this machine:
+12. Important: the desktop should use `Build Debug APK` / `Build And Install Debug APK` for the original phone app, not the secondary test build. The temporary secondary package workflow was only for this laptop.
+13. After install on the desktop, verify the original package was updated:
+   - package should still be `com.oreniq.endlessdodge`
+   - use `adb shell dumpsys package com.oreniq.endlessdodge` and check `lastUpdateTime`
+   - launch the original app and confirm the new cave background/music/border/share-review changes are present there
+14. First manual retest on the desktop-installed original app should be:
+   - music loudness / annoyance level
+   - whether the ambient loop still ends with a loud click
+   - whether the slight every-third-level hitch is now acceptably small
+   - whether the full-height cave borders still feel right on the original package
+   - whether the post-run `Watch Ad` double-coins button appears again
+   - whether the mid-run rewarded revive prompt appears and feels good enough to keep
+   - whether the post-run `Share Result` button feels worth keeping
+   - whether the conditional `Rate on Google Play` prompt should stay as a store-link prompt or be replaced with a true in-app review flow
+15. Build 15 is the current known-good baseline from this machine:
    - log: `Logs/codex-android-build-15.log`
    - artifact: `Builds/Android/EndlessDodge1-debug.apk`
    - install status on this machine: succeeded on phone via `adb install -r`
    - important signing note: build 15 did **not** use shared signing yet; it fell back to this machine's local Android debug keystore because shared signing was not found
    - current machine debug-keystore path:
      - `C:\Users\antho\.android\debug.keystore`
-13. First manual retest on the other PC should be:
-   - music loudness during gameplay
-   - whether the ambient loop still ends with a loud click
-   - whether the music feels faster and less synthetic
-   - whether the post-run `Watch Ad` double-coins button appears again
-   - whether the mid-run rewarded revive prompt appears and feels good enough to keep
-14. If the other PC needs to update the exact same currently installed app **before** shared/release signing is recovered:
+16. If the other PC needs to update the exact same currently installed app **before** shared/release signing is recovered:
    - copy this machine's debug keystore file:
      - `C:\Users\antho\.android\debug.keystore`
    - place it on the other PC at:
@@ -219,10 +257,10 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
    - do **not** commit this file to Git
    - this is a temporary bridge only; the preferred long-term fix is still shared signing via:
      - `Documents/EndlessDodge1/SharedSigning/Android/`
-15. Important secret rule:
+17. Important secret rule:
    - do not paste signing keys, keystore passwords, or other secrets into `logs.md` or any repo-tracked file
    - keep them in the shared external signing folder or environment variables only
-16. Do not create a new release keystore unless the old one is truly gone and you intentionally want a new Android signing identity.
+18. Do not create a new release keystore unless the old one is truly gone and you intentionally want a new Android signing identity.
 
 ## Cross-Computer And Cross-Chat Handoff Rules
 - Start by resolving the current repo root on the machine you are using.
@@ -255,6 +293,273 @@ Use this exact format for new entries:
 - Next best action:
 
 ## Structured Change Log
+### 2026-04-23 - End-of-night desktop handoff and launch outlook
+- Goal:
+  - Leave one clean desktop-ready handoff that summarizes tonight's work, explains how to move the repo changes onto the original phone app, and sets a realistic launch / earnings expectation.
+- What changed:
+  - Consolidated tonight's laptop work into one resume point for the primary desktop:
+    - cave-background / biome progression work
+    - multiple gameplay-music rewrites toward a longer, less annoying loop
+    - reduced biome-transition hitch and cave-tinted full-height borders
+    - side-by-side secondary phone-test app workflow
+    - post-run share / review growth actions
+  - Added explicit primary-PC instructions in `Current Focus` and `When The Other PC Is Available` for:
+    - pulling the latest repo
+    - preserving the original signer
+    - using `Tools/Android/Build And Install Debug APK` for the real package (`com.oreniq.endlessdodge`)
+    - verifying the original package update on phone
+    - retesting the newly added music / hitch / border / post-run growth features on the production package
+  - Added finish-the-game priorities for tomorrow:
+    - real rewarded ads
+    - real IAP / starter-pack configuration
+    - store assets / privacy / Data safety / Play Console release setup
+    - one more real-phone polish pass on the original package after desktop install
+  - Added a realistic launch-window note:
+    - best case if credentials/signing/setup go smoothly: roughly `3-7` focused workdays from `2026-04-23`
+    - more conservative if Play Console / signing / store-review friction appears: roughly `1-2` weeks
+  - Added a realistic commercial-outlook note:
+    - this project is much more launchable now, but it should still be treated as a small indie casual / hybrid-casual release, not a top-chart expectation
+    - compared with stronger casual competitors, the current game is lighter on content depth, brand power, and polish volume, so retention and organic spread will need to outperform expectations to become a major earner
+    - the earlier `$1,000/day` goal should stay aspirational for now, not the planning baseline
+- Decisions / reversions:
+  - Use the desktop as the machine that turns the laptop-tested repo state into the real phone app state.
+  - Treat commercial estimates as scenario planning until soft-launch data exists; do not assume launch features alone guarantee meaningful revenue.
+- Verification:
+  - The detailed build/install/phone verification for tonight's feature work is recorded in the `2026-04-22` entries above, including the successful secondary APK deploy and temporary screenshot QA pass.
+  - `logs.md` now contains desktop install instructions, finishing priorities, and the launch / commercial outlook in one place for tomorrow's handoff.
+- Next best action:
+  - On the primary PC tomorrow: `git pull`, verify signing, run `Tools/Android/Build And Install Debug APK`, confirm `com.oreniq.endlessdodge` updates on the phone, then finish the credential-gated monetization / store tasks.
+
+### 2026-04-22 - Post-run share/review growth pass and phone QA
+- Goal:
+  - Add the highest-leverage spread / review features that can be shipped tonight without dashboard credentials, then verify them on the laptop-managed secondary phone app.
+- What changed:
+  - Added `Assets/Scripts/MobileGrowthActions.cs` as a runtime Android handoff helper for share-sheet launches and Play Store / market-view launches, with clipboard / URL fallback outside native Android runtime.
+  - Expanded the `GameManager` post-run summary panel with a permanent `Share Result` CTA plus a conditional `Rate on Google Play` CTA that appears only after stronger runs (`Growth_CompletedRuns` plus a happy-moment threshold).
+  - Added review-prompt state tracking in `GameSettings` and new share/review analytics events in `LaunchAnalytics`.
+  - Kept the new growth actions wired into the existing runtime-built post-run UI instead of adding a separate results scene or duplicate overlay.
+  - Built and installed a fresh secondary test APK on the connected Samsung phone:
+    - build log: `Logs/android-secondary-growth-build.log`
+    - artifact: `Builds/Android/EndlessDodge1-secondary-debug.apk`
+- Decisions / reversions:
+  - Use the lighter store-link / market-intent review flow for now instead of a full Play in-app review API integration, because the live listing / dashboard setup still depends on tomorrow's credential work.
+  - Keep screenshot QA temporary only: use local phone screenshots to inspect layout and intent handoff, restore any temporary on-device QA state, then delete the screenshots instead of leaving them in the repo or handoff.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity batch Android build completed successfully and logged `Android secondary debug APK created at: C:\Users\antho\Documents\UnityProjects\Block-dodger1\Builds\Android\EndlessDodge1-secondary-debug.apk`.
+  - `adb install -r -t Builds/Android/EndlessDodge1-secondary-debug.apk` returned `Success`.
+  - `adb shell dumpsys package com.oreniq.endlessdodge.secondary` reported `lastUpdateTime=2026-04-23 00:02:14`.
+  - Used `12` temporary phone screenshots during QA to check:
+    - main menu restored cleanly after install
+    - gameplay still launches normally
+    - rewarded revive still appears before post-run summary
+    - low-score post-run layout shows the new share button cleanly
+    - a forced QA review state shows both `Rate on Google Play` and `Share Result` without overlap
+    - Android chooser / resolver handoff really occurs for the new growth buttons
+  - Temporarily edited the secondary app's PlayerPrefs only to force the review-prompt state for QA, then restored the original values and relaunched the app to confirm the normal menu state came back (`Coins 540`, `Best 128`, `Streak 1`).
+- Next best action:
+  - Tomorrow, finish the credential-gated side: real rewarded ads, production IAP/store wiring, and decide whether to keep the store-link review prompt as-is or replace it with a true Google Play in-app review flow once the listing path is ready.
+
+### 2026-04-22 - Revenue and spread priority pass
+- Goal:
+  - Capture which remaining features are most likely to increase launch revenue and organic spread so the sprint stays commercially focused.
+- What changed:
+  - Prioritized the highest expected launch-impact items as:
+    - real rewarded ads on the existing post-run double-coins and mid-run revive surfaces
+    - strong starter-pack / coin-pack purchase flow with real billing verification
+    - in-app review timing after a satisfying player moment, not immediately
+    - lightweight share loop built around daily challenge / score results
+    - optional Play Games achievements / leaderboards if time allows, especially for retention and discovery leverage
+    - stronger Play Store asset / listing work and later experiment hooks instead of more broad gameplay systems
+  - Explicitly treated broader feature expansion as lower ROI than monetization reality, review/share loops, and store-conversion work before launch.
+- Decisions / reversions:
+  - Revenue and organic spread should come first from polished monetization + store conversion + share/review loops, not from piling on more gameplay systems right before launch.
+  - If time gets tight, cut optional systems before cutting rewarded ads, IAP readiness, store assets, or review/share hooks.
+- Verification:
+  - Rechecked the current repo state against launch docs before setting the priority order.
+- Next best action:
+  - Implement real rewarded ads first, then add one clean share/result flow and one well-timed in-app review prompt before spending time on lower-ROI additions.
+
+### 2026-04-22 - Pre-launch feature triage
+- Goal:
+  - Decide which remaining features are actually worth doing before launch so time stays focused on what will matter most for the first release.
+- What changed:
+  - Narrowed the recommended pre-launch feature scope to a small launch-critical set instead of continuing to add broad new systems.
+  - Prioritized these remaining feature/product items ahead of new content:
+    - real rewarded ads replacing the current simulated rewarded flow
+    - real starter-pack / coin-pack purchase readiness and verification
+    - first-session clarity and phone-feel polish
+    - release/store/compliance work required to actually ship
+  - Explicitly pushed broader feature expansion like extra modes, larger progression systems, or big content additions to post-launch unless a release blocker appears.
+- Decisions / reversions:
+  - Do not turn the pre-launch sprint into a feature-creep phase now that the game already has core loop, shop, inventory, daily reward, daily missions, and daily challenge systems.
+  - Treat launch-readiness, monetization reality, and phone polish as more important than adding more systems before the first release.
+- Verification:
+  - Re-read `ROADMAP.md`, `RELEASE_SPRINT.md`, and `docs/RELEASE_COMPLIANCE_CHECKLIST.md` against the current repo state before setting the priority list.
+- Next best action:
+  - Work the remaining launch items in this order: real rewarded ads, real IAP/store readiness, final phone polish / hitch cleanup, then release/store/compliance packaging.
+
+### 2026-04-22 - Biome hitch smoothing and cave-border pass
+- Goal:
+  - Remove the slight gameplay hitch that happens on every biome change / every third level-up, restyle the bright blue side borders to match the cave direction, and confirm the result with real phone screenshots.
+- What changed:
+  - Updated `Assets/Scripts/EndlessDodgeAudioDirector.cs` so biome music loops are prewarmed ahead of time instead of being synthesized on the level-up frame that first needs them.
+  - Updated `Assets/Scripts/CaveBackgroundController.cs` so all biome theme variants are queued for prewarm early, not just the immediate next couple of transitions.
+  - Added `Assets/Scripts/PlayfieldBorderController.cs` and wired it through `GameManager` so the existing `LeftBorder`, `RightBorder`, and glow sprites are recolored from the live cave theme blend and stretched to the full visible play area on each device.
+  - Rebuilt the secondary Android APK, reinstalled it to the connected Samsung phone as `Endless Dodge Test`, and pulled fresh device screenshots into `Builds/PhoneScreenshots/` to verify the border pass from the actual phone.
+- Decisions / reversions:
+  - Treat the every-third-level hitch as a biome-prewarm problem instead of trying to hide it with a later crossfade timing tweak only.
+  - Keep the existing border objects, but style and size them at runtime so the phone layout stays correct across aspect ratios instead of baking one fixed scene scale.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity batch build `AndroidBuildUtility.BuildSecondaryDebugApkBatchmode` completed successfully and wrote `Builds/Android/EndlessDodge1-secondary-debug.apk` (`Logs/android-secondary-hitch-borders-build.log`).
+  - `adb shell dumpsys package com.oreniq.endlessdodge.secondary` showed `lastUpdateTime=2026-04-22 22:43:20`.
+  - `adb shell monkey -p com.oreniq.endlessdodge.secondary -c android.intent.category.LAUNCHER 1` launched the updated secondary app.
+  - Real device screenshots were captured and pulled successfully:
+    - `Builds/PhoneScreenshots/endlessdodge-test-shot.png`
+    - `Builds/PhoneScreenshots/endlessdodge-gameplay-shot.png`
+- Next best action:
+  - Play through at least one biome transition on `Endless Dodge Test` and confirm two things first: the hitch is gone, and the new cave-colored side borders feel right in width and brightness during an actual run.
+
+### 2026-04-22 - Longer-form music variation pass
+- Goal:
+  - Reduce the remaining repetition after the pop-leaning rewrite by making the song evolve more over time instead of simply looping the same pleasant idea.
+- What changed:
+  - Extended the generated gameplay music again to a `32` second loop and expanded the chord progressions to a longer bar structure so the return point takes longer to come around.
+  - Reworked `Assets/Scripts/EndlessDodgeAudioDirector.cs` into a clearer 4-section form with a lighter opening, fuller middle, added response phrases later in the loop, section-dependent drum density, and a different end-of-loop turnaround.
+  - Kept the cleaner pop/listenable direction from the previous pass rather than sliding back toward cave ambience or character-theme weirdness.
+  - Rebuilt the secondary Android APK and reinstalled it to the connected Samsung phone as `Endless Dodge Test`.
+- Decisions / reversions:
+  - Attack repetition with song-form variation and arrangement changes, not just by nudging notes.
+  - Keep the soundtrack goal centered on “pleasant over many runs” rather than trying to tightly mirror the cave art direction.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors when rerun sequentially after transient parallel temp-file races during verification.
+  - Unity batch build `AndroidBuildUtility.BuildSecondaryDebugApkBatchmode` completed successfully and wrote `Builds/Android/EndlessDodge1-secondary-debug.apk` (`Logs/android-secondary-music-variation-build.log`).
+  - `adb shell dumpsys package com.oreniq.endlessdodge.secondary` showed `lastUpdateTime=2026-04-22 22:08:07`.
+  - `adb shell monkey -p com.oreniq.endlessdodge.secondary -c android.intent.category.LAUNCHER 1` launched the updated secondary app.
+- Next best action:
+  - Listen to the updated `Endless Dodge Test` build and decide whether the repetition problem is now mostly solved or whether the next pass needs even bigger contrast between sections.
+
+### 2026-04-22 - Longer pop-leaning soundtrack rewrite
+- Goal:
+  - Fix the remaining music problems called out on phone: too short, too repetitive, too cave-themed, and too close to a weird circus/character cue instead of something pleasant and catchy.
+- What changed:
+  - Reworked `Assets/Scripts/EndlessDodgeAudioDirector.cs` again so the generated music now uses a longer `24` second loop, a cleaner major-key song structure, more conventional pop-style chord progressions, lighter percussion, and a softer hook instead of the earlier cave/minor/tension-heavy direction.
+  - Dropped the cave-noise layer from the main music build path so the soundtrack no longer needs to sell a cavern mood and can simply aim to be enjoyable background music for repeated runs.
+  - Rebuilt the secondary Android APK and reinstalled it to the connected Samsung phone as `Endless Dodge Test`.
+- Decisions / reversions:
+  - Stop treating the gameplay soundtrack as something that must be cave-themed just because the visuals are cave-themed.
+  - Favor a longer, cleaner, more listenable loop even if that means the music feels less tightly tied to the biome art direction.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors when rerun sequentially after a transient parallel verification race in Unity's temp files.
+  - Unity batch build `AndroidBuildUtility.BuildSecondaryDebugApkBatchmode` completed successfully and wrote `Builds/Android/EndlessDodge1-secondary-debug.apk` (`Logs/android-secondary-music-pop-build.log`).
+  - `adb shell dumpsys package com.oreniq.endlessdodge.secondary` showed `lastUpdateTime=2026-04-22 21:46:53`.
+  - `adb shell monkey -p com.oreniq.endlessdodge.secondary -c android.intent.category.LAUNCHER 1` launched the updated secondary app.
+- Next best action:
+  - Listen to the updated `Endless Dodge Test` build and answer only this first: is the new loop finally pleasant enough to live with for repeated runs, or should it move further toward either “more upbeat and catchy” or “more calm and unobtrusive” next?
+
+### 2026-04-22 - Soundtrack retune away from melodic hook
+- Goal:
+  - Keep the new “actual music” direction, but remove the specific tune that felt wrong on phone and push a darker, less sing-song retune immediately.
+- What changed:
+  - Reworked `Assets/Scripts/EndlessDodgeAudioDirector.cs` again so the loop now leans more on darker bass pulses, shorter tension ostinatos, and accent stabs instead of the earlier more obvious lead melody and brighter arpeggio feel.
+  - Pulled the pad voicing darker and softer so the track reads more like momentum and pressure inside a cave run instead of a tune that wants to sit in the foreground.
+  - Rebuilt the secondary Android APK and reinstalled it to the connected Samsung phone as `Endless Dodge Test`.
+- Decisions / reversions:
+  - Keep the idea of “real music” instead of reverting to the old low hum, but move away from memorable lead-hook writing unless later feedback specifically asks for something more melodic.
+  - Continue iterating through the side-by-side secondary package first so music taste testing does not disturb the desktop-owned original app.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors when rerun sequentially after Unity `Temp` file locking during parallel verification.
+  - Unity batch build `AndroidBuildUtility.BuildSecondaryDebugApkBatchmode` completed successfully and wrote `Builds/Android/EndlessDodge1-secondary-debug.apk` (`Logs/android-secondary-music-retune-build.log`).
+  - `adb shell dumpsys package com.oreniq.endlessdodge.secondary` showed `lastUpdateTime=2026-04-22 21:25:27`.
+  - `adb shell monkey -p com.oreniq.endlessdodge.secondary -c android.intent.category.LAUNCHER 1` launched the updated secondary app.
+- Next best action:
+  - Listen to the updated `Endless Dodge Test` build and answer only this first: is this darker direction closer, or should the music move even further toward one of these poles next time: heavier / more intense, more ambient / less musical, or more arcade / energetic?
+
+### 2026-04-22 - Procedural soundtrack pass and secondary-phone deploy
+- Goal:
+  - Replace the low cave-hum background with something that feels like actual gameplay music, then push the result to the side-by-side phone test app immediately.
+- What changed:
+  - Reworked `Assets/Scripts/EndlessDodgeAudioDirector.cs` so the runtime loop now builds a structured 12-second procedural soundtrack with bass, chord pads, arpeggios, lead hooks, and kick/snare/hat rhythm instead of leaning mostly on drones and rumble.
+  - Kept the cave ambience underneath as a lighter texture layer so the run still feels subterranean without the music collapsing back into a low humming bed.
+  - Built a fresh secondary Android APK from this laptop and reinstalled it to the connected Samsung phone as `Endless Dodge Test` (`com.oreniq.endlessdodge.secondary`).
+  - Captured the longer Android packaging path in the log: this laptop's Unity secondary builds can spend many minutes inside IL2CPP / Gradle packaging even when the code change is mainly audio generation, so long waits do not automatically mean the build is frozen.
+- Decisions / reversions:
+  - Keep the soundtrack procedural for now so iteration stays fast and repo-safe instead of blocking on imported/licensed music files.
+  - Continue using the side-by-side secondary package for rapid phone feedback while leaving the desktop-owned original app untouched.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity batch build `AndroidBuildUtility.BuildSecondaryDebugApkBatchmode` completed successfully and wrote `Builds/Android/EndlessDodge1-secondary-debug.apk` (`Logs/android-secondary-music-build.log`).
+  - `adb shell dumpsys package com.oreniq.endlessdodge.secondary` showed `lastUpdateTime=2026-04-22 21:15:09`.
+  - `adb shell monkey -p com.oreniq.endlessdodge.secondary -c android.intent.category.LAUNCHER 1` launched the updated secondary app.
+- Next best action:
+  - Listen to `Endless Dodge Test` on the phone and decide three things first: whether the new loop finally feels like music, whether it is the right style for the game, and whether the volume balance against SFX is close enough to keep iterating from this direction.
+
+### 2026-04-22 - Secondary phone-test app workflow
+- Goal:
+  - Make this laptop able to install and update a safe side-by-side test build on the phone without overwriting the desktop-owned original app.
+- What changed:
+  - Extended `Assets/Editor/AndroidBuildUtility.cs` with a secondary-test build path that temporarily builds as `com.oreniq.endlessdodge.secondary` with the device label `Endless Dodge Test`, then restores the normal project identifiers after the build.
+  - Added `Tools/Android/Build Secondary Test APK`, `Tools/Android/Build And Install Secondary Test APK`, and the matching batch entry point so this workflow is repeatable from either the editor or automation.
+  - Built `Builds/Android/EndlessDodge1-secondary-debug.apk` on this laptop, installed it over ADB to the connected Samsung phone, and confirmed both `com.oreniq.endlessdodge` and `com.oreniq.endlessdodge.secondary` are now present side by side on the device.
+  - Launched the secondary app once from ADB so the phone is ready for visual/feel feedback against the latest laptop-side changes.
+- Decisions / reversions:
+  - Keep the desktop as the primary machine for the original package and use the secondary package only as the laptop testing lane until shared signing is intentionally set up.
+  - Do not permanently rename the real app or change the repo's default package identity; the secondary package name is a build-time override only for test installs.
+- Verification:
+  - `adb devices -l` detected the connected phone as `SM_S948U`.
+  - `adb install -r -t Builds/Android/EndlessDodge1-secondary-debug.apk` returned `Success`.
+  - `adb shell pm list packages | Select-String 'com.oreniq.endlessdodge'` showed both `com.oreniq.endlessdodge` and `com.oreniq.endlessdodge.secondary`.
+  - `adb shell monkey -p com.oreniq.endlessdodge.secondary -c android.intent.category.LAUNCHER 1` launched the secondary package.
+- Next best action:
+  - Test the `Endless Dodge Test` app on the phone, give feedback on the cave presentation and gameplay feel, then keep iterating here while leaving the desktop-owned original package untouched until the signing identities are shared.
+
+### 2026-04-22 - Desktop primary / laptop secondary clarification
+- Goal:
+  - Correct the handoff so it reflects the real workstation roles and the actual requirement for working on the same phone app from both machines.
+- What changed:
+  - Recorded that the desktop remains the primary machine and this laptop is the secondary machine.
+  - Added the explicit cross-machine rule that if both computers need to update the same installed phone app, they must share the same signing identity.
+  - Clarified the two supported ways to do that:
+    - temporary debug-keystore bridge from the desktop to the laptop
+    - preferred shared external signing folder for long-term use
+- Decisions / reversions:
+  - Do not treat this laptop as the new primary machine.
+  - If signing secrets are intentionally not copied to the laptop, then this laptop remains a code-and-sync workstation, not a direct phone-update workstation.
+- Verification:
+  - Re-read the current Android signing docs and editor scripts in this checkout.
+  - Confirmed this laptop still has no `%USERPROFILE%\.android\debug.keystore`, no shared signing folder, and no signing override environment variables configured.
+- Next best action:
+  - Decide whether the desktop's debug keystore can be copied here as a temporary bridge; if not, keep building/installing from the desktop and use the laptop only for repo work until shared signing is intentionally set up.
+
+### 2026-04-22 - Current workstation signing-path inspection
+- Goal:
+  - Determine whether the newer repo files contain enough information to switch this workstation over to the other PC's Android signing path for phone updates.
+- What changed:
+  - Read the updated `logs.md`, `docs/WORKSTATION_SYNC.md`, `docs/COMPUTER_SWITCH_CHECKLIST.md`, and the Android editor scripts.
+  - Confirmed the newer intended workflow is `AndroidBuildUtility` plus `AndroidSigningConfigResolver`, which prefers shared external signing and otherwise falls back to the machine-local Android debug keystore for debug phone builds.
+  - Verified this workstation currently has only the local release-signing files in `UserSettings/Android`, but does not have `%USERPROFILE%\.android\debug.keystore`.
+  - Verified this workstation also does not currently have the shared signing folder at `Documents/EndlessDodge1/SharedSigning/Android/`, and the `%ENDLESSDODGE_SIGNING_CONFIG%` / `%ENDLESSDODGE_SIGNING_ROOT%` overrides are unset.
+  - Verified the older `AndroidBuildAutomation` script still exists beside the newer workflow and still applies local release signing directly, which can conflict with the current documented cross-PC phone-testing flow.
+- Decisions / reversions:
+  - The repo files are enough to explain the intended cross-PC signing workflow, but not enough to actually adopt the other PC's signing identity on this workstation without the missing keystore or shared signing files.
+  - Prefer the `AndroidBuildUtility` path for future phone testing on this workstation, not the older `AndroidBuildAutomation` path.
+  - Do not invent or recreate a debug keystore here, because that would create yet another signing identity and would not match the other PC.
+- Verification:
+  - `.git/HEAD` on this workstation points to `refs/heads/master`, and the current local head is `8270e8929159b870de7a06e2fdb08d09ef761650`.
+  - `UserSettings/Android` contains `release-signing.json` and `oreniq-release.keystore`.
+  - `%USERPROFILE%\.android\debug.keystore` is currently missing on this workstation.
+  - `Documents/EndlessDodge1/SharedSigning/Android/` and `OneDrive/Documents/EndlessDodge1/SharedSigning/Android/` are currently missing on this workstation.
+  - `%ENDLESSDODGE_SIGNING_CONFIG%` and `%ENDLESSDODGE_SIGNING_ROOT%` are currently unset on this workstation.
+- Next best action:
+  - Bring over the other PC's actual debug keystore or shared signing files, then use the newer `Tools/Android/Build Debug APK` path to verify this workstation can update the phone with the intended signing identity.
+
 ### 2026-04-22 - Rewarded-flow recovery and cave-audio tempo pass
 - Goal:
   - Restore the missing rewarded ad surfaces on phone, add a proper one-time rewarded revive prompt, and make the cave ambience louder, faster, and less sleepy for real device testing.
