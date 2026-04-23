@@ -56,6 +56,29 @@
 5. The debug build helper will automatically prefer the shared signing folder, so both PCs can update the same phone install without copying `.android\debug.keystore` by hand.
 6. Replace the temporary shared debug bridge with the real release keystore as soon as it is recovered.
 
+## If OneDrive Sync Keeps Failing
+1. On the primary PC, run:
+   - `powershell -ExecutionPolicy Bypass -File scripts/setup-network-shared-android-signing.ps1`
+2. Note the printed UNC path, for example:
+   - `\\HOLLAND_WORK_PC\EndlessDodgeSigning`
+3. Make sure both PCs are on the same private network and the primary PC stays awake while the secondary PC is building.
+4. On the secondary PC, run:
+   - `powershell -ExecutionPolicy Bypass -File scripts/use-network-shared-android-signing.ps1 -ShareRoot "\\HOLLAND_WORK_PC\EndlessDodgeSigning"`
+5. Restart Unity if it was already open, then use `Tools/Android/Build And Install Debug APK`.
+6. This makes the secondary PC read the signing config directly from the primary PC over LAN instead of waiting for OneDrive.
+
+## If You Need A No-Admin Fallback
+1. On the primary PC, run:
+   - `powershell -ExecutionPolicy Bypass -File scripts/start-network-signing-server.ps1`
+2. Note the printed server URL, for example:
+   - `http://HOLLAND_WORK_PC:8765/`
+3. On the secondary PC, run:
+   - `powershell -ExecutionPolicy Bypass -File scripts/sync-network-shared-android-signing.ps1 -ServerRoot "http://HOLLAND_WORK_PC:8765"`
+4. Restart Unity if it was already open, then run `scripts/bootstrap-workstation.ps1`.
+5. Build with `Tools/Android/Build And Install Debug APK`.
+6. After the sync is complete, stop the temporary server on the primary PC with:
+   - `powershell -ExecutionPolicy Bypass -File scripts/stop-network-signing-server.ps1`
+
 ## If The Repo Is Dirty On Two Computers
 1. Preserve the dirty state on a safety branch.
 2. Sync `master`.

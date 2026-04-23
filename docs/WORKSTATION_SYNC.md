@@ -54,6 +54,20 @@ Read files in this order after switching machines:
   - `Documents/EndlessDodge1/SharedSigning/Android/`
 - Seed or refresh that folder from the primary PC with:
   - `powershell -ExecutionPolicy Bypass -File scripts/setup-shared-android-signing.ps1`
+- Optional lower-latency LAN fallback if OneDrive sync is misbehaving:
+  - on the primary PC, share that same folder with:
+    - `powershell -ExecutionPolicy Bypass -File scripts/setup-network-shared-android-signing.ps1`
+  - on the secondary PC, point Unity at the desktop's UNC share with:
+    - `powershell -ExecutionPolicy Bypass -File scripts/use-network-shared-android-signing.ps1 -ShareRoot "\\PRIMARY-PC\EndlessDodgeSigning"`
+  - note:
+    - creating the SMB share usually needs an elevated PowerShell window on the primary PC
+- No-admin fallback that works from this repo today:
+  - on the primary PC, start a temporary local-network file server with:
+    - `powershell -ExecutionPolicy Bypass -File scripts/start-network-signing-server.ps1`
+  - on the secondary PC, download a local cache and set `%ENDLESSDODGE_SIGNING_ROOT%` with:
+    - `powershell -ExecutionPolicy Bypass -File scripts/sync-network-shared-android-signing.ps1 -ServerRoot "http://PRIMARY-PC:8765"`
+  - after the laptop syncs, stop the server on the primary PC with:
+    - `powershell -ExecutionPolicy Bypass -File scripts/stop-network-signing-server.ps1`
 - Resolver priority is now:
   - `%ENDLESSDODGE_SIGNING_CONFIG%`
   - `%ENDLESSDODGE_SIGNING_ROOT%`
@@ -70,6 +84,7 @@ Read files in this order after switching machines:
   - run `scripts/setup-shared-android-signing.ps1` on the primary PC
   - this copies the current machine's debug keystore into the shared external signing folder as `shared-debug.keystore`
   - the shared config then lets both PCs update the same debug-installed app without copying `.android\debug.keystore` by hand
+  - if OneDrive sync itself is the fragile part, expose that same folder as a read-only LAN share and point the secondary PC at the UNC path with `%ENDLESSDODGE_SIGNING_ROOT%`
   - do not commit the debug keystore to Git
   - this is only a QA bridge; move back to the shared release-signing workflow once the real signing files are recovered
 

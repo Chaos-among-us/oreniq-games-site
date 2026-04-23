@@ -1138,6 +1138,58 @@ Use this exact format for new entries:
 - Next best action:
   - On the secondary PC, let OneDrive finish syncing `Documents/EndlessDodge1/SharedSigning/Android`, run `powershell -ExecutionPolicy Bypass -File scripts/bootstrap-workstation.ps1`, open Unity `6000.4.0f1`, and use `Tools/Android/Build And Install Debug APK` so the same phone install keeps updating cleanly.
 
+### 2026-04-23 - LAN share fallback for shared Android signing
+- Goal:
+  - Remove OneDrive timing from the critical path by letting the secondary PC read the signing files directly from the primary PC over the local network.
+- What changed:
+  - Added `scripts/setup-network-shared-android-signing.ps1` to expose the canonical shared signing folder as a read-only SMB share.
+  - Added `scripts/use-network-shared-android-signing.ps1` so the secondary PC can set `%ENDLESSDODGE_SIGNING_ROOT%` to the desktop's UNC share in one step.
+  - Updated `docs/WORKSTATION_SYNC.md` and `docs/COMPUTER_SWITCH_CHECKLIST.md` with the LAN-share fallback workflow.
+- Decisions / reversions:
+  - Keep the LAN share read-only for secondary machines so the desktop remains the canonical place where signing material gets refreshed.
+  - Treat this as a convenience bridge for local development on a trusted private network, not as a long-term secret-management system for a larger team.
+- Verification:
+  - `scripts/setup-network-shared-android-signing.ps1` reached `New-SmbShare`, but Windows denied share creation from the current non-elevated session.
+- Next best action:
+  - If you want the UNC-share route specifically, rerun `powershell -ExecutionPolicy Bypass -File scripts/setup-network-shared-android-signing.ps1` from an elevated PowerShell window on the primary PC.
+
+### 2026-04-23 - No-admin network-signing server fallback
+- Goal:
+  - Provide a real cross-PC signing handoff path that works even when OneDrive is flaky and SMB-share creation is blocked by lack of admin rights.
+- What changed:
+  - Added `scripts/start-network-signing-server.ps1` to serve the canonical signing folder over a temporary Python HTTP server on the local network.
+  - Added `scripts/sync-network-shared-android-signing.ps1` so the secondary PC can download the signing files into a local cache and set `%ENDLESSDODGE_SIGNING_ROOT%`.
+  - Added `scripts/stop-network-signing-server.ps1` to shut the temporary server down after sync.
+  - Updated the workstation docs with the no-admin network-server fallback.
+- Decisions / reversions:
+  - Keep this server temporary and local-network only; it is a convenience bridge for trusted development environments, not a long-term internet-facing secret store.
+  - Leave the SMB-share path documented as an option, but it currently needs elevation on the primary PC.
+- Verification:
+  - `powershell -ExecutionPolicy Bypass -File scripts/start-network-signing-server.ps1` succeeded on the primary PC.
+  - The temporary server is currently running as PID `12772`.
+  - `release-signing.json` was reachable locally at `http://127.0.0.1:8765/release-signing.json`.
+  - A local self-test of `scripts/sync-network-shared-android-signing.ps1 -ServerRoot "http://127.0.0.1:8765"` succeeded, downloaded:
+    - `release-signing.json`
+    - `shared-debug.keystore`
+  - The primary PC's user-level `%ENDLESSDODGE_SIGNING_ROOT%` was restored after the self-test.
+  - Laptop-friendly server roots currently available are:
+    - `http://HOLLAND_WORK_PC:8765`
+    - `http://10.0.0.7:8765`
+- Next best action:
+  - On the secondary PC, run `powershell -ExecutionPolicy Bypass -File scripts/sync-network-shared-android-signing.ps1 -ServerRoot "http://HOLLAND_WORK_PC:8765"`, then restart Unity and build/install normally.
+
+### 2026-04-23 - Secondary PC quickstart file
+- Goal:
+  - Give the laptop a single repo-tracked instruction page with copy-paste commands so the cross-PC signing sync can be followed without retyping from chat.
+- What changed:
+  - Added `docs/SECONDARY_PC_SIGNING_QUICKSTART.md` with the exact `git pull`, network-signing sync, bootstrap, and Unity build steps for the current primary-PC server.
+- Verification:
+  - The document points at the currently running primary-PC signing server roots:
+    - `http://HOLLAND_WORK_PC:8765`
+    - `http://10.0.0.7:8765`
+- Next best action:
+  - On the laptop, open `docs/SECONDARY_PC_SIGNING_QUICKSTART.md` after pulling and follow the commands exactly.
+
 ### 2026-04-23 - Cave-shop retheme and share-growth pass
 - Goal:
   - Push the game further toward a stronger hybrid-casual launch shape by making the shop feel native to the cave world and by giving players a clearer reason to share the game with other people.
