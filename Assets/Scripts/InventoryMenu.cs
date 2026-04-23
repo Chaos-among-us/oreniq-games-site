@@ -321,7 +321,7 @@ public class InventoryMenu : MonoBehaviour
 
         if (titleText != null)
         {
-            titleText.text = "Choose 3 Upgrades";
+            titleText.text = "Build Your Loadout";
             titleText.enableAutoSizing = true;
             titleText.fontSizeMin = 30;
             titleText.fontSizeMax = 42;
@@ -413,19 +413,29 @@ public class InventoryMenu : MonoBehaviour
     public void RefreshUI()
     {
         int equippedCount = 0;
+        PlayerProfileSnapshot profile = PlayerProgressionSystem.GetProfileSnapshot();
 
         if (UpgradeInventory.Instance != null)
             equippedCount = UpgradeInventory.Instance.GetEquippedCount();
 
         if (equippedCountText != null)
-            equippedCountText.text = "Equipped: " + equippedCount + "/" + UpgradeInventory.MaxEquippedUpgrades;
+        {
+            equippedCountText.text =
+                profile.RankTitle +
+                " Lv " +
+                profile.Level +
+                "   |   Equipped: " +
+                equippedCount +
+                "/" +
+                UpgradeInventory.MaxEquippedUpgrades;
+        }
 
         if (feedbackText != null &&
             (string.IsNullOrEmpty(feedbackText.text) ||
              feedbackText.text == "Tap a card to select it" ||
              feedbackText.text == "Tap a card to equip or remove it"))
         {
-            feedbackText.text = "Tap a card to select";
+            feedbackText.text = PlayerProgressionSystem.GetLoadoutRecommendation();
         }
 
         RebuildSlotArray();

@@ -154,7 +154,7 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
   - whether the gameplay music is loud enough on phone without drowning out important SFX
   - whether the loop seam / end-of-loop click is gone or at least much smaller
   - whether the cave backgrounds are sharp enough and still readable against dark obstacles
-  - Some phone UI polish may still remain in `MainMenu` and `Inventory`; do not assume the earlier layout issues are fully closed until the newest APK is retested.
+  - A targeted primary-phone UI pass on `2026-04-23` validated the refreshed `MainMenu`, `Shop`, `Inventory`, and new mastery roadmap overlay on the real package, but more run/post-run balance testing is still needed before launch.
   - Cross-PC Android signing must stay out of Git, so the repo needs to point to a safe shared external signing folder instead of storing signing secrets in `logs.md`.
   - Runtime audio/visual feedback now exists, but it is still procedural placeholder content and may need stronger authored polish.
   - The post-run rewarded double-coins offer was restored for debug/dev builds and must be re-verified on phone after a run.
@@ -162,6 +162,11 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
   - The rewarded flow still needs a real ad provider before release; current phone testing still uses simulation in debug/dev builds.
   - Coin-pack IAPs and starter-offer surfaces now exist, but they still need production store configuration and polish.
   - The new post-run `Share Result` button and conditional `Rate on Google Play` prompt are live and phone-verified on the secondary package, but the review action currently validates only Android's market/store handoff path, not a live public Play listing or a true in-app review API flow yet.
+  - The new mastery / milestone / danger-combo feature sprint is now in the primary desktop build, but the meaningful balance checks still need broader real-phone play:
+    - whether danger combos trigger often enough to feel exciting without becoming noisy
+    - whether the post-run progression summary stays readable on stronger runs with level-ups or milestone rewards
+    - whether the tighter HUD labels are readable enough during longer sessions
+  - The menu profile strip is intentionally using the existing scene baseline instead of adding more generated UI; if we want deeper menu progression surfaces later, do that as a deliberate scene-owned Unity pass.
   - Store assets, screenshots, privacy policy, and Play Console setup are still pending.
   - Local Android signing data is intentionally machine-local and must not be committed:
     - `UserSettings/Android/oreniq-release.keystore`
@@ -173,22 +178,32 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
   - When changing machines, re-verify Unity modules, package restore, and release-signing setup.
 
 ## Current Focus
-1. On the primary desktop, pull the latest repo, keep the original package signer intact, then build/install the original app (`com.oreniq.endlessdodge`) onto the phone so the laptop-tested changes become the real phone baseline.
-2. Keep the desktop as the primary machine for the original production package (`com.oreniq.endlessdodge`) and use this laptop's side-by-side secondary package (`com.oreniq.endlessdodge.secondary`) for rapid phone testing until signing is intentionally shared.
-3. Use the newer `AndroidBuildUtility` workflow on this laptop for phone testing:
-   - `Tools/Android/Build Secondary Test APK`
-   - `Tools/Android/Build And Install Secondary Test APK`
-4. Pre-launch product scope should stay narrow now:
+1. The primary desktop now has the current real-package phone baseline again, plus the new prelaunch growth features:
+   - mastery XP / rank-up progression
+   - automatic milestone rewards
+   - danger-combo / near-miss scoring
+   - richer spawn patterns and coin trails
+   - stronger share text and post-run next-goal messaging
+   - a new phone-verified mastery roadmap overlay with upcoming titles, prerequisites, reward previews, and cleaner cross-screen progression guidance
+2. Move next into the credential-gated release tasks on this primary machine:
    - real rewarded ads instead of simulated rewarded flow
-   - real IAP / starter-pack readiness
-   - first-session clarity / polish on phone
-   - post-run growth surfaces that spread well without widening scope
-   - release/store/compliance tasks
-5. After the desktop installs the original app again, retest these exact items on the real package: biome-change hitch, cave border feel, music/SFX balance, post-run double-coins visibility, rewarded revive feel, and whether the new share/review post-run actions still feel right outside the secondary test package.
-6. If both machines need to update the same installed original phone app, choose one of these supported paths:
+   - real IAP / starter-pack store configuration
+   - release AAB generation and Play Console submission prep
+   - privacy / data safety / store asset completion
+3. Keep additional feature scope narrow from here. Only add more gameplay/UI work if it directly fixes a phone-tested issue or clearly improves tomorrow's launch-readiness.
+4. Before submission, retest these exact real-package items on phone with sound on:
+   - biome-change hitch
+   - cave border feel
+   - music / SFX balance and loop seam
+   - danger-combo feel and frequency
+   - post-run summary readability on a stronger run
+   - post-run double-coins visibility
+   - rewarded revive behavior
+   - post-run share / review actions
+5. If both machines need to update the same installed original phone app, choose one of these supported paths:
    - temporary bridge: copy the desktop's `%USERPROFILE%\.android\debug.keystore` to the same path on this laptop
    - preferred long-term path: configure `Documents/EndlessDodge1/SharedSigning/Android/` so both machines use the same shared signing identity
-7. After the desktop signer is present on this workstation, rebuild and reinstall the original debug APK, then retest on phone with sound on. First checks:
+6. After the desktop signer is present on this workstation, rebuild and reinstall the original debug APK, then retest on phone with sound on. First checks:
    - music identity and loudness
    - loop-end click/pop
    - music feel / energy
@@ -293,6 +308,127 @@ Use this exact format for new entries:
 - Next best action:
 
 ## Structured Change Log
+### 2026-04-23 - Mastery roadmap and phone UI cohesion pass
+- Goal:
+  - Add a visible mastery / milestones roadmap page, then tighten the phone presentation so the main menu, shop, inventory, and progression surfaces feel cohesive on the real package.
+- What changed:
+  - Extended `Assets/Scripts/PlayerProgressionSystem.cs` with title-roadmap snapshots, milestone-roadmap snapshots, and lightweight goal-based loadout / shop guidance.
+  - Added a new `Roadmap & Titles` entry and `Mastery Roadmap` overlay in `Assets/Scripts/MainMenu.cs`:
+    - current title and XP summary
+    - upcoming rank titles with unlock levels
+    - milestone prerequisites, progress, and reward previews
+    - lifetime-stat footer for quick progression context
+  - Reworked the main-menu profile strip into a cleaner multi-line layout and rebalanced spacing so the roadmap entry, reward panel, and core buttons sit more cleanly on phone.
+  - Updated `InventoryMenu` so the loadout screen carries rank context and a goal-focused recommendation.
+  - Updated `ShopManager` so the store default helper copy points at the current progression goal instead of a generic purchase prompt.
+- Decisions / reversions:
+  - Kept the new roadmap inside the existing Unity UI/runtime menu system instead of creating a separate scene so the feature could land quickly without destabilizing the launch path.
+  - Stayed with concise coaching text in `Shop` and `Inventory` after phone QA showed longer helper lines became harder to scan.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded repeatedly with `0` warnings and `0` errors during the pass.
+  - Multiple Unity Android debug builds succeeded, ending with a final successful build logged in `Logs/android-roadmap-build-4-2026-04-23.log`.
+  - The updated `Builds/Android/EndlessDodge1-debug.apk` (`2026-04-23 11:46`) was installed onto the primary phone with `adb install -r`.
+  - Primary-phone screenshot QA confirmed:
+    - cleaner main-menu profile / roadmap spacing
+    - readable mastery roadmap titles, prerequisites, progress, and rewards
+    - updated shop progression hint
+    - updated inventory title / loadout guidance
+  - Temporary QA screenshots were used during review and can be deleted locally after handoff.
+- Next best action:
+  - Stop expanding feature scope unless a new phone issue blocks launch quality; move into credential-gated launch work next: real rewarded ads, real IAP/store config, release AAB, privacy/data-safety/store assets, and final submission prep.
+
+### 2026-04-23 - Prelaunch growth feature sprint
+- Goal:
+  - Add the highest-impact non-credential growth features still realistic before launch, then verify them on the primary phone build.
+- What changed:
+  - Added `Assets/Scripts/PlayerProgressionSystem.cs` for permanent mastery XP, rank titles, level-up rewards, and automatic milestone rewards.
+  - Integrated the progression system into the existing scene baseline instead of adding more runtime-only UI:
+    - main-menu profile strip now shows rank / XP / next goal
+    - post-run summary now shows XP gain, rewards, and next-goal messaging
+    - share text now includes stronger brag/share context
+  - Added danger-combo / near-miss scoring and reward hooks in `GameManager`, `Obstacle`, `ObstacleZigZag`, and `PlayerController`.
+  - Expanded `Spawner` with richer risk/reward patterns, coin trails, and wider obstacle mixes to reduce repetition.
+  - Tightened the in-run HUD copy so upgrade summaries fit better on phone.
+- Decisions / reversions:
+  - Follow the user preference to avoid adding more generated runtime UI where practical; the new progression feedback was routed through the existing scene-owned menu / HUD / post-run surfaces instead.
+  - Keep milestone rewards auto-claiming once earned so the feature lands quickly without introducing another menu panel before launch.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Multiple Unity batch Android debug builds succeeded, ending with a final successful build logged in `Logs/android-feature-sprint-build-4-2026-04-23.log`.
+  - The fresh APK was installed onto the primary phone with `adb install -r Builds/Android/EndlessDodge1-debug.apk`.
+  - Real-phone QA confirmed the updated menu profile strip, in-run HUD, rewarded revive prompt, and post-run summary were all rendering on-device.
+  - Temporary phone screenshots taken for QA were deleted after review.
+- Next best action:
+  - Move straight into the credential-dependent launch work: real ads, real IAP/store setup, release AAB, privacy/data-safety/store assets, and final submission prep.
+
+### 2026-04-23 - Primary package phone update from desktop
+- Goal:
+  - Verify ADB on the primary desktop, install the fresh original-package APK over the existing phone install, and confirm the desktop-owned app is now the live baseline again.
+- What changed:
+  - Rechecked ADB after USB debugging was enabled and confirmed the connected Samsung phone was visible to the desktop as:
+    - device id `R3GL201XS5L`
+    - model `SM_S948U`
+  - Verified both app packages were still present on the phone:
+    - `com.oreniq.endlessdodge`
+    - `com.oreniq.endlessdodge.secondary`
+  - Installed the fresh desktop-built APK over the original package with:
+    - `adb install -r Builds/Android/EndlessDodge1-debug.apk`
+  - Launched the updated original package from ADB so the phone is now pointed at the desktop-owned app again for the next manual QA pass.
+- Decisions / reversions:
+  - Keep the secondary test app on the device for now as a fallback comparison lane, but treat the updated original package as the real baseline that should be retested next.
+  - Use `cmd package dump` for verification on this phone because the earlier `dumpsys package` check briefly reported a stale-looking timestamp.
+- Verification:
+  - `adb install -r` returned `Success`.
+  - `aapt dump badging Builds/Android/EndlessDodge1-debug.apk` confirmed the APK package identity is `com.oreniq.endlessdodge`.
+  - `adb shell cmd package dump com.oreniq.endlessdodge` reported:
+    - `lastUpdateTime=2026-04-23 09:40:27`
+    - `versionName=1.0`
+    - `versionCode=1`
+  - `adb shell cmd package dump com.oreniq.endlessdodge.secondary` still reported the separate secondary-package install from last night:
+    - `lastUpdateTime=2026-04-23 00:02:33`
+  - `adb shell monkey -p com.oreniq.endlessdodge -c android.intent.category.LAUNCHER 1` launched the updated original app.
+- Next best action:
+  - On the phone, retest the real package first for:
+    - biome-change hitch
+    - cave-border feel
+    - music/SFX balance
+    - post-run double-coins visibility
+    - rewarded revive behavior
+    - post-run share/review actions
+
+### 2026-04-23 - Primary desktop Android build verification
+- Goal:
+  - Apply the laptop-tested April 22 night changes on the primary desktop checkout, refresh Unity's local project state, and produce a fresh original-package Android build from this machine.
+- What changed:
+  - Confirmed the primary desktop checkout was already at commit `e9d1ea8` (`4-22-2026 2`), so no extra Git merge/pull was needed before the machine-specific rollout work.
+  - Forced Unity `6000.4.0f1` to import/regenerate the desktop project state by running the real batch Android build entry point:
+    - `AndroidBuildUtility.BuildDebugApkBatchmode`
+  - This desktop now has refreshed generated project files again, including the new laptop-added scripts such as:
+    - `Assets/Scripts/PlayfieldBorderController.cs`
+    - `Assets/Scripts/MobileGrowthActions.cs`
+  - Built a fresh original-package debug APK from the primary desktop:
+    - artifact: `Builds/Android/EndlessDodge1-debug.apk`
+    - build log: `Logs/android-primary-build-2026-04-23.log`
+- Decisions / reversions:
+  - Keep using the primary desktop for the real package `com.oreniq.endlessdodge`; the secondary-package workflow remains a laptop-only testing lane.
+  - Shared signing was still not resolved on this machine during this pass, so the build correctly followed the documented fallback path and used the machine-local Android debug keystore.
+- Verification:
+  - Unity batch build finished with `Build Finished, Result: Success.`
+  - Unity logged `Android debug APK created at: C:\Users\antho\EndlessDodge1\Builds\Android\EndlessDodge1-debug.apk`.
+  - Fresh artifact timestamp on this desktop: `2026-04-23 09:30:47` local time.
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors after Unity refreshed the generated project files.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity's bundled `adb.exe` started successfully on this machine, but `adb devices -l` reported no connected devices during this pass, so the install step could not be completed yet.
+- Next best action:
+  - Connect the phone to the primary desktop, accept the USB-debugging trust prompt if needed, then install the fresh original-package APK and verify:
+    - biome-change hitch
+    - cave-border feel
+    - music/SFX balance
+    - post-run double-coins visibility
+    - rewarded revive behavior
+    - post-run share/review actions on the real package
+
 ### 2026-04-23 - End-of-night desktop handoff and launch outlook
 - Goal:
   - Leave one clean desktop-ready handoff that summarizes tonight's work, explains how to move the repo changes onto the original phone app, and sets a realistic launch / earnings expectation.
@@ -888,3 +1024,143 @@ Use this exact format for new entries:
   - Core loop, inventory flow, upgrade activation, and retention systems existed in the restored project state after this work.
 - Next best action:
   - Continue polishing scene-owned UI carefully without undoing the restored layout baseline.
+
+### 2026-04-23 - Top-500 feel tuning pass
+- Goal:
+  - Push the game closer to a top-performing hybrid-casual feel by making the opening runs more forgiving, making rewards feel productive even on shorter attempts, and tightening collision fairness so cave hazards read closer to their visible shapes.
+- What changed:
+  - Updated `Assets/Scripts/GameManager.cs` to add:
+    - a non-daily opening grace shield for the first `11` seconds of a run
+    - slower early spawn pressure, slightly faster player movement, and a more generous early coin cadence
+    - a stronger expedition-cache floor so short non-daily runs still grant visible progress
+  - Updated `Assets/Scripts/Spawner.cs` so the first `12` seconds only use coin drops or single hazards, the first `24` seconds favor wider safe gaps, and advanced hazards unlock later instead of appearing too early.
+  - Updated `Assets/Scripts/Obstacle.cs` and the player collider in `Assets/Scenes/Game.unity` so obstacle and player hitboxes better match the cave sprites and feel less boxy on phone.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors after rerunning it sequentially.
+  - A Unity Android batch build succeeded and wrote `Logs/android-top500-tuning-3-2026-04-23.log`.
+  - `adb install -r Builds/Android/EndlessDodge1-debug.apk` succeeded on the primary phone, and `adb shell dumpsys package com.oreniq.endlessdodge` reported `lastUpdateTime=2026-04-23 14:35:30`.
+  - Real-phone ADB-driven QA found:
+    - before the retune, sampled runs were taking first lethal hits around `3.6s` to `5.5s`
+    - after the retune, the new opening grace shield fired at `7.2s` and `9.5s` on follow-up runs
+    - a calmer swipe pass did not show a follow-up death inside the sampled window after the grace save
+    - a deliberately aggressive swipe script could still force an early second hit, which means true human-feel testing is still important before locking difficulty
+- Next best action:
+  - Do a short real human phone play pass to tune the first `20-30` seconds by feel, then move into the credential-gated launch work: production ads, production billing, release AAB, and Play Console compliance.
+
+### 2026-04-23 - Toggleable QA mode with auto-capture and post-run survey
+- Goal:
+  - Make external tester runs easier to collect by giving the primary build a clear opt-in QA mode that can request Android screen-capture permission, record runs automatically, gather quick post-run feedback, and keep the recorded scope visible to testers.
+- What changed:
+  - Added `Assets/Scripts/QaTestingSystem.cs` to store QA mode state, run summaries, survey responses, report-file generation, runtime callbacks, and capture/share/delete helpers.
+  - Updated `Assets/Scripts/MainMenu.cs` with a new `QA Mode` menu entry and an in-game notice overlay that explains:
+    - only gameplay video is recorded
+    - microphone audio is not captured
+    - Android will show a native screen-capture consent prompt
+    - testers can delete the generated QA files from inside the game
+  - Updated `Assets/Scripts/GameManager.cs` so QA mode:
+    - requests capture automatically at run start after consent
+    - stops recording on run end, background, or scene exit
+    - expands the post-run screen with a quick survey and share/delete QA package actions
+  - Added `Assets/Plugins/Android/EndlessDodgeQaRecorder.androidlib/` with a native Android MediaProjection bridge, permission activity, foreground recording service, and FileProvider support so recording works as an app-owned Android feature instead of requiring manual tester setup.
+  - Adjusted the QA overlay button stack after phone QA so the `Close` button sits higher on the panel and is easier to reach on-device.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - A Unity Android build succeeded and wrote `Logs/android-qa-mode-build-2026-04-23.log`.
+  - The updated `Builds/Android/EndlessDodge1-debug.apk` was installed to the primary phone, and Unity's bundled `adb` reported `lastUpdateTime=2026-04-23 15:44:44` for `com.oreniq.endlessdodge`.
+  - Real-phone QA confirmed:
+    - the main menu shows the QA toggle surface
+    - the privacy / consent notice appears on-device
+    - enabling QA mode updates the menu state and ready text correctly
+    - temporary screenshot and UI-dump artifacts from this QA pass were deleted after review
+- Next best action:
+  - Do one quick human tap pass on the QA overlay close button and then use the new flow to collect real tester recordings plus survey notes from repeated phone runs.
+
+### 2026-04-23 - QA overlay cleanup, practice flow, and Downloads export pass
+- Goal:
+  - Make the tester flow easier to understand and easier to hand off by fixing the cramped QA surfaces, adding a lightweight practice lane before real QA recording, and giving testers a clear save destination on-device.
+- What changed:
+  - Updated `Assets/Scripts/QaTestingSystem.cs` to:
+    - keep the saved QA-mode status text consistent after app relaunch
+    - add a `Practice Tutorial Run` request flag
+    - add a `Save QA Bundle` path that exports the current clip + notes bundle to `Files > Downloads > EndlessDodgeQA`
+    - track exported bundle cleanup/counts alongside the app-local QA clips and reports
+    - clarify the QA notice copy so it explains the real tester flow in fewer lines
+  - Updated `Assets/Scripts/MainMenu.cs` to:
+    - add a `Practice Tutorial Run` action directly in the QA overlay
+    - rebalance the overlay body/status layout so the note text and status block no longer collide on phone
+    - keep the lower button stack readable with `Disable`, `Practice`, `Delete`, and `Close` separated more clearly
+  - Updated `Assets/Scripts/GameManager.cs` to:
+    - treat practice runs as tutorial-only runs that do not start the QA auto-recorder
+    - show QA-expanded post-run UI only on real QA runs, not on the practice lane
+    - add a dedicated `Save QA Bundle` action in the post-run survey area
+  - Extended `Assets/Plugins/Android/EndlessDodgeQaRecorder.androidlib/src/main/java/com/oreniq/endlessdodge/qa/QaRecorderBridge.java` so Android can export/delete/count bundled QA ZIP files in the public Downloads flow without requiring a third-party file app.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - A Unity Android build succeeded and wrote `Logs/android-qa-overlay-fix-2026-04-23.log`.
+  - The updated `Builds/Android/EndlessDodge1-debug.apk` was installed to the primary phone, and `adb shell dumpsys package com.oreniq.endlessdodge` reported `lastUpdateTime=2026-04-23 16:28:55`.
+  - Real-phone QA confirmed:
+    - app-local recordings currently save under `/sdcard/Android/data/com.oreniq.endlessdodge/files/Movies/qa/`
+    - app-local text reports currently save under `/sdcard/Android/data/com.oreniq.endlessdodge/files/qa-reports/`
+    - the QA overlay now shows the condensed capture notice, stable enabled status, and the new `Practice Tutorial Run` action without the earlier text collision
+    - temporary screenshot artifacts used for this QA pass were deleted after review
+- Next best action:
+  - Do one quick direct finger-tap pass on the new `Practice Tutorial Run`, `Save QA Bundle`, and `Close` buttons, because ADB screenshot validation was reliable but ADB tap targeting on the overlay buttons remained inconsistent during this pass.
+
+### 2026-04-23 - Secondary-PC handoff and shared-signing stabilization
+- Goal:
+  - Leave today's work in a cleaner state for the secondary PC and stop the repeated "different PC, different signer" install churn during phone QA.
+- What changed:
+  - Updated `Assets/Editor/AndroidSigningConfigResolver.cs` so signing resolution now prefers:
+    - explicit environment overrides
+    - the shared external signing folder
+    - only then machine-local `UserSettings/Android`
+  - Added `scripts/setup-shared-android-signing.ps1` so the primary PC can seed `Documents/EndlessDodge1/SharedSigning/Android/` from:
+    - the recovered release signing files when they exist
+    - otherwise the current machine's Android debug keystore as a temporary cross-PC QA bridge
+  - Updated `scripts/bootstrap-workstation.ps1` to report shared-signing status, not only local status.
+  - Updated `docs/WORKSTATION_SYNC.md` and `docs/COMPUTER_SWITCH_CHECKLIST.md` to make the shared signing folder the canonical multi-PC source of truth.
+- Decisions / reversions:
+  - Treat the shared debug-keystore bridge as a temporary professional convenience for QA only, not as the final Play release signing setup.
+  - Keep repo-tracked docs secret-free; actual keystore material still lives outside Git.
+- Verification:
+  - `powershell -ExecutionPolicy Bypass -File scripts/setup-shared-android-signing.ps1` succeeded on the primary PC.
+  - The canonical shared signing folder now exists at `C:\Users\antho\OneDrive\Documents\EndlessDodge1\SharedSigning\Android\`.
+  - That folder currently contains:
+    - `release-signing.json`
+    - `shared-debug.keystore`
+    - `README.txt`
+  - Current shared mode is `debug-bridge`, which means both PCs can update the same phone-installed QA build without manually copying `%USERPROFILE%\.android\debug.keystore`.
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+- Next best action:
+  - On the secondary PC, let OneDrive finish syncing `Documents/EndlessDodge1/SharedSigning/Android`, run `powershell -ExecutionPolicy Bypass -File scripts/bootstrap-workstation.ps1`, open Unity `6000.4.0f1`, and use `Tools/Android/Build And Install Debug APK` so the same phone install keeps updating cleanly.
+
+### 2026-04-23 - Cave-shop retheme and share-growth pass
+- Goal:
+  - Push the game further toward a stronger hybrid-casual launch shape by making the shop feel native to the cave world and by giving players a clearer reason to share the game with other people.
+- What changed:
+  - Added `Assets/Scripts/ShareGrowthSystem.cs` to track daily share claims, share streaks, lifetime shares, and rotating share rewards.
+  - Updated `Assets/Scripts/GameManager.cs` so the post-run share button now:
+    - advertises the current coin reward before claim
+    - grants the share reward once per day after the share action opens
+    - updates the post-run summary with the claimed reward state
+    - uses stronger invitation-oriented share copy instead of a plain brag string
+  - Extended `Assets/Scripts/PlayerProgressionSystem.cs` and `Assets/Scripts/MainMenu.cs` so lifetime shares are visible in progression and can unlock roadmap milestones.
+  - Rethemed `Assets/Scripts/ShopManager.cs` from a generic bright store into a darker cave-aligned `Supply Cache` presentation with cleaner helper copy, darker card styling, stronger section labels, and more themed offer / upgrade language.
+  - Added share-reward analytics capture in `Assets/Scripts/Services/LaunchAnalytics.cs`.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - A Unity Android build succeeded with the final pass logged in `Logs/android-top500-pass-2-2026-04-23.log`.
+  - The updated `Builds/Android/EndlessDodge1-debug.apk` was installed to the primary phone, and `adb shell dumpsys package com.oreniq.endlessdodge` reported `lastUpdateTime=2026-04-23 13:40:03`.
+  - Real-phone QA confirmed:
+    - the cave-themed shop presentation reads cleanly on-device
+    - the share chooser opens from the post-run screen
+    - the share reward applies immediately and updates the on-screen coin total
+    - the roadmap footer now shows share progress alongside other mastery cues
+  - Temporary screenshot captures used for this QA pass were deleted after review.
+- Next best action:
+  - Use short recorded gameplay clips, not only still screenshots, for the next tuning pass so run pacing, readability, and “one more try” feel can be judged more honestly before deeper launch and monetization work.

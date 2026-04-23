@@ -72,6 +72,25 @@ public class GameManager : MonoBehaviour
     private TextMeshProUGUI tutorialBodyText;
     private Button tutorialPrimaryButton;
     private TextMeshProUGUI tutorialPrimaryButtonText;
+    private GameObject qaCaptureOverlayRoot;
+    private TextMeshProUGUI qaCaptureOverlayTitleText;
+    private TextMeshProUGUI qaCaptureOverlayBodyText;
+    private GameObject qaSurveyPanel;
+    private TextMeshProUGUI qaSurveyStatusText;
+    private Button qaFairnessButton;
+    private TextMeshProUGUI qaFairnessButtonText;
+    private Button qaDifficultyButton;
+    private TextMeshProUGUI qaDifficultyButtonText;
+    private Button qaRewardButton;
+    private TextMeshProUGUI qaRewardButtonText;
+    private Button qaReplayButton;
+    private TextMeshProUGUI qaReplayButtonText;
+    private Button qaSavePackageButton;
+    private TextMeshProUGUI qaSavePackageButtonText;
+    private Button qaSharePackageButton;
+    private TextMeshProUGUI qaSharePackageButtonText;
+    private Button qaDeletePackageButton;
+    private TextMeshProUGUI qaDeletePackageButtonText;
     private bool markTutorialSeenOnClose;
     private bool postRunDoubleCoinsClaimed;
     private bool rewardedReviveUsed;
@@ -80,6 +99,16 @@ public class GameManager : MonoBehaviour
     private int completedRunsCount;
     private int lastFinishedScore;
     private int lastFinishedLevel;
+    private float dangerComboDecayTimer;
+    private int dangerComboCount;
+    private int bestDangerComboCount;
+    private int runNearMissCount;
+    private PlayerProgressionRunResult lastProgressionResult;
+    private string lastPerformanceRewardSummary;
+    private string lastShareRewardSummary;
+    private bool openingGraceShieldAvailable;
+    private bool qaCaptureRequestedThisScene;
+    private bool qaPracticeRunActive;
 
     private const float RunUpgradeButtonWidth = 230f;
     private const float RunUpgradeButtonHeight = 78f;
@@ -93,6 +122,10 @@ public class GameManager : MonoBehaviour
     private const float SmallerPlayerDuration = 12f;
     private const float ScoreBoosterDuration = 12f;
     private const float RareCoinBoostDuration = 15f;
+    private const float DangerComboGraceDuration = 4.25f;
+    private const float DangerComboDecayStepDuration = 1.15f;
+    private const float OpeningGraceShieldWindow = 11f;
+    private const float OpeningGraceInvulnerabilityDuration = 1.05f;
     private const string BestScoreKey = "BestScore";
 
     void Awake()
@@ -124,6 +157,17 @@ public class GameManager : MonoBehaviour
         completedRunsCount = GameSettings.GetCompletedRunCount();
         lastFinishedScore = 0;
         lastFinishedLevel = 1;
+        dangerComboDecayTimer = 0f;
+        dangerComboCount = 0;
+        bestDangerComboCount = 0;
+        runNearMissCount = 0;
+        lastProgressionResult = default;
+        lastPerformanceRewardSummary = string.Empty;
+        lastShareRewardSummary = string.Empty;
+        openingGraceShieldAvailable = !isDailyChallengeRun;
+        qaCaptureRequestedThisScene = false;
+        qaPracticeRunActive = QaTestingSystem.ConsumePracticeRunRequest();
+        QaTestingSystem.EnsureRuntime();
 
         if (totalCoinsText != null)
             totalCoinsText.text = "Coins: " + totalCoins;
@@ -149,12 +193,27 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
+        RefreshQaFeedbackUi();
+
+        if (!qaCaptureRequestedThisScene &&
+            QaTestingSystem.IsQaModeEnabled() &&
+            !qaPracticeRunActive &&
+            !IsPauseOverlayVisible() &&
+            !IsTutorialOverlayVisible() &&
+            !IsRevivePromptVisible())
+        {
+            qaCaptureRequestedThisScene = true;
+            QaTestingSystem.BeginGameplayCapture();
+            RefreshQaFeedbackUi();
+        }
+
         EnsurePresentationSystems();
         SyncLoadoutFromInventory(false);
 
         if (gameEnded) return;
 
         ProcessAutoUpgrades();
+        UpdateDangerComboState();
         runTime += Time.deltaTime;
         score += Time.deltaTime * GetScoreMultiplier();
 
@@ -162,13 +221,13 @@ public class GameManager : MonoBehaviour
             scoreText.text = "Score: " + Mathf.FloorToInt(score);
 
         if (isDailyChallengeRun)
-        {
             UpdateUpgradeText();
-            UpdateBestScoreHud();
-        }
+
+        UpdateBestScoreHud();
 
         ApplyContinuousEffects();
         RefreshRunUpgradeButtons();
+        openingGraceShieldAvailable = openingGraceShieldAvailable && runTime < OpeningGraceShieldWindow;
         int newLevel = GetDifficultyLevel();
 
         if (newLevel != currentLevel)
@@ -254,7 +313,11 @@ public class GameManager : MonoBehaviour
 
     public float GetObstacleSpeedRampMultiplier()
     {
-        return 1f + GetContinuousDifficultyLevel() * 0.15f;
+        float difficulty = Mathf.Max(0f, GetContinuousDifficultyLevel() - 1f);
+        float earlyRamp = Mathf.Min(difficulty, 2.5f) * 0.08f;
+        float midRamp = Mathf.Clamp(difficulty - 2.5f, 0f, 4f) * 0.06f;
+        float lateRamp = Mathf.Max(0f, difficulty - 6.5f) * 0.04f;
+        return 1f + earlyRamp + midRamp + lateRamp;
     }
 
     public void AddCoin()
@@ -479,6 +542,9 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        if (TryConsumeOpeningGraceShield(obstacle))
+            return;
+
         if (ConsumeShieldIfAvailable())
         {
             if (obstacle != null)
@@ -511,6 +577,12 @@ public class GameManager : MonoBehaviour
         }
 
         audioDirector?.PlayObstacleHit();
+        Debug.Log(
+            "Player hit by " +
+            (obstacle != null ? obstacle.name : "Unknown") +
+            " | score " + Mathf.FloorToInt(score) +
+            " | level " + currentLevel +
+            " | runTime " + runTime.ToString("0.0"));
 
         if (CanOfferRewardedRevive())
         {
@@ -522,6 +594,29 @@ public class GameManager : MonoBehaviour
         }
 
         GameOver();
+    }
+
+    bool TryConsumeOpeningGraceShield(GameObject obstacle)
+    {
+        if (!openingGraceShieldAvailable || runTime > OpeningGraceShieldWindow)
+            return false;
+
+        openingGraceShieldAvailable = false;
+
+        if (obstacle != null)
+            Destroy(obstacle);
+
+        if (player != null)
+            player.TriggerInvulnerability(Mathf.Max(ShieldProtectionDuration, OpeningGraceInvulnerabilityDuration));
+
+        audioDirector?.PlayShieldBlocked();
+        playerPowerupVisuals?.PlayShieldBlockBurst();
+        GameSettings.TriggerHaptic();
+        Debug.Log(
+            "Opening grace shield saved the run | score " + Mathf.FloorToInt(score) +
+            " | level " + currentLevel +
+            " | runTime " + runTime.ToString("0.0"));
+        return true;
     }
 
     IEnumerator RevivePlayerRoutine()
@@ -867,19 +962,42 @@ public class GameManager : MonoBehaviour
         switch (type)
         {
             case UpgradeType.Shield:
-                return "Shield: " + activeShields + " active / " + GetUpgradeOwnedCount(type) + " owned";
+                return "Shield " + activeShields + "/" + GetUpgradeOwnedCount(type);
             case UpgradeType.ExtraLife:
-                return "Extra Life: " + armedExtraLives + " armed / " + GetUpgradeOwnedCount(type) + " owned";
+                return "Life " + armedExtraLives + "/" + GetUpgradeOwnedCount(type);
             case UpgradeType.Bomb:
-                return "Bomb: " + GetUpgradeOwnedCount(type) + " ready";
+                return "Bomb " + GetUpgradeOwnedCount(type);
             default:
                 if (IsUpgradeActive(type))
                 {
-                    return UpgradeInventory.GetDisplayName(type) + ": " +
+                    return GetCompactUpgradeName(type) + " " +
                            Mathf.CeilToInt(GetUpgradeRemainingTime(type)) + "s";
                 }
 
-                return UpgradeInventory.GetDisplayName(type) + ": " + GetUpgradeOwnedCount(type) + " owned";
+                return GetCompactUpgradeName(type) + " x" + GetUpgradeOwnedCount(type);
+        }
+    }
+
+    string GetCompactUpgradeName(UpgradeType type)
+    {
+        switch (type)
+        {
+            case UpgradeType.SpeedBoost:
+                return "Speed";
+            case UpgradeType.CoinMagnet:
+                return "Magnet";
+            case UpgradeType.DoubleCoins:
+                return "2x Coins";
+            case UpgradeType.SlowTime:
+                return "Slow";
+            case UpgradeType.SmallerPlayer:
+                return "Small";
+            case UpgradeType.ScoreBooster:
+                return "Score";
+            case UpgradeType.RareCoinBoost:
+                return "Rare";
+            default:
+                return UpgradeInventory.GetDisplayName(type);
         }
     }
 
@@ -921,12 +1039,22 @@ public class GameManager : MonoBehaviour
         return multiplier;
     }
 
+    public float GetSpawnIntervalMultiplier()
+    {
+        float difficulty = Mathf.Max(0f, GetContinuousDifficultyLevel() - 1f);
+        float earlyBreather = Mathf.Lerp(1.34f, 1.04f, Mathf.Clamp01(runTime / 18f));
+        float laterCompression = Mathf.Lerp(1f, 0.87f, Mathf.Clamp01((difficulty - 2f) / 6f));
+        return earlyBreather * laterCompression;
+    }
+
     public float GetPlayerMoveSpeedMultiplier()
     {
-        if (IsUpgradeActive(UpgradeType.SpeedBoost))
-            return 1.55f;
+        float multiplier = 1.14f + (Mathf.Clamp01((GetContinuousDifficultyLevel() - 1f) / 8f) * 0.08f);
 
-        return 1f;
+        if (IsUpgradeActive(UpgradeType.SpeedBoost))
+            multiplier *= 1.42f;
+
+        return multiplier;
     }
 
     public float GetPlayerSizeMultiplier()
@@ -939,10 +1067,13 @@ public class GameManager : MonoBehaviour
 
     public float GetScoreMultiplier()
     {
-        if (IsUpgradeActive(UpgradeType.ScoreBooster))
-            return 2f;
+        float multiplier = 1f;
 
-        return 1f;
+        if (IsUpgradeActive(UpgradeType.ScoreBooster))
+            multiplier *= 2f;
+
+        multiplier *= GetDangerScoreMultiplier();
+        return multiplier;
     }
 
     public int GetCoinValue()
@@ -956,6 +1087,7 @@ public class GameManager : MonoBehaviour
     public float GetCurrentCoinSpawnChance(float baseChance)
     {
         float spawnChance = baseChance;
+        float difficulty = Mathf.Max(0f, GetContinuousDifficultyLevel() - 1f);
 
         if (isDailyChallengeRun)
             spawnChance *= activeDailyChallenge.coinSpawnMultiplier;
@@ -963,6 +1095,12 @@ public class GameManager : MonoBehaviour
         if (IsUpgradeActive(UpgradeType.RareCoinBoost))
             spawnChance += 0.3f;
 
+        if (runTime < 14f)
+            spawnChance += 0.12f;
+        else if (runTime < 24f)
+            spawnChance += 0.04f;
+
+        spawnChance += Mathf.Clamp01(difficulty / 8f) * 0.05f;
         return Mathf.Clamp01(spawnChance);
     }
 
@@ -1011,7 +1149,29 @@ public class GameManager : MonoBehaviour
         postRunDoubleCoinsClaimed = false;
         lastFinishedScore = finalScore;
         lastFinishedLevel = currentLevel;
+        lastPerformanceRewardSummary = string.Empty;
+        lastShareRewardSummary = string.Empty;
         completedRunsCount = GameSettings.RegisterCompletedRun();
+        bool clearedDailyChallenge = isDailyChallengeRun &&
+                                     activeDailyChallenge.bestScore >= activeDailyChallenge.targetScore;
+        lastProgressionResult = PlayerProgressionSystem.RegisterRunCompleted(
+            finalScore,
+            runCoinsEarned,
+            currentLevel,
+            isDailyChallengeRun,
+            newBestScore,
+            runNearMissCount,
+            bestDangerComboCount,
+            clearedDailyChallenge);
+        totalCoins = PlayerPrefs.GetInt("TotalCoins", totalCoins);
+        lastPerformanceRewardSummary = AwardRunPerformanceRewards(finalScore, currentLevel);
+        totalCoins = PlayerPrefs.GetInt("TotalCoins", totalCoins);
+
+        if (totalCoinsText != null)
+            totalCoinsText.text = "Coins: " + totalCoins;
+
+        dangerComboCount = 0;
+        dangerComboDecayTimer = 0f;
         showPostRunReviewButton = GameSettings.ShouldShowReviewPrompt(
             completedRunsCount,
             finalScore,
@@ -1034,6 +1194,23 @@ public class GameManager : MonoBehaviour
             currentLevel,
             isDailyChallengeRun,
             newBestScore);
+        if (!qaPracticeRunActive)
+        {
+            QaTestingSystem.RegisterRunFinished(
+                finalScore,
+                currentLevel,
+                runCoinsEarned,
+                runNearMissCount,
+                bestDangerComboCount,
+                newBestScore,
+                isDailyChallengeRun);
+        }
+        Debug.Log(
+            "Run ended | score " + finalScore +
+            " | level " + currentLevel +
+            " | coins " + runCoinsEarned +
+            " | nearMisses " + runNearMissCount +
+            " | dangerPeak " + bestDangerComboCount);
 
         if (spawner != null)
             spawner.StopSpawning();
@@ -1050,10 +1227,12 @@ public class GameManager : MonoBehaviour
         ShowPostRunSummary(finalScore);
         UpdateBestScoreHud();
         RefreshRunUpgradeButtons();
+        RefreshQaFeedbackUi();
     }
 
     public void RestartGame()
     {
+        QaTestingSystem.StopCapture("restart_run");
         Time.timeScale = 1f;
 
         if (isDailyChallengeRun)
@@ -1115,6 +1294,9 @@ public class GameManager : MonoBehaviour
 
         if (revivePromptRoot == null)
             CreateRevivePrompt(parentRect);
+
+        if (qaCaptureOverlayRoot == null)
+            CreateQaCaptureOverlay(parentRect);
 
         NormalizeHudLayout(parentRect);
     }
@@ -1345,7 +1527,8 @@ public class GameManager : MonoBehaviour
         if (panelRect == null)
             return;
 
-        panelRect.sizeDelta = new Vector2(620f, 430f);
+        bool qaModeActive = QaTestingSystem.IsQaModeEnabled() && !qaPracticeRunActive;
+        panelRect.sizeDelta = qaModeActive ? new Vector2(620f, 820f) : new Vector2(620f, 430f);
         panelRect.anchoredPosition = new Vector2(0f, -250f);
 
         if (postRunDoubleCoinsButton == null)
@@ -1357,7 +1540,7 @@ public class GameManager : MonoBehaviour
                 new Vector2(0.5f, 0f),
                 new Vector2(0.5f, 0f),
                 new Vector2(420f, 52f),
-                new Vector2(0f, 82f),
+                qaModeActive ? new Vector2(0f, 224f) : new Vector2(0f, 82f),
                 "Watch Ad: 2x Coins",
                 new Color(0.94f, 0.73f, 0.23f, 1f),
                 out postRunDoubleCoinsButtonText);
@@ -1372,7 +1555,7 @@ public class GameManager : MonoBehaviour
                 new Vector2(0.5f, 0f),
                 new Vector2(0.5f, 0f),
                 new Vector2(420f, 52f),
-                new Vector2(0f, 22f),
+                qaModeActive ? new Vector2(0f, 164f) : new Vector2(0f, 22f),
                 "Share Result",
                 new Color(0.23f, 0.5f, 0.66f, 1f),
                 out postRunShareButtonText);
@@ -1387,7 +1570,7 @@ public class GameManager : MonoBehaviour
                 new Vector2(0.5f, 0f),
                 new Vector2(0.5f, 0f),
                 new Vector2(420f, 52f),
-                new Vector2(0f, 142f),
+                qaModeActive ? new Vector2(0f, 284f) : new Vector2(0f, 142f),
                 "Rate on Google Play",
                 new Color(0.26f, 0.58f, 0.34f, 1f),
                 out postRunReviewButtonText);
@@ -1411,9 +1594,18 @@ public class GameManager : MonoBehaviour
             postRunReviewButton.onClick.AddListener(OpenStoreReviewPage);
         }
 
-        ConfigurePostRunActionButton(postRunDoubleCoinsButton, new Vector2(420f, 52f), new Vector2(0f, 82f));
-        ConfigurePostRunActionButton(postRunShareButton, new Vector2(420f, 52f), new Vector2(0f, 22f));
-        ConfigurePostRunActionButton(postRunReviewButton, new Vector2(420f, 52f), new Vector2(0f, 142f));
+        ConfigurePostRunActionButton(
+            postRunDoubleCoinsButton,
+            new Vector2(420f, 52f),
+            qaModeActive ? new Vector2(0f, 224f) : new Vector2(0f, 82f));
+        ConfigurePostRunActionButton(
+            postRunShareButton,
+            new Vector2(420f, 52f),
+            qaModeActive ? new Vector2(0f, 164f) : new Vector2(0f, 22f));
+        ConfigurePostRunActionButton(
+            postRunReviewButton,
+            new Vector2(420f, 52f),
+            qaModeActive ? new Vector2(0f, 284f) : new Vector2(0f, 142f));
         ConfigurePostRunActionButtonText(postRunDoubleCoinsButtonText);
         ConfigurePostRunActionButtonText(postRunShareButtonText);
         ConfigurePostRunActionButtonText(postRunReviewButtonText);
@@ -1421,11 +1613,15 @@ public class GameManager : MonoBehaviour
         if (postRunSummaryText != null)
         {
             RectTransform summaryRect = postRunSummaryText.rectTransform;
-            summaryRect.offsetMin = new Vector2(28f, 204f);
+            summaryRect.offsetMin = qaModeActive ? new Vector2(28f, 408f) : new Vector2(28f, 204f);
             summaryRect.offsetMax = new Vector2(-28f, -24f);
         }
 
+        if (qaModeActive && qaSurveyPanel == null)
+            CreateQaSurveyPanel(panelRect);
+
         RefreshPostRunActionButtons();
+        RefreshQaSurveyUi();
     }
 
     void ConfigurePostRunActionButton(Button actionButton, Vector2 size, Vector2 anchoredPosition)
@@ -1530,6 +1726,238 @@ public class GameManager : MonoBehaviour
 
         EnsurePostRunActionButtons();
         postRunPanel.SetActive(false);
+    }
+
+    void CreateQaCaptureOverlay(RectTransform parentRect)
+    {
+        qaCaptureOverlayRoot = new GameObject("QaCaptureOverlayRoot", typeof(RectTransform), typeof(Image));
+        qaCaptureOverlayRoot.transform.SetParent(parentRect, false);
+
+        RectTransform rootRect = qaCaptureOverlayRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = Vector2.zero;
+        rootRect.anchorMax = Vector2.one;
+        rootRect.offsetMin = Vector2.zero;
+        rootRect.offsetMax = Vector2.zero;
+
+        Image overlayImage = qaCaptureOverlayRoot.GetComponent<Image>();
+        overlayImage.color = new Color(0.02f, 0.04f, 0.06f, 0.9f);
+
+        GameObject panelObject = new GameObject("QaCaptureOverlayPanel", typeof(RectTransform), typeof(Image));
+        panelObject.transform.SetParent(qaCaptureOverlayRoot.transform, false);
+
+        RectTransform panelRect = panelObject.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.sizeDelta = new Vector2(700f, 360f);
+        panelRect.anchoredPosition = new Vector2(0f, -10f);
+
+        Image panelImage = panelObject.GetComponent<Image>();
+        panelImage.color = new Color(0.11f, 0.17f, 0.28f, 0.98f);
+
+        qaCaptureOverlayTitleText = CreateRuntimeLabel(
+            panelRect,
+            "QaCaptureOverlayTitle",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(560f, 62f),
+            new Vector2(0f, -34f),
+            TextAlignmentOptions.Center,
+            28f,
+            40f,
+            Color.white);
+
+        qaCaptureOverlayBodyText = CreateRuntimeLabel(
+            panelRect,
+            "QaCaptureOverlayBody",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(580f, 200f),
+            new Vector2(0f, -132f),
+            TextAlignmentOptions.Center,
+            20f,
+            28f,
+            new Color(0.92f, 0.97f, 1f, 1f));
+
+        if (qaCaptureOverlayBodyText != null)
+            qaCaptureOverlayBodyText.lineSpacing = 6f;
+
+        qaCaptureOverlayRoot.SetActive(false);
+    }
+
+    void CreateQaSurveyPanel(RectTransform parentRect)
+    {
+        qaSurveyPanel = new GameObject("QaSurveyPanel", typeof(RectTransform), typeof(Image));
+        qaSurveyPanel.transform.SetParent(parentRect, false);
+
+        RectTransform panelRect = qaSurveyPanel.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.5f, 0f);
+        panelRect.anchorMax = new Vector2(0.5f, 0f);
+        panelRect.pivot = new Vector2(0.5f, 0f);
+        panelRect.sizeDelta = new Vector2(540f, 454f);
+        panelRect.anchoredPosition = new Vector2(0f, 20f);
+
+        Image panelImage = qaSurveyPanel.GetComponent<Image>();
+        panelImage.color = new Color(0.1f, 0.14f, 0.2f, 0.96f);
+
+        CreateRuntimeLabel(
+            panelRect,
+            "QaSurveyTitle",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(420f, 38f),
+            new Vector2(0f, -18f),
+            TextAlignmentOptions.Center,
+            22f,
+            30f,
+            Color.white).text = "QA Check-In";
+
+        qaSurveyStatusText = CreateRuntimeLabel(
+            panelRect,
+            "QaSurveyStatus",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(470f, 64f),
+            new Vector2(0f, -62f),
+            TextAlignmentOptions.Center,
+            15f,
+            20f,
+            new Color(0.84f, 0.91f, 0.98f, 1f));
+
+        if (qaSurveyStatusText != null)
+            qaSurveyStatusText.lineSpacing = 2f;
+
+        qaFairnessButton = CreateRuntimeButton(
+            panelRect,
+            "QaFairnessButton",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(470f, 44f),
+            new Vector2(0f, -128f),
+            "Collision Feel",
+            new Color(0.29f, 0.47f, 0.66f, 1f),
+            out qaFairnessButtonText);
+
+        qaDifficultyButton = CreateRuntimeButton(
+            panelRect,
+            "QaDifficultyButton",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(470f, 44f),
+            new Vector2(0f, -180f),
+            "Difficulty Curve",
+            new Color(0.34f, 0.53f, 0.34f, 1f),
+            out qaDifficultyButtonText);
+
+        qaRewardButton = CreateRuntimeButton(
+            panelRect,
+            "QaRewardButton",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(470f, 44f),
+            new Vector2(0f, -232f),
+            "Reward Feel",
+            new Color(0.66f, 0.48f, 0.21f, 1f),
+            out qaRewardButtonText);
+
+        qaReplayButton = CreateRuntimeButton(
+            panelRect,
+            "QaReplayButton",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(470f, 44f),
+            new Vector2(0f, -284f),
+            "One-More-Run Pull",
+            new Color(0.54f, 0.33f, 0.62f, 1f),
+            out qaReplayButtonText);
+
+        qaSavePackageButton = CreateRuntimeButton(
+            panelRect,
+            "QaSavePackageButton",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(470f, 52f),
+            new Vector2(0f, 84f),
+            "Save QA Bundle",
+            new Color(0.17f, 0.46f, 0.55f, 1f),
+            out qaSavePackageButtonText);
+
+        qaSharePackageButton = CreateRuntimeButton(
+            panelRect,
+            "QaSharePackageButton",
+            new Vector2(0f, 0f),
+            new Vector2(0f, 0f),
+            new Vector2(0f, 0f),
+            new Vector2(286f, 52f),
+            new Vector2(20f, 18f),
+            "Share QA Package",
+            new Color(0.22f, 0.56f, 0.46f, 1f),
+            out qaSharePackageButtonText);
+
+        qaDeletePackageButton = CreateRuntimeButton(
+            panelRect,
+            "QaDeletePackageButton",
+            new Vector2(1f, 0f),
+            new Vector2(1f, 0f),
+            new Vector2(1f, 0f),
+            new Vector2(150f, 52f),
+            new Vector2(-20f, 18f),
+            "Delete QA",
+            new Color(0.42f, 0.28f, 0.22f, 1f),
+            out qaDeletePackageButtonText);
+
+        if (qaFairnessButton != null)
+        {
+            qaFairnessButton.onClick.RemoveAllListeners();
+            qaFairnessButton.onClick.AddListener(CycleQaFairness);
+        }
+
+        if (qaDifficultyButton != null)
+        {
+            qaDifficultyButton.onClick.RemoveAllListeners();
+            qaDifficultyButton.onClick.AddListener(CycleQaDifficulty);
+        }
+
+        if (qaRewardButton != null)
+        {
+            qaRewardButton.onClick.RemoveAllListeners();
+            qaRewardButton.onClick.AddListener(CycleQaRewardFeel);
+        }
+
+        if (qaReplayButton != null)
+        {
+            qaReplayButton.onClick.RemoveAllListeners();
+            qaReplayButton.onClick.AddListener(CycleQaReplayPull);
+        }
+
+        if (qaSavePackageButton != null)
+        {
+            qaSavePackageButton.onClick.RemoveAllListeners();
+            qaSavePackageButton.onClick.AddListener(SaveQaPackage);
+        }
+
+        if (qaSharePackageButton != null)
+        {
+            qaSharePackageButton.onClick.RemoveAllListeners();
+            qaSharePackageButton.onClick.AddListener(ShareQaPackage);
+        }
+
+        if (qaDeletePackageButton != null)
+        {
+            qaDeletePackageButton.onClick.RemoveAllListeners();
+            qaDeletePackageButton.onClick.AddListener(DeleteQaPackage);
+        }
+
+        qaSurveyPanel.SetActive(false);
     }
 
     void CreateRevivePrompt(RectTransform parentRect)
@@ -1859,12 +2287,7 @@ public class GameManager : MonoBehaviour
 
         if (tutorialBodyText != null)
         {
-            tutorialBodyText.text =
-                "Avoid every obstacle, no matter the color." +
-                "\nCollect the gold coins to buy consumables." +
-                "\nEquip up to 3 upgrades in Inventory before each run." +
-                "\nTap a run upgrade once to keep shields, buffs, and extra lives auto-armed.";
-            tutorialBodyText.lineSpacing = 18f;
+            RefreshTutorialOverlayContent(false);
         }
 
         tutorialPrimaryButton = CreateRuntimeButton(
@@ -1953,17 +2376,26 @@ public class GameManager : MonoBehaviour
 
     void UpdateBestScoreHud()
     {
-        if (bestScoreHudText != null)
+        if (bestScoreHudText == null)
+            return;
+
+        string dangerLabel = BuildDangerHudLabel();
+
+        if (isDailyChallengeRun)
         {
-            if (isDailyChallengeRun)
-            {
-                bestScoreHudText.text = gameEnded
-                    ? DailyChallengeSystem.GetBestProgressLabel(activeDailyChallenge)
-                    : DailyChallengeSystem.GetCurrentRunLabel(activeDailyChallenge, Mathf.FloorToInt(score), runCoinsEarned);
-            }
-            else
-                bestScoreHudText.text = "Best: " + bestScore;
+            string challengeLabel = gameEnded
+                ? DailyChallengeSystem.GetBestProgressLabel(activeDailyChallenge)
+                : DailyChallengeSystem.GetCurrentRunLabel(activeDailyChallenge, Mathf.FloorToInt(score), runCoinsEarned);
+
+            bestScoreHudText.text = string.IsNullOrEmpty(dangerLabel)
+                ? challengeLabel
+                : challengeLabel + "\n" + dangerLabel;
+            return;
         }
+
+        bestScoreHudText.text = string.IsNullOrEmpty(dangerLabel)
+            ? "Best: " + bestScore
+            : "Best: " + bestScore + "\n" + dangerLabel;
     }
 
     void ShowPostRunSummary(int finalScore)
@@ -2008,6 +2440,21 @@ public class GameManager : MonoBehaviour
                 "\nBest " + bestScore + "   Coins +" + displayedCoinGain +
                 "\nLevel " + currentLevel + "   Missions " + completedMissionCount + "/3";
 
+            if (bestDangerComboCount > 1 && lastProgressionResult.ExperienceGained > 0)
+            {
+                summaryText +=
+                    "\nDanger x" + bestDangerComboCount +
+                    "   XP +" + lastProgressionResult.ExperienceGained;
+            }
+            else if (bestDangerComboCount > 1)
+            {
+                summaryText += "\nDanger x" + bestDangerComboCount;
+            }
+            else if (lastProgressionResult.ExperienceGained > 0)
+            {
+                summaryText += "\nXP +" + lastProgressionResult.ExperienceGained;
+            }
+
             if (claimableMissionCount > 0)
             {
                 summaryText +=
@@ -2030,8 +2477,28 @@ public class GameManager : MonoBehaviour
         if (newBestScore)
             summaryText += "\n<color=#7FF0A6>New Best!</color>";
 
+        if (lastProgressionResult.LeveledUp)
+            summaryText += "\n<color=#A9F3BC>" + lastProgressionResult.LevelUpLabel + "</color>";
+
+        if (lastProgressionResult.HasRewardBundle)
+            summaryText += "\n<color=#FFD876>" + lastProgressionResult.RewardBundleLabel + "</color>";
+
+        if (lastProgressionResult.HasMilestoneSummary)
+            summaryText += "\n<color=#9EDAFF>" + lastProgressionResult.MilestoneSummaryLine + "</color>";
+
+        if (!string.IsNullOrEmpty(lastProgressionResult.PrimaryGoalSummary))
+            summaryText += "\n" + lastProgressionResult.PrimaryGoalSummary;
+
+        if (!string.IsNullOrEmpty(lastPerformanceRewardSummary))
+            summaryText += "\n<color=#FFD876>" + lastPerformanceRewardSummary + "</color>";
+
         if (showPostRunReviewButton)
             summaryText += "\n<color=#A9F3BC>Enjoying the run? Rate it on Google Play.</color>";
+
+        if (!string.IsNullOrEmpty(lastShareRewardSummary))
+            summaryText += "\n<color=#8FF2C5>" + lastShareRewardSummary + "</color>";
+        else
+            summaryText += "\n" + GetAvailableShareRewardLine();
 
         postRunSummaryText.text = summaryText;
         postRunPanel.SetActive(true);
@@ -2118,7 +2585,26 @@ public class GameManager : MonoBehaviour
         postRunShareButton.interactable = canShare;
 
         if (postRunShareButtonText != null)
-            postRunShareButtonText.text = isDailyChallengeRun ? "Share Challenge Run" : "Share Result";
+        {
+            if (canShare && ShareGrowthSystem.CanClaimToday())
+            {
+                int shareCoins = ShareGrowthSystem.GetPotentialRewardCoins(
+                    isDailyChallengeRun,
+                    newBestScore,
+                    ShareGrowthSystem.ShouldGrantDepthBonus(lastFinishedScore, lastFinishedLevel));
+                postRunShareButtonText.text = isDailyChallengeRun
+                    ? "Share Challenge +" + shareCoins
+                    : "Share +" + shareCoins + " Coins";
+            }
+            else if (canShare)
+            {
+                postRunShareButtonText.text = "Shared Today";
+            }
+            else
+            {
+                postRunShareButtonText.text = isDailyChallengeRun ? "Share Challenge Run" : "Share Result";
+            }
+        }
     }
 
     void RefreshPostRunReviewButton()
@@ -2138,6 +2624,125 @@ public class GameManager : MonoBehaviour
         RefreshPostRunDoubleCoinsButton();
         RefreshPostRunShareButton();
         RefreshPostRunReviewButton();
+        RefreshQaSurveyUi();
+    }
+
+    void RefreshQaFeedbackUi()
+    {
+        SetQaCaptureOverlayVisible(QaTestingSystem.IsAwaitingConsent());
+
+        if (qaCaptureOverlayTitleText != null)
+            qaCaptureOverlayTitleText.text = "QA Capture Permission";
+
+        if (qaCaptureOverlayBodyText != null)
+        {
+            qaCaptureOverlayBodyText.text =
+                "Android is about to show its screen-capture prompt for this run.\n" +
+                "Only gameplay, in-game menus, and the QA survey are intended to be captured.\n\n" +
+                QaTestingSystem.GetLiveCaptureStatus();
+        }
+
+        RefreshQaSurveyUi();
+    }
+
+    void RefreshQaSurveyUi()
+    {
+        if (qaSurveyPanel == null)
+            return;
+
+        bool showSurvey = QaTestingSystem.IsQaModeEnabled() && gameEnded && !qaPracticeRunActive;
+        qaSurveyPanel.SetActive(showSurvey);
+
+        if (!showSurvey)
+            return;
+
+        if (qaSurveyStatusText != null)
+            qaSurveyStatusText.text = QaTestingSystem.GetSurveyStatusText();
+
+        if (qaFairnessButtonText != null)
+            qaFairnessButtonText.text = QaTestingSystem.GetFairnessLabel();
+
+        if (qaDifficultyButtonText != null)
+            qaDifficultyButtonText.text = QaTestingSystem.GetDifficultyLabel();
+
+        if (qaRewardButtonText != null)
+            qaRewardButtonText.text = QaTestingSystem.GetRewardLabel();
+
+        if (qaReplayButtonText != null)
+            qaReplayButtonText.text = QaTestingSystem.GetReplayLabel();
+
+        if (qaSavePackageButtonText != null)
+            qaSavePackageButtonText.text = QaTestingSystem.GetSaveButtonLabel();
+
+        if (qaSharePackageButtonText != null)
+            qaSharePackageButtonText.text = QaTestingSystem.GetShareButtonLabel();
+
+        if (qaDeletePackageButtonText != null)
+            qaDeletePackageButtonText.text = "Delete QA";
+
+        if (qaSavePackageButton != null)
+            qaSavePackageButton.interactable = QaTestingSystem.CanSaveCurrentRun();
+
+        if (qaSharePackageButton != null)
+            qaSharePackageButton.interactable = QaTestingSystem.CanShareCurrentRun();
+
+        if (qaDeletePackageButton != null)
+            qaDeletePackageButton.interactable = QaTestingSystem.HasLastPackage();
+    }
+
+    public void CycleQaFairness()
+    {
+        QaTestingSystem.CycleFairness();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
+    public void CycleQaDifficulty()
+    {
+        QaTestingSystem.CycleDifficulty();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
+    public void CycleQaRewardFeel()
+    {
+        QaTestingSystem.CycleRewardFeel();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
+    public void CycleQaReplayPull()
+    {
+        QaTestingSystem.CycleReplayPull();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
+    public void SaveQaPackage()
+    {
+        if (!QaTestingSystem.CanSaveCurrentRun())
+            return;
+
+        QaTestingSystem.SaveCurrentRunToDownloads();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
+    public void ShareQaPackage()
+    {
+        if (!QaTestingSystem.CanShareCurrentRun())
+            return;
+
+        QaTestingSystem.ShareCurrentRun();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
+    public void DeleteQaPackage()
+    {
+        QaTestingSystem.DeleteLastPackage();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
     }
 
     public void SharePostRunResult()
@@ -2152,8 +2757,28 @@ public class GameManager : MonoBehaviour
             BuildShareBody());
         GameSettings.TriggerHaptic();
 
-        if (!launchedShareSheet && postRunShareButtonText != null)
-            postRunShareButtonText.text = "Copied Result";
+        if (ShareGrowthSystem.TryClaimShareReward(
+            isDailyChallengeRun,
+            newBestScore,
+            lastFinishedScore,
+            lastFinishedLevel,
+            out ShareGrowthReward reward))
+        {
+            totalCoins = PlayerPrefs.GetInt("TotalCoins", totalCoins);
+            lastShareRewardSummary = ShareGrowthSystem.GetRewardBreakdownLabel(reward);
+
+            if (totalCoinsText != null)
+                totalCoinsText.text = "Coins: " + totalCoins;
+
+            if (postRunShareButtonText != null)
+                postRunShareButtonText.text = "Echo Cache Claimed";
+
+            ShowPostRunSummary(lastFinishedScore);
+            return;
+        }
+
+        if (postRunShareButtonText != null)
+            postRunShareButtonText.text = launchedShareSheet ? "Shared Today" : "Copied Result";
     }
 
     public void OpenStoreReviewPage()
@@ -2176,41 +2801,202 @@ public class GameManager : MonoBehaviour
     string BuildShareSubject()
     {
         if (isDailyChallengeRun)
-            return "Can you beat my Endless Dodge challenge run?";
+            return "Can you beat today's Endless Dodge cave route?";
 
         if (newBestScore)
-            return "New Endless Dodge high score";
+            return "I just set a new Endless Dodge cave record";
 
-        return "Endless Dodge run result";
+        return "Can you beat my Endless Dodge cave run?";
     }
 
     string BuildShareBody()
     {
         string storeUrl = MobileGrowthActions.GetProductionStoreUrl();
+        PlayerProfileSnapshot profileSnapshot = PlayerProgressionSystem.GetProfileSnapshot();
+        string dangerSuffix = bestDangerComboCount > 1 ? " | Danger x" + bestDangerComboCount : string.Empty;
 
         if (isDailyChallengeRun)
         {
             return
-                "I just finished today's \"" + activeDailyChallenge.title + "\" challenge in Endless Dodge.\n" +
-                "Score " + lastFinishedScore + " | Coins +" + GetDisplayedRunCoinGain() + "\n" +
-                "Think you can beat it?\n" +
+                "I just finished today's \"" + activeDailyChallenge.title + "\" route in Endless Dodge.\n" +
+                "Score " + lastFinishedScore + " | Coins +" + GetDisplayedRunCoinGain() + dangerSuffix + "\n" +
+                profileSnapshot.RankTitle + " Lv " + profileSnapshot.Level + "\n" +
+                "Download Endless Dodge and take the same cave challenge.\n" +
                 storeUrl;
         }
 
         string openingLine = newBestScore
-            ? "New best in Endless Dodge."
-            : "Just finished another Endless Dodge run.";
+            ? "New cave record in Endless Dodge."
+            : "Just finished another deep run in Endless Dodge.";
 
         return
             openingLine + "\n" +
-            "Score " + lastFinishedScore + " | Level " + lastFinishedLevel + " | Coins +" + GetDisplayedRunCoinGain() + "\n" +
-            "Can you top that?\n" +
+            "Score " + lastFinishedScore + " | Depth " + lastFinishedLevel + " | Coins +" + GetDisplayedRunCoinGain() + dangerSuffix + "\n" +
+            profileSnapshot.RankTitle + " Lv " + profileSnapshot.Level + "\n" +
+            "Download Endless Dodge and see if you can beat it.\n" +
             storeUrl;
+    }
+
+    void UpdateDangerComboState()
+    {
+        if (dangerComboCount <= 0)
+            return;
+
+        dangerComboDecayTimer -= Time.deltaTime;
+
+        if (dangerComboDecayTimer > 0f)
+            return;
+
+        dangerComboCount = Mathf.Max(0, dangerComboCount - 1);
+        dangerComboDecayTimer = dangerComboCount > 0 ? DangerComboDecayStepDuration : 0f;
+    }
+
+    public void RegisterNearMiss(float closeness01)
+    {
+        if (gameEnded)
+            return;
+
+        runNearMissCount += 1;
+        dangerComboCount = Mathf.Min(dangerComboCount + 1, 12);
+        bestDangerComboCount = Mathf.Max(bestDangerComboCount, dangerComboCount);
+        dangerComboDecayTimer = DangerComboGraceDuration;
+
+        int scoreBonus = Mathf.RoundToInt((5f + (dangerComboCount * 2.5f)) * Mathf.Lerp(0.85f, 1.35f, Mathf.Clamp01(closeness01)));
+        score += Mathf.Max(3, scoreBonus);
+
+        int bonusCoins = 0;
+
+        if (dangerComboCount == 3 || dangerComboCount == 6 || dangerComboCount == 9)
+            bonusCoins = 1;
+        else if (dangerComboCount >= 10 && dangerComboCount % 2 == 0)
+            bonusCoins = 2;
+
+        if (bonusCoins > 0)
+        {
+            totalCoins += bonusCoins;
+            runCoinsEarned += bonusCoins;
+            DailyMissionSystem.RegisterCoinsCollected(bonusCoins);
+            PlayerPrefs.SetInt("TotalCoins", totalCoins);
+            PlayerPrefs.Save();
+
+            if (totalCoinsText != null)
+                totalCoinsText.text = "Coins: " + totalCoins;
+
+            if (isDailyChallengeRun)
+                UpdateUpgradeText();
+
+            audioDirector?.PlayCoinPickup();
+        }
+
+        if (dangerComboCount >= 3)
+            GameSettings.TriggerHaptic();
+
+        UpdateBestScoreHud();
+    }
+
+    float GetDangerScoreMultiplier()
+    {
+        if (dangerComboCount <= 1)
+            return 1f;
+
+        return 1f + (Mathf.Min(dangerComboCount, 8) * 0.08f);
+    }
+
+    string BuildDangerHudLabel()
+    {
+        if (!gameEnded && dangerComboCount > 1)
+            return "Danger x" + dangerComboCount + "   Score x" + GetDangerScoreMultiplier().ToString("0.00");
+
+        if (gameEnded && bestDangerComboCount > 1)
+            return "Peak Danger x" + bestDangerComboCount;
+
+        return string.Empty;
     }
 
     int GetDisplayedRunCoinGain()
     {
         return runCoinsEarned * (postRunDoubleCoinsClaimed ? 2 : 1);
+    }
+
+    string AwardRunPerformanceRewards(int finalScore, int levelReached)
+    {
+        if (isDailyChallengeRun)
+            return string.Empty;
+
+        int bonusCoins = 3;
+        bonusCoins += Mathf.Max(0, levelReached - 1) * 4;
+        bonusCoins += Mathf.Clamp(finalScore / 18, 0, 20);
+        bonusCoins += Mathf.Clamp(runNearMissCount / 3, 0, 8);
+
+        if (bestDangerComboCount >= 4)
+            bonusCoins += 4 + ((Mathf.Min(bestDangerComboCount, 10) - 4) * 2);
+
+        if (newBestScore)
+            bonusCoins += 10;
+
+        UpgradeType bonusUpgrade = UpgradeType.Shield;
+        int bonusUpgradeAmount = 0;
+
+        if (levelReached >= 10)
+        {
+            bonusUpgrade = UpgradeType.Bomb;
+            bonusUpgradeAmount = 1;
+        }
+        else if (levelReached >= 7)
+        {
+            bonusUpgrade = UpgradeType.ExtraLife;
+            bonusUpgradeAmount = 1;
+        }
+        else if (levelReached >= 4)
+        {
+            bonusUpgrade = UpgradeType.Shield;
+            bonusUpgradeAmount = 1;
+        }
+
+        if (bonusCoins <= 0 && bonusUpgradeAmount <= 0)
+            return string.Empty;
+
+        totalCoins += bonusCoins;
+        runCoinsEarned += bonusCoins;
+        PlayerPrefs.SetInt("TotalCoins", totalCoins);
+
+        if (UpgradeInventory.Instance != null && bonusUpgradeAmount > 0)
+            UpgradeInventory.Instance.AddUpgrade(bonusUpgrade, bonusUpgradeAmount);
+
+        PlayerPrefs.Save();
+
+        List<string> rewardParts = new List<string>();
+
+        if (bonusCoins > 0)
+            rewardParts.Add("+" + bonusCoins + " coins");
+
+        if (bonusUpgradeAmount > 0)
+            rewardParts.Add("+" + bonusUpgradeAmount + " " + UpgradeInventory.GetDisplayName(bonusUpgrade));
+
+        return "Expedition cache: " + string.Join("  |  ", rewardParts.ToArray());
+    }
+
+    string GetAvailableShareRewardLine()
+    {
+        if (!ShareGrowthSystem.CanClaimToday())
+            return "<color=#8EDCFB>Echo Cache claimed today</color>";
+
+        ShareGrowthReward previewReward = ShareGrowthSystem.GetPreviewReward();
+        int totalPotentialCoins = ShareGrowthSystem.GetPotentialRewardCoins(
+            isDailyChallengeRun,
+            newBestScore,
+            ShareGrowthSystem.ShouldGrantDepthBonus(lastFinishedScore, lastFinishedLevel));
+
+        return
+            "<color=#8FF2C5>Share this run for Day " +
+            previewReward.rewardDay +
+            " Echo Cache: +" +
+            totalPotentialCoins +
+            " coins + " +
+            previewReward.bonusAmount +
+            " " +
+            UpgradeInventory.GetDisplayName(previewReward.bonusUpgrade) +
+            "</color>";
     }
 
     public void ClaimPostRunDoubleCoins()
@@ -2306,16 +3092,19 @@ public class GameManager : MonoBehaviour
 
     void ShowTutorialIfNeeded()
     {
-        if (GameSettings.HasSeenTutorial())
+        bool shouldShowPracticeTutorial = qaPracticeRunActive;
+
+        if (GameSettings.HasSeenTutorial() && !shouldShowPracticeTutorial)
             return;
 
-        markTutorialSeenOnClose = true;
+        markTutorialSeenOnClose = !GameSettings.HasSeenTutorial();
+        RefreshTutorialOverlayContent(shouldShowPracticeTutorial || QaTestingSystem.IsQaModeEnabled());
         SetTutorialOverlayVisible(true);
     }
 
     public void TogglePause()
     {
-        if (gameEnded || IsTutorialOverlayVisible() || IsRevivePromptVisible())
+        if (gameEnded || IsTutorialOverlayVisible() || IsRevivePromptVisible() || IsQaCaptureOverlayVisible())
             return;
 
         SetPauseOverlayVisible(!IsPauseOverlayVisible());
@@ -2328,6 +3117,7 @@ public class GameManager : MonoBehaviour
 
     public void ReturnToMainMenu()
     {
+        QaTestingSystem.StopCapture("return_to_menu");
         Time.timeScale = 1f;
 
         if (isDailyChallengeRun)
@@ -2339,6 +3129,7 @@ public class GameManager : MonoBehaviour
     public void ReplayTutorial()
     {
         markTutorialSeenOnClose = false;
+        RefreshTutorialOverlayContent(QaTestingSystem.IsQaModeEnabled() || qaPracticeRunActive);
         SetTutorialOverlayVisible(true);
     }
 
@@ -2351,6 +3142,35 @@ public class GameManager : MonoBehaviour
         }
 
         SetTutorialOverlayVisible(false);
+    }
+
+    void RefreshTutorialOverlayContent(bool includeQaChecklist)
+    {
+        if (tutorialBodyText == null)
+            return;
+
+        tutorialBodyText.text =
+            "Avoid every obstacle, no matter the color." +
+            "\nCollect the gold coins to grow your stash." +
+            "\nEquip up to 3 upgrades in Inventory before each run." +
+            "\nTap a run upgrade once to keep shields, buffs, and extra lives auto-armed.";
+
+        if (includeQaChecklist)
+        {
+            tutorialBodyText.text +=
+                "\n\nTester checklist:" +
+                "\n- this first practice run is for learning the flow only" +
+                "\n- your real QA runs auto-record after Android capture consent" +
+                "\n- after each QA run, save the bundle or share it from the post-run screen";
+            tutorialBodyText.lineSpacing = 14f;
+        }
+        else
+        {
+            tutorialBodyText.lineSpacing = 18f;
+        }
+
+        if (tutorialPrimaryButtonText != null)
+            tutorialPrimaryButtonText.text = includeQaChecklist ? "Start Practice Run" : "Start Run";
     }
 
     public void ToggleHaptics()
@@ -2385,6 +3205,14 @@ public class GameManager : MonoBehaviour
         UpdateOverlayTimeScale();
     }
 
+    void SetQaCaptureOverlayVisible(bool isVisible)
+    {
+        if (qaCaptureOverlayRoot != null)
+            qaCaptureOverlayRoot.SetActive(isVisible);
+
+        UpdateOverlayTimeScale();
+    }
+
     bool IsPauseOverlayVisible()
     {
         return pauseOverlayRoot != null && pauseOverlayRoot.activeSelf;
@@ -2400,9 +3228,34 @@ public class GameManager : MonoBehaviour
         return revivePromptRoot != null && revivePromptRoot.activeSelf;
     }
 
+    bool IsQaCaptureOverlayVisible()
+    {
+        return qaCaptureOverlayRoot != null && qaCaptureOverlayRoot.activeSelf;
+    }
+
     void UpdateOverlayTimeScale()
     {
-        Time.timeScale = (IsPauseOverlayVisible() || IsTutorialOverlayVisible() || IsRevivePromptVisible()) ? 0f : 1f;
+        Time.timeScale = (IsPauseOverlayVisible() ||
+            IsTutorialOverlayVisible() ||
+            IsRevivePromptVisible() ||
+            IsQaCaptureOverlayVisible()) ? 0f : 1f;
+    }
+
+    void OnApplicationPause(bool paused)
+    {
+        QaTestingSystem.HandleApplicationFocusChanged(!paused);
+        RefreshQaFeedbackUi();
+    }
+
+    void OnApplicationFocus(bool hasFocus)
+    {
+        QaTestingSystem.HandleApplicationFocusChanged(hasFocus);
+        RefreshQaFeedbackUi();
+    }
+
+    void OnDestroy()
+    {
+        QaTestingSystem.StopCapture("game_scene_destroyed");
     }
 
     void EnsurePresentationSystems()

@@ -60,11 +60,50 @@ public class MainMenu : MonoBehaviour
     private TextMeshProUGUI closeMissionButtonText;
     private string missionClaimFeedback = string.Empty;
 
+    private Button masteryRoadmapButton;
+    private TextMeshProUGUI masteryRoadmapButtonText;
+    private GameObject masteryOverlayRoot;
+    private GameObject masteryOverlayPanel;
+    private TextMeshProUGUI masteryOverlayTitleText;
+    private TextMeshProUGUI masteryOverlayStatusText;
+    private readonly Image[] masteryTitleCardImages = new Image[3];
+    private readonly TextMeshProUGUI[] masteryTitleCardTitleTexts = new TextMeshProUGUI[3];
+    private readonly TextMeshProUGUI[] masteryTitleCardRequirementTexts = new TextMeshProUGUI[3];
+    private readonly TextMeshProUGUI[] masteryTitleCardProgressTexts = new TextMeshProUGUI[3];
+    private readonly Image[] masteryMilestoneCardImages = new Image[4];
+    private readonly TextMeshProUGUI[] masteryMilestoneTitleTexts = new TextMeshProUGUI[4];
+    private readonly TextMeshProUGUI[] masteryMilestoneRequirementTexts = new TextMeshProUGUI[4];
+    private readonly TextMeshProUGUI[] masteryMilestoneProgressTexts = new TextMeshProUGUI[4];
+    private readonly TextMeshProUGUI[] masteryMilestoneRewardTexts = new TextMeshProUGUI[4];
+    private readonly Image[] masteryMilestoneProgressFills = new Image[4];
+    private TextMeshProUGUI masteryOverlayFooterText;
+    private Button closeMasteryButton;
+    private TextMeshProUGUI closeMasteryButtonText;
+    private Button qaModeButton;
+    private TextMeshProUGUI qaModeButtonText;
+    private GameObject qaOverlayRoot;
+    private GameObject qaOverlayPanel;
+    private TextMeshProUGUI qaOverlayTitleText;
+    private TextMeshProUGUI qaOverlayBodyText;
+    private TextMeshProUGUI qaOverlayStatusText;
+    private Button qaOverlayToggleButton;
+    private TextMeshProUGUI qaOverlayToggleButtonText;
+    private Button qaOverlayPracticeButton;
+    private TextMeshProUGUI qaOverlayPracticeButtonText;
+    private Button qaOverlayClearButton;
+    private TextMeshProUGUI qaOverlayClearButtonText;
+    private Button qaOverlayCloseButton;
+    private TextMeshProUGUI qaOverlayCloseButtonText;
+
     private const string ProfileStatsObjectName = "ProfileStatsText";
     private const string DailyRewardPanelObjectName = "DailyRewardPanel";
     private const string ChallengeSummaryPanelObjectName = "DailyChallengeSummaryPanel";
     private const string MissionSummaryPanelObjectName = "DailyMissionSummaryPanel";
     private const string MissionOverlayRootObjectName = "DailyMissionOverlayRoot";
+    private const string MasteryRoadmapButtonObjectName = "MasteryRoadmapButton";
+    private const string MasteryOverlayRootObjectName = "MasteryOverlayRoot";
+    private const string QaModeButtonObjectName = "QaModeButton";
+    private const string QaOverlayRootObjectName = "QaOverlayRoot";
 
     void Start()
     {
@@ -82,11 +121,14 @@ public class MainMenu : MonoBehaviour
         menuRootRect = GetMenuRoot();
         titleText = FindText(titleObjectName);
         titleRect = titleText != null ? titleText.rectTransform : null;
+        QaTestingSystem.EnsureRuntime();
 
         if (createInventoryButtonAtRuntime)
             EnsureInventoryButtonExists();
 
         EnsureProfileStatsLabel();
+        EnsureMasteryRoadmapButton();
+        EnsureQaModeButton();
 
         if (createDailyRewardPanelAtRuntime)
             EnsureDailyRewardPanel();
@@ -94,9 +136,13 @@ public class MainMenu : MonoBehaviour
         EnsureChallengeSummaryPanel();
         EnsureMissionSummaryPanel();
         EnsureMissionOverlayPanel();
+        EnsureMasteryOverlayPanel();
+        EnsureQaOverlayPanel();
         NormalizeMenuLayout();
         RefreshMenuHud();
         SetMissionOverlayVisible(false);
+        SetMasteryOverlayVisible(false);
+        SetQaOverlayVisible(false);
     }
 
     void OnRectTransformDimensionsChange()
@@ -176,12 +222,65 @@ public class MainMenu : MonoBehaviour
     public void OpenMissionOverlay()
     {
         RefreshDailyMissionPanel();
+        SetMasteryOverlayVisible(false);
         SetMissionOverlayVisible(true);
     }
 
     public void CloseMissionOverlay()
     {
         SetMissionOverlayVisible(false);
+    }
+
+    public void OpenMasteryOverlay()
+    {
+        RefreshMasteryOverlay();
+        SetMissionOverlayVisible(false);
+        SetMasteryOverlayVisible(true);
+    }
+
+    public void CloseMasteryOverlay()
+    {
+        SetMasteryOverlayVisible(false);
+    }
+
+    public void OpenQaOverlay()
+    {
+        RefreshQaMenu();
+        SetMissionOverlayVisible(false);
+        SetMasteryOverlayVisible(false);
+        SetQaOverlayVisible(true);
+    }
+
+    public void CloseQaOverlay()
+    {
+        SetQaOverlayVisible(false);
+    }
+
+    public void ToggleQaMode()
+    {
+        bool enableQaMode = !QaTestingSystem.IsQaModeEnabled();
+
+        if (enableQaMode)
+            QaTestingSystem.MarkNoticeAccepted();
+
+        QaTestingSystem.SetQaModeEnabled(enableQaMode);
+        GameSettings.TriggerHaptic();
+        RefreshQaMenu();
+    }
+
+    public void DeleteQaArtifacts()
+    {
+        QaTestingSystem.DeleteAllArtifacts();
+        GameSettings.TriggerHaptic();
+        RefreshQaMenu();
+    }
+
+    public void StartQaPracticeRun()
+    {
+        QaTestingSystem.RequestPracticeRun();
+        GameSettings.TriggerHaptic();
+        DailyChallengeSystem.ClearActiveRun();
+        SceneManager.LoadScene(gameSceneName);
     }
 
     public void ClaimMissionRewards()
@@ -274,18 +373,85 @@ public class MainMenu : MonoBehaviour
             statsRect.anchorMin = new Vector2(0.5f, 1f);
             statsRect.anchorMax = new Vector2(0.5f, 1f);
             statsRect.pivot = new Vector2(0.5f, 1f);
-            statsRect.sizeDelta = new Vector2(760f, 60f);
-            statsRect.anchoredPosition = new Vector2(0f, -340f);
+            statsRect.sizeDelta = new Vector2(760f, 94f);
+            statsRect.anchoredPosition = new Vector2(0f, -316f);
         }
 
         profileStatsText.alignment = TextAlignmentOptions.Center;
         profileStatsText.enableAutoSizing = true;
-        profileStatsText.fontSizeMin = 26;
-        profileStatsText.fontSizeMax = 36;
+        profileStatsText.fontSizeMin = 18;
+        profileStatsText.fontSizeMax = 30;
+        profileStatsText.lineSpacing = 4f;
         profileStatsText.color = new Color(0.92f, 0.96f, 1f, 1f);
 
         if (runtimeFont != null)
             profileStatsText.font = runtimeFont;
+    }
+
+    void EnsureMasteryRoadmapButton()
+    {
+        if (menuRootRect == null)
+            return;
+
+        Transform existing = menuRootRect.Find(MasteryRoadmapButtonObjectName);
+
+        if (existing != null)
+        {
+            masteryRoadmapButton = existing.GetComponent<Button>();
+            masteryRoadmapButtonText = existing.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+        else
+        {
+            masteryRoadmapButton = CreatePanelButton(
+                menuRootRect,
+                MasteryRoadmapButtonObjectName,
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(400f, 58f),
+                new Vector2(0f, -384f),
+                "Roadmap & Titles",
+                out masteryRoadmapButtonText);
+        }
+
+        if (masteryRoadmapButton != null)
+        {
+            masteryRoadmapButton.onClick.RemoveAllListeners();
+            masteryRoadmapButton.onClick.AddListener(OpenMasteryOverlay);
+        }
+    }
+
+    void EnsureQaModeButton()
+    {
+        if (menuRootRect == null)
+            return;
+
+        Transform existing = menuRootRect.Find(QaModeButtonObjectName);
+
+        if (existing != null)
+        {
+            qaModeButton = existing.GetComponent<Button>();
+            qaModeButtonText = existing.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+        else
+        {
+            qaModeButton = CreatePanelButton(
+                menuRootRect,
+                QaModeButtonObjectName,
+                new Vector2(0f, 0f),
+                new Vector2(0f, 0f),
+                new Vector2(0f, 0f),
+                new Vector2(260f, 74f),
+                new Vector2(20f, 20f),
+                "QA Mode",
+                out qaModeButtonText);
+        }
+
+        if (qaModeButton != null)
+        {
+            qaModeButton.onClick.RemoveAllListeners();
+            qaModeButton.onClick.AddListener(OpenQaOverlay);
+        }
     }
 
     void EnsureDailyRewardPanel()
@@ -635,6 +801,113 @@ public class MainMenu : MonoBehaviour
         }
     }
 
+    void EnsureMasteryOverlayPanel()
+    {
+        if (menuRootRect == null)
+            return;
+
+        Transform existing = menuRootRect.Find(MasteryOverlayRootObjectName);
+
+        if (existing != null)
+        {
+            masteryOverlayRoot = existing.gameObject;
+            CacheMasteryOverlayReferences();
+            return;
+        }
+
+        masteryOverlayRoot = new GameObject(MasteryOverlayRootObjectName, typeof(RectTransform), typeof(Image));
+        masteryOverlayRoot.transform.SetParent(menuRootRect, false);
+
+        RectTransform rootRect = masteryOverlayRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = Vector2.zero;
+        rootRect.anchorMax = Vector2.one;
+        rootRect.offsetMin = Vector2.zero;
+        rootRect.offsetMax = Vector2.zero;
+
+        Image rootImage = masteryOverlayRoot.GetComponent<Image>();
+        rootImage.color = new Color(0.02f, 0.04f, 0.08f, 0.88f);
+
+        masteryOverlayPanel = new GameObject("MasteryOverlayPanel", typeof(RectTransform), typeof(Image));
+        masteryOverlayPanel.transform.SetParent(masteryOverlayRoot.transform, false);
+
+        RectTransform panelRect = masteryOverlayPanel.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.sizeDelta = new Vector2(900f, 1080f);
+        panelRect.anchoredPosition = new Vector2(0f, -20f);
+
+        Image panelImage = masteryOverlayPanel.GetComponent<Image>();
+        panelImage.color = new Color(0.11f, 0.18f, 0.31f, 1f);
+
+        masteryOverlayTitleText = CreatePanelText(
+            masteryOverlayPanel.transform,
+            "MasteryOverlayTitle",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(760f, 54f),
+            new Vector2(0f, -28f),
+            TextAlignmentOptions.Center,
+            34f,
+            44f,
+            Color.white);
+
+        masteryOverlayStatusText = CreatePanelText(
+            masteryOverlayPanel.transform,
+            "MasteryOverlayStatus",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(760f, 48f),
+            new Vector2(0f, -86f),
+            TextAlignmentOptions.Center,
+            18f,
+            28f,
+            new Color(0.84f, 0.92f, 1f, 1f));
+
+        for (int i = 0; i < masteryTitleCardImages.Length; i++)
+            CreateMasteryTitleCard(i);
+
+        for (int i = 0; i < masteryMilestoneCardImages.Length; i++)
+            CreateMasteryMilestoneCard(i);
+
+        masteryOverlayFooterText = CreatePanelText(
+            masteryOverlayPanel.transform,
+            "MasteryOverlayFooter",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(760f, 74f),
+            new Vector2(0f, 130f),
+            TextAlignmentOptions.Center,
+            18f,
+            26f,
+            new Color(0.8f, 0.88f, 0.95f, 1f));
+
+        closeMasteryButton = CreatePanelButton(
+            masteryOverlayPanel.transform,
+            "CloseMasteryButton",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(260f, 68f),
+            new Vector2(0f, 34f),
+            "Close",
+            out closeMasteryButtonText);
+
+        if (closeMasteryButton != null)
+        {
+            closeMasteryButton.onClick.RemoveAllListeners();
+            closeMasteryButton.onClick.AddListener(CloseMasteryOverlay);
+
+            Image closeImage = closeMasteryButton.GetComponent<Image>();
+
+            if (closeImage != null)
+                closeImage.color = new Color(0.32f, 0.42f, 0.56f, 1f);
+        }
+    }
+
     void CreateMissionCard(int index)
     {
         GameObject cardObject = new GameObject("MissionCard" + index, typeof(RectTransform), typeof(Image));
@@ -689,6 +962,161 @@ public class MainMenu : MonoBehaviour
             22f,
             28f,
             new Color(1f, 0.9f, 0.7f, 1f));
+    }
+
+    void CreateMasteryTitleCard(int index)
+    {
+        GameObject cardObject = new GameObject("TitleCard" + index, typeof(RectTransform), typeof(Image));
+        cardObject.transform.SetParent(masteryOverlayPanel.transform, false);
+
+        RectTransform cardRect = cardObject.GetComponent<RectTransform>();
+        cardRect.anchorMin = new Vector2(0.5f, 1f);
+        cardRect.anchorMax = new Vector2(0.5f, 1f);
+        cardRect.pivot = new Vector2(0.5f, 1f);
+        cardRect.sizeDelta = new Vector2(246f, 138f);
+        cardRect.anchoredPosition = new Vector2(-262f + (index * 262f), -164f);
+
+        Image cardImage = cardObject.GetComponent<Image>();
+        cardImage.color = new Color(0.22f, 0.3f, 0.46f, 1f);
+        masteryTitleCardImages[index] = cardImage;
+
+        masteryTitleCardTitleTexts[index] = CreatePanelText(
+            cardObject.transform,
+            "Title",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(220f, 40f),
+            new Vector2(0f, -16f),
+            TextAlignmentOptions.Center,
+            24f,
+            32f,
+            Color.white);
+
+        masteryTitleCardRequirementTexts[index] = CreatePanelText(
+            cardObject.transform,
+            "Requirement",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(220f, 36f),
+            new Vector2(0f, -62f),
+            TextAlignmentOptions.Center,
+            16f,
+            22f,
+            new Color(0.84f, 0.92f, 1f, 1f));
+
+        masteryTitleCardProgressTexts[index] = CreatePanelText(
+            cardObject.transform,
+            "Progress",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(220f, 30f),
+            new Vector2(0f, 16f),
+            TextAlignmentOptions.Center,
+            16f,
+            22f,
+            new Color(1f, 0.94f, 0.72f, 1f));
+    }
+
+    void CreateMasteryMilestoneCard(int index)
+    {
+        GameObject cardObject = new GameObject("MilestoneCard" + index, typeof(RectTransform), typeof(Image));
+        cardObject.transform.SetParent(masteryOverlayPanel.transform, false);
+
+        RectTransform cardRect = cardObject.GetComponent<RectTransform>();
+        cardRect.anchorMin = new Vector2(0.5f, 1f);
+        cardRect.anchorMax = new Vector2(0.5f, 1f);
+        cardRect.pivot = new Vector2(0.5f, 1f);
+        cardRect.sizeDelta = new Vector2(812f, 132f);
+        cardRect.anchoredPosition = new Vector2(0f, -342f - (index * 140f));
+
+        Image cardImage = cardObject.GetComponent<Image>();
+        cardImage.color = new Color(0.18f, 0.27f, 0.43f, 1f);
+        masteryMilestoneCardImages[index] = cardImage;
+
+        masteryMilestoneTitleTexts[index] = CreatePanelText(
+            cardObject.transform,
+            "Title",
+            new Vector2(0f, 1f),
+            new Vector2(0f, 1f),
+            new Vector2(0f, 1f),
+            new Vector2(520f, 30f),
+            new Vector2(26f, -14f),
+            TextAlignmentOptions.Left,
+            20f,
+            28f,
+            Color.white);
+
+        masteryMilestoneRequirementTexts[index] = CreatePanelText(
+            cardObject.transform,
+            "Requirement",
+            new Vector2(0f, 1f),
+            new Vector2(0f, 1f),
+            new Vector2(0f, 1f),
+            new Vector2(720f, 24f),
+            new Vector2(26f, -42f),
+            TextAlignmentOptions.Left,
+            16f,
+            22f,
+            new Color(0.84f, 0.92f, 1f, 1f));
+
+        masteryMilestoneProgressTexts[index] = CreatePanelText(
+            cardObject.transform,
+            "Progress",
+            new Vector2(0f, 0f),
+            new Vector2(0f, 0f),
+            new Vector2(0f, 0f),
+            new Vector2(320f, 22f),
+            new Vector2(26f, 8f),
+            TextAlignmentOptions.Left,
+            16f,
+            22f,
+            new Color(0.88f, 0.96f, 1f, 1f));
+
+        masteryMilestoneRewardTexts[index] = CreatePanelText(
+            cardObject.transform,
+            "Reward",
+            new Vector2(1f, 0f),
+            new Vector2(1f, 0f),
+            new Vector2(1f, 0f),
+            new Vector2(320f, 22f),
+            new Vector2(-26f, 8f),
+            TextAlignmentOptions.Right,
+            16f,
+            22f,
+            new Color(1f, 0.9f, 0.7f, 1f));
+
+        GameObject progressTrackObject = new GameObject("ProgressTrack", typeof(RectTransform), typeof(Image));
+        progressTrackObject.transform.SetParent(cardObject.transform, false);
+
+        RectTransform trackRect = progressTrackObject.GetComponent<RectTransform>();
+        trackRect.anchorMin = new Vector2(0.5f, 0f);
+        trackRect.anchorMax = new Vector2(0.5f, 0f);
+        trackRect.pivot = new Vector2(0.5f, 0f);
+        trackRect.sizeDelta = new Vector2(760f, 14f);
+        trackRect.anchoredPosition = new Vector2(0f, 38f);
+
+        Image trackImage = progressTrackObject.GetComponent<Image>();
+        trackImage.color = new Color(0.08f, 0.12f, 0.18f, 0.92f);
+
+        GameObject progressFillObject = new GameObject("ProgressFill", typeof(RectTransform), typeof(Image));
+        progressFillObject.transform.SetParent(progressTrackObject.transform, false);
+
+        RectTransform fillRect = progressFillObject.GetComponent<RectTransform>();
+        fillRect.anchorMin = Vector2.zero;
+        fillRect.anchorMax = Vector2.one;
+        fillRect.offsetMin = Vector2.zero;
+        fillRect.offsetMax = Vector2.zero;
+
+        Image fillImage = progressFillObject.GetComponent<Image>();
+        fillImage.type = Image.Type.Filled;
+        fillImage.fillMethod = Image.FillMethod.Horizontal;
+        fillImage.fillOrigin = 0;
+        fillImage.fillAmount = 0f;
+        fillImage.color = new Color(0.28f, 0.7f, 0.58f, 1f);
+        masteryMilestoneProgressFills[index] = fillImage;
     }
 
     void CacheDailyRewardPanelReferences()
@@ -790,6 +1218,69 @@ public class MainMenu : MonoBehaviour
         }
     }
 
+    void CacheMasteryOverlayReferences()
+    {
+        if (masteryOverlayRoot == null)
+            return;
+
+        Transform panelTransform = masteryOverlayRoot.transform.Find("MasteryOverlayPanel");
+
+        if (panelTransform != null)
+            masteryOverlayPanel = panelTransform.gameObject;
+
+        if (masteryOverlayPanel == null)
+            return;
+
+        masteryOverlayTitleText = FindTextInParent(masteryOverlayPanel.transform, "MasteryOverlayTitle");
+        masteryOverlayStatusText = FindTextInParent(masteryOverlayPanel.transform, "MasteryOverlayStatus");
+        masteryOverlayFooterText = FindTextInParent(masteryOverlayPanel.transform, "MasteryOverlayFooter");
+
+        for (int i = 0; i < masteryTitleCardImages.Length; i++)
+        {
+            Transform cardTransform = masteryOverlayPanel.transform.Find("TitleCard" + i);
+
+            if (cardTransform == null)
+                continue;
+
+            masteryTitleCardImages[i] = cardTransform.GetComponent<Image>();
+            masteryTitleCardTitleTexts[i] = FindTextInParent(cardTransform, "Title");
+            masteryTitleCardRequirementTexts[i] = FindTextInParent(cardTransform, "Requirement");
+            masteryTitleCardProgressTexts[i] = FindTextInParent(cardTransform, "Progress");
+        }
+
+        for (int i = 0; i < masteryMilestoneCardImages.Length; i++)
+        {
+            Transform cardTransform = masteryOverlayPanel.transform.Find("MilestoneCard" + i);
+
+            if (cardTransform == null)
+                continue;
+
+            masteryMilestoneCardImages[i] = cardTransform.GetComponent<Image>();
+            masteryMilestoneTitleTexts[i] = FindTextInParent(cardTransform, "Title");
+            masteryMilestoneRequirementTexts[i] = FindTextInParent(cardTransform, "Requirement");
+            masteryMilestoneProgressTexts[i] = FindTextInParent(cardTransform, "Progress");
+            masteryMilestoneRewardTexts[i] = FindTextInParent(cardTransform, "Reward");
+
+            Transform trackTransform = cardTransform.Find("ProgressTrack");
+
+            if (trackTransform != null)
+            {
+                Transform fillTransform = trackTransform.Find("ProgressFill");
+
+                if (fillTransform != null)
+                    masteryMilestoneProgressFills[i] = fillTransform.GetComponent<Image>();
+            }
+        }
+
+        Transform closeTransform = masteryOverlayPanel.transform.Find("CloseMasteryButton");
+
+        if (closeTransform != null)
+        {
+            closeMasteryButton = closeTransform.GetComponent<Button>();
+            closeMasteryButtonText = closeTransform.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+    }
+
     TextMeshProUGUI FindTextInParent(Transform parent, string objectName)
     {
         if (parent == null)
@@ -887,13 +1378,248 @@ public class MainMenu : MonoBehaviour
         return buttonObject.GetComponent<Button>();
     }
 
+    void EnsureQaOverlayPanel()
+    {
+        if (menuRootRect == null)
+            return;
+
+        Transform existingRoot = menuRootRect.Find(QaOverlayRootObjectName);
+
+        if (existingRoot != null)
+        {
+            qaOverlayRoot = existingRoot.gameObject;
+            qaOverlayPanel = existingRoot.Find("QaOverlayPanel")?.gameObject;
+            Transform qaPanelTransform = existingRoot.Find("QaOverlayPanel");
+            qaOverlayTitleText = FindTextInParent(qaPanelTransform, "QaOverlayTitle");
+            qaOverlayBodyText = FindTextInParent(qaPanelTransform, "QaOverlayBody");
+            qaOverlayStatusText = FindTextInParent(qaPanelTransform, "QaOverlayStatus");
+
+            Transform toggleTransform = existingRoot.Find("QaOverlayPanel/QaOverlayToggleButton");
+
+            if (toggleTransform != null)
+            {
+                qaOverlayToggleButton = toggleTransform.GetComponent<Button>();
+                qaOverlayToggleButtonText = toggleTransform.GetComponentInChildren<TextMeshProUGUI>(true);
+            }
+
+            Transform practiceTransform = existingRoot.Find("QaOverlayPanel/QaOverlayPracticeButton");
+
+            if (practiceTransform != null)
+            {
+                qaOverlayPracticeButton = practiceTransform.GetComponent<Button>();
+                qaOverlayPracticeButtonText = practiceTransform.GetComponentInChildren<TextMeshProUGUI>(true);
+            }
+
+            Transform clearTransform = existingRoot.Find("QaOverlayPanel/QaOverlayClearButton");
+
+            if (clearTransform != null)
+            {
+                qaOverlayClearButton = clearTransform.GetComponent<Button>();
+                qaOverlayClearButtonText = clearTransform.GetComponentInChildren<TextMeshProUGUI>(true);
+            }
+
+            Transform closeTransform = existingRoot.Find("QaOverlayPanel/QaOverlayCloseButton");
+
+            if (closeTransform != null)
+            {
+                qaOverlayCloseButton = closeTransform.GetComponent<Button>();
+                qaOverlayCloseButtonText = closeTransform.GetComponentInChildren<TextMeshProUGUI>(true);
+            }
+        }
+        else
+        {
+            qaOverlayRoot = new GameObject(QaOverlayRootObjectName, typeof(RectTransform), typeof(Image));
+            qaOverlayRoot.transform.SetParent(menuRootRect, false);
+
+            RectTransform rootRect = qaOverlayRoot.GetComponent<RectTransform>();
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+
+            Image rootImage = qaOverlayRoot.GetComponent<Image>();
+            rootImage.color = new Color(0.01f, 0.02f, 0.04f, 0.9f);
+
+            qaOverlayPanel = new GameObject("QaOverlayPanel", typeof(RectTransform), typeof(Image));
+            qaOverlayPanel.transform.SetParent(qaOverlayRoot.transform, false);
+
+            RectTransform panelRect = qaOverlayPanel.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(860f, 920f);
+            panelRect.anchoredPosition = new Vector2(0f, -20f);
+
+            Image panelImage = qaOverlayPanel.GetComponent<Image>();
+            panelImage.color = new Color(0.11f, 0.16f, 0.24f, 0.98f);
+
+            qaOverlayTitleText = CreatePanelText(
+                qaOverlayPanel.transform,
+                "QaOverlayTitle",
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(700f, 64f),
+                new Vector2(0f, -28f),
+                TextAlignmentOptions.Center,
+                32f,
+                44f,
+                Color.white);
+
+            qaOverlayBodyText = CreatePanelText(
+                qaOverlayPanel.transform,
+                "QaOverlayBody",
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(720f, 490f),
+                new Vector2(0f, -110f),
+                TextAlignmentOptions.TopLeft,
+                20f,
+                28f,
+                new Color(0.9f, 0.95f, 1f, 1f));
+
+            qaOverlayStatusText = CreatePanelText(
+                qaOverlayPanel.transform,
+                "QaOverlayStatus",
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(720f, 124f),
+                new Vector2(0f, -628f),
+                TextAlignmentOptions.TopLeft,
+                18f,
+                24f,
+                new Color(0.82f, 0.9f, 0.98f, 1f));
+
+            qaOverlayToggleButton = CreatePanelButton(
+                qaOverlayPanel.transform,
+                "QaOverlayToggleButton",
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(420f, 72f),
+                new Vector2(0f, 262f),
+                "Enable QA Mode",
+                out qaOverlayToggleButtonText);
+
+            qaOverlayPracticeButton = CreatePanelButton(
+                qaOverlayPanel.transform,
+                "QaOverlayPracticeButton",
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(420f, 72f),
+                new Vector2(0f, 178f),
+                "Practice Tutorial Run",
+                out qaOverlayPracticeButtonText);
+
+            qaOverlayClearButton = CreatePanelButton(
+                qaOverlayPanel.transform,
+                "QaOverlayClearButton",
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(420f, 72f),
+                new Vector2(0f, 94f),
+                "Delete QA Files",
+                out qaOverlayClearButtonText);
+
+            qaOverlayCloseButton = CreatePanelButton(
+                qaOverlayPanel.transform,
+                "QaOverlayCloseButton",
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(220f, 64f),
+                new Vector2(0f, 18f),
+                "Close",
+                out qaOverlayCloseButtonText);
+        }
+
+        if (qaOverlayToggleButton != null)
+        {
+            qaOverlayToggleButton.onClick.RemoveAllListeners();
+            qaOverlayToggleButton.onClick.AddListener(ToggleQaMode);
+        }
+
+        if (qaOverlayPracticeButton != null)
+        {
+            qaOverlayPracticeButton.onClick.RemoveAllListeners();
+            qaOverlayPracticeButton.onClick.AddListener(StartQaPracticeRun);
+        }
+
+        if (qaOverlayClearButton != null)
+        {
+            qaOverlayClearButton.onClick.RemoveAllListeners();
+            qaOverlayClearButton.onClick.AddListener(DeleteQaArtifacts);
+        }
+
+        if (qaOverlayCloseButton != null)
+        {
+            qaOverlayCloseButton.onClick.RemoveAllListeners();
+            qaOverlayCloseButton.onClick.AddListener(CloseQaOverlay);
+        }
+
+        if (qaOverlayRoot != null)
+            qaOverlayRoot.SetActive(false);
+    }
+
     void RefreshMenuHud()
     {
         RefreshProfileStats();
+        RefreshMasteryRoadmapButton();
+        RefreshQaMenu();
         RefreshDailyRewardPanel();
         RefreshDailyChallengePanel();
         RefreshMissionSummaryPanel();
         RefreshDailyMissionPanel();
+        RefreshMasteryOverlay();
+    }
+
+    void RefreshQaMenu()
+    {
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        bool qaModeEnabled = QaTestingSystem.IsQaModeEnabled();
+
+        if (qaModeButtonText != null)
+            qaModeButtonText.text = QaTestingSystem.GetMenuButtonLabel();
+
+        if (qaModeButton != null)
+        {
+            Image buttonImage = qaModeButton.GetComponent<Image>();
+
+            if (buttonImage != null)
+            {
+                buttonImage.color = qaModeEnabled
+                    ? Color.Lerp(theme.WallColor, theme.AccentColor, 0.62f)
+                    : Color.Lerp(theme.WallColor, theme.FogColor, 0.4f);
+            }
+        }
+
+        if (qaOverlayTitleText != null)
+            qaOverlayTitleText.text = "QA Capture Mode";
+
+        if (qaOverlayBodyText != null)
+        {
+            qaOverlayBodyText.text = QaTestingSystem.GetNoticeBody();
+            qaOverlayBodyText.lineSpacing = 6f;
+        }
+
+        if (qaOverlayStatusText != null)
+            qaOverlayStatusText.text = QaTestingSystem.GetMenuStatusText();
+
+        if (qaOverlayToggleButtonText != null)
+            qaOverlayToggleButtonText.text = qaModeEnabled ? "Disable QA Mode" : "Enable QA Mode";
+
+        if (qaOverlayPracticeButtonText != null)
+            qaOverlayPracticeButtonText.text = qaModeEnabled ? "Practice Tutorial Run" : "Practice Run First";
+
+        if (qaOverlayClearButtonText != null)
+            qaOverlayClearButtonText.text = "Delete QA Files";
+
+        if (qaOverlayClearButton != null)
+            qaOverlayClearButton.interactable = QaTestingSystem.GetStoredArtifactCount() > 0;
     }
 
     void RefreshProfileStats()
@@ -901,14 +1627,32 @@ public class MainMenu : MonoBehaviour
         if (profileStatsText == null)
             return;
 
-        int totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
-        int bestScore = PlayerPrefs.GetInt("BestScore", 0);
+        PlayerProfileSnapshot profile = PlayerProgressionSystem.GetProfileSnapshot();
         int streak = DailyRewardSystem.GetCurrentStreak();
+        string nextGoal = profile.FeaturedGoals != null && profile.FeaturedGoals.Length > 0
+            ? profile.FeaturedGoals[0]
+            : "Keep pushing for the next mastery reward";
+
+        string dangerLabel = profile.BestDangerCombo > 0 ? "Peak x" + profile.BestDangerCombo : "Peak x0";
 
         profileStatsText.text =
-            "Coins: " + totalCoins +
-            "   |   Best: " + bestScore +
-            "   |   Streak: " + streak;
+            "<color=#FFF1B9>" + profile.RankTitle + " Lv " + profile.Level + "</color>" +
+            "\nXP " + profile.ExperienceIntoLevel + "/" + profile.ExperienceForNextLevel + "   Best " + profile.BestScore +
+            "\nCoins " + PlayerPrefs.GetInt("TotalCoins", 0) + "   Streak " + streak + "   " + dangerLabel +
+            "\nGoal: " + nextGoal;
+    }
+
+    void RefreshMasteryRoadmapButton()
+    {
+        if (masteryRoadmapButtonText == null)
+            return;
+
+        ProgressionTitleSnapshot[] titles = PlayerProgressionSystem.GetTitleRoadmap(2);
+        string detailLine = titles.Length > 1
+            ? "Next: " + titles[1].Title + " Lv " + titles[1].UnlockLevel
+            : "Mastery track complete";
+
+        masteryRoadmapButtonText.text = "Roadmap & Titles\n" + detailLine;
     }
 
     void RefreshDailyRewardPanel()
@@ -1153,10 +1897,174 @@ public class MainMenu : MonoBehaviour
             closeMissionButtonText.text = "Close";
     }
 
+    void RefreshMasteryOverlay()
+    {
+        if (masteryOverlayPanel == null)
+            return;
+
+        PlayerProfileSnapshot profile = PlayerProgressionSystem.GetProfileSnapshot();
+        ProgressionTitleSnapshot[] titles = PlayerProgressionSystem.GetTitleRoadmap(masteryTitleCardImages.Length);
+        ProgressionMilestoneSnapshot[] milestones =
+            PlayerProgressionSystem.GetMilestoneRoadmap(masteryMilestoneCardImages.Length);
+
+        if (masteryOverlayTitleText != null)
+            masteryOverlayTitleText.text = "Mastery Roadmap";
+
+        if (masteryOverlayStatusText != null)
+        {
+            masteryOverlayStatusText.text =
+                "Current: " +
+                profile.RankTitle +
+                " Lv " +
+                profile.Level +
+                "   |   XP " +
+                profile.ExperienceIntoLevel +
+                "/" +
+                profile.ExperienceForNextLevel +
+                "\n" +
+                PlayerProgressionSystem.GetPrimaryGoalSummary();
+        }
+
+        for (int i = 0; i < masteryTitleCardImages.Length; i++)
+        {
+            if (masteryTitleCardImages[i] == null)
+                continue;
+
+            bool hasSnapshot = i < titles.Length;
+            masteryTitleCardImages[i].gameObject.SetActive(hasSnapshot);
+
+            if (!hasSnapshot)
+                continue;
+
+            ProgressionTitleSnapshot snapshot = titles[i];
+            masteryTitleCardImages[i].color = snapshot.IsCurrent
+                ? new Color(0.44f, 0.34f, 0.18f, 1f)
+                : snapshot.IsUnlocked
+                    ? new Color(0.23f, 0.38f, 0.28f, 1f)
+                    : new Color(0.2f, 0.29f, 0.44f, 1f);
+
+            if (masteryTitleCardTitleTexts[i] != null)
+                masteryTitleCardTitleTexts[i].text = snapshot.Title;
+
+            if (masteryTitleCardRequirementTexts[i] != null)
+                masteryTitleCardRequirementTexts[i].text = snapshot.RequirementLabel;
+
+            if (masteryTitleCardProgressTexts[i] != null)
+            {
+                masteryTitleCardProgressTexts[i].text = snapshot.StatusLabel + "  |  " + snapshot.ProgressLabel;
+                masteryTitleCardProgressTexts[i].color = snapshot.IsCurrent
+                    ? new Color(1f, 0.94f, 0.72f, 1f)
+                    : snapshot.IsUnlocked
+                        ? new Color(0.82f, 0.98f, 0.84f, 1f)
+                        : new Color(0.84f, 0.92f, 1f, 1f);
+            }
+        }
+
+        for (int i = 0; i < masteryMilestoneCardImages.Length; i++)
+        {
+            if (masteryMilestoneCardImages[i] == null)
+                continue;
+
+            bool hasSnapshot = i < milestones.Length;
+            masteryMilestoneCardImages[i].gameObject.SetActive(hasSnapshot);
+
+            if (!hasSnapshot)
+                continue;
+
+            ProgressionMilestoneSnapshot snapshot = milestones[i];
+            Color accentColor = GetMasteryAccentColor(snapshot.StatType);
+            masteryMilestoneCardImages[i].color = snapshot.IsClaimed
+                ? new Color(0.23f, 0.34f, 0.27f, 1f)
+                : snapshot.IsReadyToClaim
+                    ? new Color(0.33f, 0.29f, 0.16f, 1f)
+                    : Color.Lerp(new Color(0.14f, 0.2f, 0.31f, 1f), accentColor, 0.28f);
+
+            if (masteryMilestoneTitleTexts[i] != null)
+                masteryMilestoneTitleTexts[i].text = snapshot.Title;
+
+            if (masteryMilestoneRequirementTexts[i] != null)
+                masteryMilestoneRequirementTexts[i].text = snapshot.RequirementLabel;
+
+            if (masteryMilestoneProgressTexts[i] != null)
+                masteryMilestoneProgressTexts[i].text = snapshot.ProgressLabel;
+
+            if (masteryMilestoneRewardTexts[i] != null)
+                masteryMilestoneRewardTexts[i].text = snapshot.RewardLabel;
+
+            if (masteryMilestoneProgressFills[i] != null)
+            {
+                masteryMilestoneProgressFills[i].color = snapshot.IsClaimed
+                    ? new Color(0.4f, 0.86f, 0.58f, 1f)
+                    : accentColor;
+                masteryMilestoneProgressFills[i].fillAmount = snapshot.IsClaimed
+                    ? 1f
+                    : Mathf.Clamp01(snapshot.Completion01);
+            }
+        }
+
+        if (masteryOverlayFooterText != null)
+        {
+            masteryOverlayFooterText.text =
+                "Lifetime: " +
+                profile.CompletedRuns +
+                " runs   |   " +
+                profile.LifetimeCoinsCollected +
+                " coins   |   " +
+                profile.LifetimeNearMisses +
+                " near misses" +
+                "\nChallenges " +
+                profile.DailyChallengesCleared +
+                "   |   Shares " +
+                profile.LifetimeShares +
+                "   |   Peak x" +
+                profile.BestDangerCombo;
+        }
+
+        if (closeMasteryButtonText != null)
+            closeMasteryButtonText.text = "Close";
+    }
+
     void SetMissionOverlayVisible(bool isVisible)
     {
         if (missionOverlayRoot != null)
+        {
             missionOverlayRoot.SetActive(isVisible);
+            if (isVisible)
+                missionOverlayRoot.transform.SetAsLastSibling();
+        }
+    }
+
+    void SetMasteryOverlayVisible(bool isVisible)
+    {
+        if (masteryOverlayRoot != null)
+        {
+            masteryOverlayRoot.SetActive(isVisible);
+            if (isVisible)
+                masteryOverlayRoot.transform.SetAsLastSibling();
+        }
+    }
+
+    Color GetMasteryAccentColor(ProgressionMilestoneStat statType)
+    {
+        switch (statType)
+        {
+            case ProgressionMilestoneStat.BestScore:
+                return new Color(0.97f, 0.72f, 0.3f, 1f);
+            case ProgressionMilestoneStat.LifetimeCoinsCollected:
+                return new Color(0.98f, 0.88f, 0.4f, 1f);
+            case ProgressionMilestoneStat.CompletedRuns:
+                return new Color(0.44f, 0.83f, 0.55f, 1f);
+            case ProgressionMilestoneStat.NearMisses:
+                return new Color(0.5f, 0.76f, 0.96f, 1f);
+            case ProgressionMilestoneStat.DailyChallengeClears:
+                return new Color(0.78f, 0.62f, 0.98f, 1f);
+            case ProgressionMilestoneStat.LifetimeShares:
+                return new Color(0.42f, 0.9f, 0.82f, 1f);
+            case ProgressionMilestoneStat.BestDangerCombo:
+                return new Color(1f, 0.58f, 0.42f, 1f);
+            default:
+                return new Color(0.42f, 0.78f, 0.9f, 1f);
+        }
     }
 
     TMP_FontAsset ResolveRuntimeFont()
@@ -1183,10 +2091,14 @@ public class MainMenu : MonoBehaviour
     {
         NormalizeMenuRoot();
         NormalizeHeaderLayout();
+        NormalizeMasteryRoadmapButton();
+        NormalizeQaModeButton();
         NormalizeDailyRewardPanel();
         NormalizeChallengeSummaryPanel();
         NormalizeMissionSummaryPanel();
         NormalizeMissionOverlayPanel();
+        NormalizeMasteryOverlayPanel();
+        NormalizeQaOverlayPanel();
         NormalizeButtons();
     }
 
@@ -1244,13 +2156,80 @@ public class MainMenu : MonoBehaviour
             statsRect.anchorMin = new Vector2(0.5f, 1f);
             statsRect.anchorMax = new Vector2(0.5f, 1f);
             statsRect.pivot = new Vector2(0.5f, 1f);
-            statsRect.sizeDelta = new Vector2(contentWidth, 50f);
-            statsRect.anchoredPosition = new Vector2(0f, -324f);
-            profileStatsText.fontSizeMin = 18f;
-            profileStatsText.fontSizeMax = 26f;
-            profileStatsText.lineSpacing = 0f;
+            statsRect.sizeDelta = new Vector2(contentWidth, 156f);
+            statsRect.anchoredPosition = new Vector2(0f, -304f);
+            profileStatsText.fontSizeMin = 16f;
+            profileStatsText.fontSizeMax = 24f;
+            profileStatsText.lineSpacing = 8f;
             profileStatsText.color = new Color(0.8f, 0.88f, 0.94f, 1f);
         }
+    }
+
+    void NormalizeMasteryRoadmapButton()
+    {
+        if (masteryRoadmapButton == null)
+            return;
+
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        float contentWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
+        RectTransform buttonRect = masteryRoadmapButton.GetComponent<RectTransform>();
+
+        if (buttonRect != null)
+        {
+            buttonRect.anchorMin = new Vector2(0.5f, 1f);
+            buttonRect.anchorMax = new Vector2(0.5f, 1f);
+            buttonRect.pivot = new Vector2(0.5f, 1f);
+            buttonRect.sizeDelta = new Vector2(Mathf.Min(430f, contentWidth), 58f);
+            buttonRect.anchoredPosition = new Vector2(0f, -472f);
+        }
+
+        if (masteryRoadmapButtonText != null)
+        {
+            masteryRoadmapButtonText.enableAutoSizing = true;
+            masteryRoadmapButtonText.fontSizeMin = 16f;
+            masteryRoadmapButtonText.fontSizeMax = 24f;
+            masteryRoadmapButtonText.alignment = TextAlignmentOptions.Center;
+            masteryRoadmapButtonText.lineSpacing = -4f;
+            masteryRoadmapButtonText.color = new Color(0.95f, 0.98f, 1f, 1f);
+        }
+
+        Image buttonImage = masteryRoadmapButton.GetComponent<Image>();
+
+        if (buttonImage != null)
+            buttonImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.54f);
+    }
+
+    void NormalizeQaModeButton()
+    {
+        if (qaModeButton == null)
+            return;
+
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        RectTransform buttonRect = qaModeButton.GetComponent<RectTransform>();
+
+        if (buttonRect != null)
+        {
+            buttonRect.anchorMin = new Vector2(0f, 0f);
+            buttonRect.anchorMax = new Vector2(0f, 0f);
+            buttonRect.pivot = new Vector2(0f, 0f);
+            buttonRect.sizeDelta = new Vector2(274f, 76f);
+            buttonRect.anchoredPosition = new Vector2(18f, 18f);
+        }
+
+        if (qaModeButtonText != null)
+        {
+            qaModeButtonText.enableAutoSizing = true;
+            qaModeButtonText.fontSizeMin = 16f;
+            qaModeButtonText.fontSizeMax = 24f;
+            qaModeButtonText.alignment = TextAlignmentOptions.Center;
+            qaModeButtonText.lineSpacing = -4f;
+            qaModeButtonText.color = new Color(0.95f, 0.98f, 1f, 1f);
+        }
+
+        Image buttonImage = qaModeButton.GetComponent<Image>();
+
+        if (buttonImage != null && !QaTestingSystem.IsQaModeEnabled())
+            buttonImage.color = Color.Lerp(theme.WallColor, theme.FogColor, 0.4f);
     }
 
     void NormalizeDailyRewardPanel()
@@ -1271,7 +2250,7 @@ public class MainMenu : MonoBehaviour
         panelRect.anchorMax = new Vector2(0.5f, 1f);
         panelRect.pivot = new Vector2(0.5f, 1f);
         panelRect.sizeDelta = new Vector2(panelWidth, 292f);
-        panelRect.anchoredPosition = new Vector2(0f, -420f);
+        panelRect.anchoredPosition = new Vector2(0f, -532f);
 
         Image panelImage = dailyRewardPanel.GetComponent<Image>();
 
@@ -1578,6 +2557,260 @@ public class MainMenu : MonoBehaviour
         }
     }
 
+    void NormalizeMasteryOverlayPanel()
+    {
+        if (masteryOverlayRoot == null || masteryOverlayPanel == null)
+            return;
+
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+
+        RectTransform rootRect = masteryOverlayRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = Vector2.zero;
+        rootRect.anchorMax = Vector2.one;
+        rootRect.offsetMin = Vector2.zero;
+        rootRect.offsetMax = Vector2.zero;
+
+        RectTransform panelRect = masteryOverlayPanel.GetComponent<RectTransform>();
+        float safeWidth = Screen.safeArea.width > 0f ? Screen.safeArea.width : Screen.width;
+        float safeHeight = Screen.safeArea.height > 0f ? Screen.safeArea.height : Screen.height;
+        float panelWidth = Mathf.Clamp(safeWidth - 56f, 760f, 920f);
+        float panelHeight = Mathf.Clamp(safeHeight - 120f, 960f, 1120f);
+        float innerWidth = panelWidth - 96f;
+        float titleGap = 16f;
+        float titleCardWidth = (panelWidth - 112f - (titleGap * 2f)) / 3f;
+        float titleGroupWidth = (titleCardWidth * 3f) + (titleGap * 2f);
+        float titleStartX = -((titleGroupWidth - titleCardWidth) * 0.5f);
+        float milestoneWidth = panelWidth - 88f;
+
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.sizeDelta = new Vector2(panelWidth, panelHeight);
+        panelRect.anchoredPosition = new Vector2(0f, -20f);
+
+        Image rootImage = masteryOverlayRoot.GetComponent<Image>();
+
+        if (rootImage != null)
+            rootImage.color = new Color(0.01f, 0.02f, 0.04f, 0.88f);
+
+        Image panelImage = masteryOverlayPanel.GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.24f);
+
+        if (masteryOverlayTitleText != null)
+        {
+            RectTransform titleRect = masteryOverlayTitleText.rectTransform;
+            titleRect.sizeDelta = new Vector2(innerWidth, 54f);
+            titleRect.anchoredPosition = new Vector2(0f, -28f);
+        }
+
+        if (masteryOverlayStatusText != null)
+        {
+            RectTransform statusRect = masteryOverlayStatusText.rectTransform;
+            statusRect.sizeDelta = new Vector2(innerWidth, 82f);
+            statusRect.anchoredPosition = new Vector2(0f, -96f);
+        }
+
+        for (int i = 0; i < masteryTitleCardImages.Length; i++)
+        {
+            if (masteryTitleCardImages[i] == null)
+                continue;
+
+            RectTransform cardRect = masteryTitleCardImages[i].rectTransform;
+            cardRect.sizeDelta = new Vector2(titleCardWidth, 138f);
+            cardRect.anchoredPosition = new Vector2(titleStartX + (i * (titleCardWidth + titleGap)), -164f);
+
+            if (masteryTitleCardTitleTexts[i] != null)
+            {
+                RectTransform titleRect = masteryTitleCardTitleTexts[i].rectTransform;
+                titleRect.sizeDelta = new Vector2(titleCardWidth - 28f, 40f);
+                titleRect.anchoredPosition = new Vector2(0f, -16f);
+            }
+
+            if (masteryTitleCardRequirementTexts[i] != null)
+            {
+                RectTransform requirementRect = masteryTitleCardRequirementTexts[i].rectTransform;
+                requirementRect.sizeDelta = new Vector2(titleCardWidth - 30f, 36f);
+                requirementRect.anchoredPosition = new Vector2(0f, -62f);
+            }
+
+            if (masteryTitleCardProgressTexts[i] != null)
+            {
+                RectTransform progressRect = masteryTitleCardProgressTexts[i].rectTransform;
+                progressRect.sizeDelta = new Vector2(titleCardWidth - 28f, 30f);
+                progressRect.anchoredPosition = new Vector2(0f, 16f);
+            }
+        }
+
+        for (int i = 0; i < masteryMilestoneCardImages.Length; i++)
+        {
+            if (masteryMilestoneCardImages[i] == null)
+                continue;
+
+            RectTransform cardRect = masteryMilestoneCardImages[i].rectTransform;
+            cardRect.sizeDelta = new Vector2(milestoneWidth, 132f);
+            cardRect.anchoredPosition = new Vector2(0f, -342f - (i * 140f));
+
+            if (masteryMilestoneTitleTexts[i] != null)
+            {
+                RectTransform titleRect = masteryMilestoneTitleTexts[i].rectTransform;
+                titleRect.sizeDelta = new Vector2(milestoneWidth - 300f, 30f);
+                titleRect.anchoredPosition = new Vector2(26f, -14f);
+            }
+
+            if (masteryMilestoneRequirementTexts[i] != null)
+            {
+                RectTransform requirementRect = masteryMilestoneRequirementTexts[i].rectTransform;
+                requirementRect.sizeDelta = new Vector2(milestoneWidth - 52f, 24f);
+                requirementRect.anchoredPosition = new Vector2(26f, -42f);
+            }
+
+            if (masteryMilestoneProgressTexts[i] != null)
+            {
+                RectTransform progressRect = masteryMilestoneProgressTexts[i].rectTransform;
+                progressRect.sizeDelta = new Vector2(320f, 22f);
+                progressRect.anchoredPosition = new Vector2(26f, 8f);
+            }
+
+            if (masteryMilestoneRewardTexts[i] != null)
+            {
+                RectTransform rewardRect = masteryMilestoneRewardTexts[i].rectTransform;
+                rewardRect.sizeDelta = new Vector2(320f, 22f);
+                rewardRect.anchoredPosition = new Vector2(-26f, 8f);
+            }
+
+            Transform trackTransform = masteryMilestoneCardImages[i].transform.Find("ProgressTrack");
+
+            if (trackTransform != null)
+            {
+                RectTransform trackRect = trackTransform as RectTransform;
+
+                if (trackRect != null)
+                {
+                    trackRect.sizeDelta = new Vector2(milestoneWidth - 52f, 14f);
+                    trackRect.anchoredPosition = new Vector2(0f, 38f);
+                }
+            }
+        }
+
+        if (masteryOverlayFooterText != null)
+        {
+            RectTransform footerRect = masteryOverlayFooterText.rectTransform;
+            footerRect.sizeDelta = new Vector2(innerWidth, 82f);
+            footerRect.anchoredPosition = new Vector2(0f, 130f);
+        }
+
+        if (closeMasteryButton != null)
+        {
+            RectTransform buttonRect = closeMasteryButton.GetComponent<RectTransform>();
+
+            if (buttonRect != null)
+            {
+                buttonRect.sizeDelta = new Vector2(260f, 68f);
+                buttonRect.anchoredPosition = new Vector2(0f, 34f);
+            }
+
+            Image buttonImage = closeMasteryButton.GetComponent<Image>();
+
+            if (buttonImage != null)
+                buttonImage.color = Color.Lerp(theme.WallColor, theme.FogColor, 0.52f);
+        }
+    }
+
+    void NormalizeQaOverlayPanel()
+    {
+        if (qaOverlayRoot == null || qaOverlayPanel == null)
+            return;
+
+        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        RectTransform rootRect = qaOverlayRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = Vector2.zero;
+        rootRect.anchorMax = Vector2.one;
+        rootRect.offsetMin = Vector2.zero;
+        rootRect.offsetMax = Vector2.zero;
+
+        RectTransform panelRect = qaOverlayPanel.GetComponent<RectTransform>();
+        float safeWidth = Screen.safeArea.width > 0f ? Screen.safeArea.width : Screen.width;
+        float safeHeight = Screen.safeArea.height > 0f ? Screen.safeArea.height : Screen.height;
+        float panelWidth = Mathf.Clamp(safeWidth - 56f, 780f, 940f);
+        float panelHeight = Mathf.Clamp(safeHeight - 120f, 900f, 1080f);
+        float textWidth = panelWidth - 120f;
+
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.sizeDelta = new Vector2(panelWidth, panelHeight);
+        panelRect.anchoredPosition = new Vector2(0f, -20f);
+
+        Image rootImage = qaOverlayRoot.GetComponent<Image>();
+
+        if (rootImage != null)
+            rootImage.color = new Color(0.01f, 0.02f, 0.04f, 0.88f);
+
+        Image panelImage = qaOverlayPanel.GetComponent<Image>();
+
+        if (panelImage != null)
+            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.22f);
+
+        if (qaOverlayTitleText != null)
+        {
+            RectTransform titleRect = qaOverlayTitleText.rectTransform;
+            titleRect.sizeDelta = new Vector2(textWidth, 64f);
+            titleRect.anchoredPosition = new Vector2(0f, -28f);
+        }
+
+        if (qaOverlayBodyText != null)
+        {
+            RectTransform bodyRect = qaOverlayBodyText.rectTransform;
+            bodyRect.sizeDelta = new Vector2(textWidth, panelHeight - 650f);
+            bodyRect.anchoredPosition = new Vector2(0f, -112f);
+            qaOverlayBodyText.fontSizeMin = 15f;
+            qaOverlayBodyText.fontSizeMax = 20f;
+            qaOverlayBodyText.lineSpacing = 2f;
+        }
+
+        if (qaOverlayStatusText != null)
+        {
+            RectTransform statusRect = qaOverlayStatusText.rectTransform;
+            statusRect.sizeDelta = new Vector2(textWidth, 120f);
+            statusRect.anchoredPosition = new Vector2(0f, -(panelHeight - 390f));
+            qaOverlayStatusText.fontSizeMin = 16f;
+            qaOverlayStatusText.fontSizeMax = 22f;
+            qaOverlayStatusText.lineSpacing = 2f;
+        }
+
+        NormalizeOverlayButton(qaOverlayToggleButton, qaOverlayToggleButtonText, new Vector2(430f, 74f), new Vector2(0f, 262f));
+        NormalizeOverlayButton(qaOverlayPracticeButton, qaOverlayPracticeButtonText, new Vector2(430f, 74f), new Vector2(0f, 178f));
+        NormalizeOverlayButton(qaOverlayClearButton, qaOverlayClearButtonText, new Vector2(430f, 74f), new Vector2(0f, 94f));
+        NormalizeOverlayButton(qaOverlayCloseButton, qaOverlayCloseButtonText, new Vector2(230f, 64f), new Vector2(0f, 18f));
+    }
+
+    void NormalizeOverlayButton(Button button, TextMeshProUGUI label, Vector2 size, Vector2 anchoredPosition)
+    {
+        if (button == null)
+            return;
+
+        RectTransform buttonRect = button.GetComponent<RectTransform>();
+
+        if (buttonRect != null)
+        {
+            buttonRect.anchorMin = new Vector2(0.5f, 0f);
+            buttonRect.anchorMax = new Vector2(0.5f, 0f);
+            buttonRect.pivot = new Vector2(0.5f, 0f);
+            buttonRect.sizeDelta = size;
+            buttonRect.anchoredPosition = anchoredPosition;
+        }
+
+        if (label != null)
+        {
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 18f;
+            label.fontSizeMax = 28f;
+            label.color = new Color(0.14f, 0.18f, 0.22f, 1f);
+        }
+    }
+
     void NormalizeButtons()
     {
         SetButtonLayout(playButtonObjectName, 202f);
@@ -1651,6 +2884,12 @@ public class MainMenu : MonoBehaviour
             return null;
 
         return buttonObject.GetComponent<Button>();
+    }
+
+    void SetQaOverlayVisible(bool isVisible)
+    {
+        if (qaOverlayRoot != null)
+            qaOverlayRoot.SetActive(isVisible);
     }
 }
 

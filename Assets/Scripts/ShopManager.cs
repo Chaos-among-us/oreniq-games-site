@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -311,7 +312,7 @@ public class ShopManager : MonoBehaviour
         feedbackText.enableAutoSizing = true;
         feedbackText.fontSizeMin = 16;
         feedbackText.fontSizeMax = 22;
-        feedbackText.color = new Color(0.79f, 0.87f, 0.93f, 1f);
+        feedbackText.color = new Color(0.89f, 0.93f, 0.96f, 1f);
 
         if (runtimeFont != null)
             feedbackText.font = runtimeFont;
@@ -341,7 +342,7 @@ public class ShopManager : MonoBehaviour
             viewportRect = viewportObject.GetComponent<RectTransform>();
 
             Image viewportImage = viewportObject.GetComponent<Image>();
-            viewportImage.color = new Color(0.07f, 0.09f, 0.13f, 0.26f);
+            viewportImage.color = new Color(0.04f, 0.07f, 0.09f, 0.56f);
         }
 
         if (viewportRect.GetComponent<RectMask2D>() == null)
@@ -350,7 +351,7 @@ public class ShopManager : MonoBehaviour
         Image existingViewportImage = viewportRect.GetComponent<Image>();
 
         if (existingViewportImage != null)
-            existingViewportImage.color = new Color(0.07f, 0.09f, 0.13f, 0.26f);
+            existingViewportImage.color = new Color(0.04f, 0.07f, 0.09f, 0.56f);
 
         Transform existingContent = viewportRect.Find(ContentObjectName);
 
@@ -385,10 +386,10 @@ public class ShopManager : MonoBehaviour
 
         monetizationHeaderText = FindOrCreateSectionHeader(
             MonetizationHeaderObjectName,
-            "Coin Packs & Offers");
+            "Treasure Caches");
         consumablesHeaderText = FindOrCreateSectionHeader(
             ConsumablesHeaderObjectName,
-            "Consumables");
+            "Run Supplies");
     }
 
     TextMeshProUGUI FindOrCreateSectionHeader(string objectName, string textValue)
@@ -451,12 +452,12 @@ public class ShopManager : MonoBehaviour
 
         if (shopTitleText != null)
         {
-            shopTitleText.text = "Shop";
+            shopTitleText.text = "Supply Cache";
             shopTitleText.alignment = TextAlignmentOptions.Center;
             shopTitleText.enableAutoSizing = true;
             shopTitleText.fontSizeMin = 20;
             shopTitleText.fontSizeMax = 30;
-            shopTitleText.color = new Color(0.95f, 0.98f, 0.99f, 1f);
+            shopTitleText.color = new Color(0.97f, 0.95f, 0.83f, 1f);
         }
 
         if (totalCoinsText != null)
@@ -484,7 +485,7 @@ public class ShopManager : MonoBehaviour
             feedbackRect.anchoredPosition = new Vector2(0f, -130f);
             feedbackText.fontSizeMin = 16;
             feedbackText.fontSizeMax = 22;
-            feedbackText.color = new Color(0.79f, 0.87f, 0.93f, 1f);
+            feedbackText.color = new Color(0.84f, 0.9f, 0.95f, 1f);
         }
 
         if (backButtonRect != null)
@@ -498,6 +499,7 @@ public class ShopManager : MonoBehaviour
 
         if (backButtonText != null)
         {
+            backButtonText.text = "Back to Camp";
             backButtonText.enableAutoSizing = true;
             backButtonText.fontSizeMin = 18;
             backButtonText.fontSizeMax = 28;
@@ -633,7 +635,7 @@ public class ShopManager : MonoBehaviour
         buttonRect.sizeDelta = new Vector2(0f, itemHeight);
 
         Image buttonImage = buttonObject.GetComponent<Image>();
-        buttonImage.color = new Color(1f, 1f, 1f, 0.94f);
+        buttonImage.color = new Color(0.11f, 0.14f, 0.18f, 0.98f);
 
         ShopUpgradeButtonUI buttonUI = buttonObject.GetComponent<ShopUpgradeButtonUI>();
         buttonUI.Initialize(this, type, buttonImage, buttonObject.GetComponent<Button>(), runtimeFont);
@@ -700,7 +702,7 @@ public class ShopManager : MonoBehaviour
         offerRect.sizeDelta = new Vector2(0f, offerItemHeight);
 
         Image offerImage = offerObject.GetComponent<Image>();
-        offerImage.color = new Color(1f, 1f, 1f, 0.96f);
+        offerImage.color = new Color(0.11f, 0.14f, 0.18f, 0.98f);
 
         ShopOfferCardUI offerCard = offerObject.GetComponent<ShopOfferCardUI>();
         offerCard.Initialize(this, offerId, offerImage, offerObject.GetComponent<Button>(), runtimeFont);
@@ -832,8 +834,14 @@ public class ShopManager : MonoBehaviour
         if (totalCoinsText != null)
             totalCoinsText.text = "Coins: " + totalCoins;
 
-        if (feedbackText != null && string.IsNullOrEmpty(feedbackText.text))
-            feedbackText.text = "Tap a card to buy coins or consumables";
+        if (feedbackText != null &&
+            (string.IsNullOrEmpty(feedbackText.text) ||
+             feedbackText.text == "Tap a card to buy coins or consumables" ||
+             feedbackText.text == "Tap a card to buy" ||
+             feedbackText.text == PlayerProgressionSystem.GetShopRecommendation()))
+        {
+            feedbackText.text = "Treasure packs up top, run buffs below.";
+        }
 
         RefreshOfferCards();
 
@@ -855,17 +863,18 @@ public class ShopManager : MonoBehaviour
                 GetUpgradeDescription(type),
                 owned,
                 cost,
-                totalCoins >= cost);
+                totalCoins >= cost,
+                totalCoins);
         }
     }
 
     void RefreshOfferCards()
     {
         if (monetizationHeaderText != null)
-            monetizationHeaderText.text = "Coin Packs & Offers";
+            monetizationHeaderText.text = "Treasure Caches";
 
         if (consumablesHeaderText != null)
-            consumablesHeaderText.text = "Consumables";
+            consumablesHeaderText.text = "Run Supplies";
 
         List<MonetizationOfferSnapshot> snapshots = GetOfferSnapshots();
 
@@ -938,27 +947,27 @@ public class ShopManager : MonoBehaviour
         switch (type)
         {
             case UpgradeType.Shield:
-                return "Block one hit";
+                return "Absorb one collision";
             case UpgradeType.SpeedBoost:
-                return "Move faster";
+                return "Burst through tight lanes";
             case UpgradeType.ExtraLife:
-                return "Revive once";
+                return "Recover from one bad hit";
             case UpgradeType.CoinMagnet:
-                return "Pull in coins";
+                return "Pull nearby coins inward";
             case UpgradeType.DoubleCoins:
-                return "Double coin value";
+                return "Double run coin value";
             case UpgradeType.SlowTime:
-                return "Slow obstacles";
+                return "Briefly calm the swarm";
             case UpgradeType.SmallerPlayer:
-                return "Shrink your hitbox";
+                return "Shrink your dodge profile";
             case UpgradeType.ScoreBooster:
-                return "Double score gain";
+                return "Multiply score gain";
             case UpgradeType.Bomb:
-                return "Clear the screen";
+                return "Blast the lane clear";
             case UpgradeType.RareCoinBoost:
-                return "More coin spawns";
+                return "Spawn richer coin trails";
             default:
-                return "Consumable upgrade";
+                return "Pack a run consumable";
         }
     }
 
@@ -1108,13 +1117,15 @@ public class ShopUpgradeButtonUI : MonoBehaviour
     private TextMeshProUGUI titleText;
     private TextMeshProUGUI descriptionText;
     private TextMeshProUGUI metaText;
+    private TextMeshProUGUI accentText;
     private Image backgroundImage;
+    private Image accentBarImage;
     private Button button;
 
-    private readonly Color affordableColor = new Color(1f, 1f, 1f, 0.96f);
-    private readonly Color expensiveColor = new Color(0.87f, 0.88f, 0.92f, 0.88f);
-    private readonly Color titleColor = new Color(0.13f, 0.17f, 0.26f, 1f);
-    private readonly Color bodyColor = new Color(0.2f, 0.24f, 0.32f, 1f);
+    private readonly Color affordableColor = new Color(0.11f, 0.15f, 0.2f, 0.98f);
+    private readonly Color expensiveColor = new Color(0.08f, 0.11f, 0.15f, 0.94f);
+    private readonly Color titleColor = new Color(0.96f, 0.98f, 0.99f, 1f);
+    private readonly Color bodyColor = new Color(0.82f, 0.89f, 0.95f, 1f);
 
     public void Initialize(
         ShopManager manager,
@@ -1129,6 +1140,7 @@ public class ShopUpgradeButtonUI : MonoBehaviour
         button = sourceButton;
 
         CreateLabels(runtimeFont);
+        ApplyCardChrome();
 
         if (button != null)
         {
@@ -1139,32 +1151,95 @@ public class ShopUpgradeButtonUI : MonoBehaviour
 
     void CreateLabels(TMP_FontAsset runtimeFont)
     {
+        accentBarImage = FindOrCreateBarImage("AccentBar", runtimeFont, out accentText);
+
         titleText = FindOrCreateStretchText(
             "Title",
-            new Vector2(20f, 156f),
-            new Vector2(-20f, -18f),
-            TextAlignmentOptions.Top,
-            28f,
-            40f,
+            new Vector2(22f, 122f),
+            new Vector2(-22f, -24f),
+            TextAlignmentOptions.TopLeft,
+            26f,
+            38f,
             runtimeFont);
 
         descriptionText = FindOrCreateStretchText(
             "Description",
-            new Vector2(20f, 88f),
-            new Vector2(-20f, -88f),
-            TextAlignmentOptions.Center,
-            22f,
-            30f,
+            new Vector2(22f, 64f),
+            new Vector2(-22f, -108f),
+            TextAlignmentOptions.TopLeft,
+            19f,
+            28f,
             runtimeFont);
 
         metaText = FindOrCreateStretchText(
             "Meta",
-            new Vector2(20f, 18f),
-            new Vector2(-20f, -170f),
-            TextAlignmentOptions.Bottom,
-            20f,
-            28f,
+            new Vector2(22f, 16f),
+            new Vector2(-22f, -176f),
+            TextAlignmentOptions.BottomLeft,
+            18f,
+            24f,
             runtimeFont);
+    }
+
+    Image FindOrCreateBarImage(string objectName, TMP_FontAsset runtimeFont, out TextMeshProUGUI label)
+    {
+        Transform existing = transform.Find(objectName);
+        GameObject barObject;
+
+        if (existing != null)
+        {
+            barObject = existing.gameObject;
+        }
+        else
+        {
+            barObject = new GameObject(objectName, typeof(RectTransform), typeof(Image));
+            barObject.transform.SetParent(transform, false);
+        }
+
+        RectTransform barRect = barObject.GetComponent<RectTransform>();
+        barRect.anchorMin = new Vector2(0f, 1f);
+        barRect.anchorMax = new Vector2(1f, 1f);
+        barRect.pivot = new Vector2(0.5f, 1f);
+        barRect.sizeDelta = new Vector2(0f, 34f);
+        barRect.anchoredPosition = Vector2.zero;
+
+        Image barImage = barObject.GetComponent<Image>();
+
+        Transform labelTransform = barObject.transform.Find("Label");
+        GameObject labelObject;
+
+        if (labelTransform != null)
+        {
+            labelObject = labelTransform.gameObject;
+        }
+        else
+        {
+            labelObject = new GameObject("Label", typeof(RectTransform));
+            labelObject.transform.SetParent(barObject.transform, false);
+        }
+
+        RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = new Vector2(16f, 0f);
+        labelRect.offsetMax = new Vector2(-16f, 0f);
+
+        label = labelObject.GetComponent<TextMeshProUGUI>();
+
+        if (label == null)
+            label = labelObject.AddComponent<TextMeshProUGUI>();
+
+        label.alignment = TextAlignmentOptions.MidlineLeft;
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 16f;
+        label.fontSizeMax = 22f;
+        label.color = new Color(0.1f, 0.12f, 0.14f, 1f);
+        label.fontStyle = FontStyles.Bold;
+
+        if (runtimeFont != null && label.font == null)
+            label.font = runtimeFont;
+
+        return barImage;
     }
 
     TextMeshProUGUI FindOrCreateStretchText(
@@ -1178,7 +1253,6 @@ public class ShopUpgradeButtonUI : MonoBehaviour
     {
         Transform existing = transform.Find(objectName);
         GameObject textObject;
-
         bool created = existing == null;
 
         if (existing != null)
@@ -1204,6 +1278,7 @@ public class ShopUpgradeButtonUI : MonoBehaviour
 
         text.alignment = alignment;
         text.color = bodyColor;
+        text.margin = new Vector4(2f, 0f, 2f, 0f);
 
         if (created)
         {
@@ -1218,8 +1293,67 @@ public class ShopUpgradeButtonUI : MonoBehaviour
         return text;
     }
 
-    public void RefreshView(string displayName, string description, int ownedAmount, int cost, bool canAfford)
+    void ApplyCardChrome()
     {
+        if (backgroundImage == null)
+            return;
+
+        Outline outline = backgroundImage.GetComponent<Outline>();
+
+        if (outline == null)
+            outline = backgroundImage.gameObject.AddComponent<Outline>();
+
+        outline.effectColor = new Color(0.78f, 0.66f, 0.34f, 0.16f);
+        outline.effectDistance = new Vector2(2f, -2f);
+
+        Shadow shadow = backgroundImage.GetComponent<Shadow>();
+
+        if (shadow == null)
+            shadow = backgroundImage.gameObject.AddComponent<Shadow>();
+
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.28f);
+        shadow.effectDistance = new Vector2(0f, -6f);
+    }
+
+    Color GetAccentColor()
+    {
+        switch (upgradeType)
+        {
+            case UpgradeType.Shield:
+                return new Color(0.92f, 0.71f, 0.32f, 1f);
+            case UpgradeType.SpeedBoost:
+                return new Color(0.51f, 0.84f, 0.94f, 1f);
+            case UpgradeType.ExtraLife:
+                return new Color(0.45f, 0.88f, 0.65f, 1f);
+            case UpgradeType.CoinMagnet:
+                return new Color(0.99f, 0.85f, 0.41f, 1f);
+            case UpgradeType.DoubleCoins:
+                return new Color(1f, 0.76f, 0.3f, 1f);
+            case UpgradeType.SlowTime:
+                return new Color(0.55f, 0.72f, 1f, 1f);
+            case UpgradeType.SmallerPlayer:
+                return new Color(0.56f, 0.92f, 0.85f, 1f);
+            case UpgradeType.ScoreBooster:
+                return new Color(1f, 0.58f, 0.42f, 1f);
+            case UpgradeType.Bomb:
+                return new Color(1f, 0.47f, 0.38f, 1f);
+            case UpgradeType.RareCoinBoost:
+                return new Color(0.76f, 0.66f, 0.98f, 1f);
+            default:
+                return new Color(0.78f, 0.84f, 0.92f, 1f);
+        }
+    }
+
+    public void RefreshView(string displayName, string description, int ownedAmount, int cost, bool canAfford, int currentTotalCoins)
+    {
+        Color accentColor = GetAccentColor();
+
+        if (accentBarImage != null)
+            accentBarImage.color = accentColor;
+
+        if (accentText != null)
+            accentText.text = canAfford ? "RUN SUPPLY READY" : "NEEDS " + Mathf.Max(0, cost - currentTotalCoins) + " MORE COINS";
+
         if (titleText != null)
         {
             titleText.text = displayName;
@@ -1231,25 +1365,25 @@ public class ShopUpgradeButtonUI : MonoBehaviour
         {
             descriptionText.text = description;
             descriptionText.color = bodyColor;
+            descriptionText.lineSpacing = 6f;
         }
 
         if (metaText != null)
         {
-            string stateText = canAfford ? "Tap" : "Locked";
-            string priceColorHex = canAfford ? "E9AA33" : "8A8FA0";
+            string stateText = canAfford ? "Tap to stash" : "More coins needed";
+            string priceColorHex = canAfford ? "FFD47A" : "7E8B98";
             metaText.text =
-                "Owned: " + ownedAmount +
-                "  |  <color=#" + priceColorHex + ">" + cost + " coins</color>" +
-                "  |  " + stateText;
+                "Owned " + ownedAmount +
+                "\n<color=#" + priceColorHex + ">" + cost + " coins</color>   |   " + stateText;
             metaText.fontStyle = FontStyles.Bold;
+            metaText.color = new Color(0.9f, 0.95f, 0.99f, 1f);
         }
 
         if (backgroundImage != null)
         {
-            if (canAfford)
-                backgroundImage.color = affordableColor;
-            else
-                backgroundImage.color = expensiveColor;
+            backgroundImage.color = canAfford
+                ? Color.Lerp(affordableColor, accentColor, 0.14f)
+                : Color.Lerp(expensiveColor, accentColor, 0.08f);
         }
     }
 
@@ -1267,15 +1401,17 @@ public class ShopOfferCardUI : MonoBehaviour
     private TextMeshProUGUI titleText;
     private TextMeshProUGUI descriptionText;
     private TextMeshProUGUI metaText;
+    private TextMeshProUGUI accentText;
     private Image backgroundImage;
+    private Image accentBarImage;
     private Button button;
 
-    private readonly Color starterAvailableColor = new Color(1f, 0.95f, 0.86f, 0.98f);
-    private readonly Color coinPackAvailableColor = new Color(0.89f, 0.97f, 0.96f, 0.98f);
-    private readonly Color ownedColor = new Color(0.88f, 0.97f, 0.9f, 0.98f);
-    private readonly Color unavailableColor = new Color(0.88f, 0.9f, 0.94f, 0.88f);
-    private readonly Color titleColor = new Color(0.12f, 0.16f, 0.24f, 1f);
-    private readonly Color bodyColor = new Color(0.19f, 0.23f, 0.31f, 1f);
+    private readonly Color starterAvailableColor = new Color(0.24f, 0.18f, 0.11f, 0.98f);
+    private readonly Color coinPackAvailableColor = new Color(0.1f, 0.17f, 0.2f, 0.98f);
+    private readonly Color ownedColor = new Color(0.12f, 0.22f, 0.16f, 0.98f);
+    private readonly Color unavailableColor = new Color(0.08f, 0.11f, 0.14f, 0.92f);
+    private readonly Color titleColor = new Color(0.97f, 0.98f, 0.99f, 1f);
+    private readonly Color bodyColor = new Color(0.82f, 0.89f, 0.95f, 1f);
 
     public void Initialize(
         ShopManager manager,
@@ -1290,6 +1426,7 @@ public class ShopOfferCardUI : MonoBehaviour
         button = sourceButton;
 
         CreateLabels(runtimeFont);
+        ApplyCardChrome();
 
         if (button != null)
         {
@@ -1300,32 +1437,95 @@ public class ShopOfferCardUI : MonoBehaviour
 
     void CreateLabels(TMP_FontAsset runtimeFont)
     {
+        accentBarImage = FindOrCreateBarImage("AccentBar", runtimeFont, out accentText);
+
         titleText = FindOrCreateStretchText(
             "Title",
-            new Vector2(20f, 150f),
-            new Vector2(-20f, -20f),
-            TextAlignmentOptions.Top,
-            24f,
-            38f,
+            new Vector2(22f, 118f),
+            new Vector2(-22f, -26f),
+            TextAlignmentOptions.TopLeft,
+            22f,
+            36f,
             runtimeFont);
 
         descriptionText = FindOrCreateStretchText(
             "Description",
-            new Vector2(20f, 76f),
-            new Vector2(-20f, -90f),
-            TextAlignmentOptions.Center,
+            new Vector2(22f, 62f),
+            new Vector2(-22f, -100f),
+            TextAlignmentOptions.TopLeft,
             18f,
             26f,
             runtimeFont);
 
         metaText = FindOrCreateStretchText(
             "Meta",
-            new Vector2(20f, 18f),
-            new Vector2(-20f, -170f),
-            TextAlignmentOptions.Bottom,
+            new Vector2(22f, 16f),
+            new Vector2(-22f, -176f),
+            TextAlignmentOptions.BottomLeft,
             16f,
             24f,
             runtimeFont);
+    }
+
+    Image FindOrCreateBarImage(string objectName, TMP_FontAsset runtimeFont, out TextMeshProUGUI label)
+    {
+        Transform existing = transform.Find(objectName);
+        GameObject barObject;
+
+        if (existing != null)
+        {
+            barObject = existing.gameObject;
+        }
+        else
+        {
+            barObject = new GameObject(objectName, typeof(RectTransform), typeof(Image));
+            barObject.transform.SetParent(transform, false);
+        }
+
+        RectTransform barRect = barObject.GetComponent<RectTransform>();
+        barRect.anchorMin = new Vector2(0f, 1f);
+        barRect.anchorMax = new Vector2(1f, 1f);
+        barRect.pivot = new Vector2(0.5f, 1f);
+        barRect.sizeDelta = new Vector2(0f, 34f);
+        barRect.anchoredPosition = Vector2.zero;
+
+        Image barImage = barObject.GetComponent<Image>();
+
+        Transform labelTransform = barObject.transform.Find("Label");
+        GameObject labelObject;
+
+        if (labelTransform != null)
+        {
+            labelObject = labelTransform.gameObject;
+        }
+        else
+        {
+            labelObject = new GameObject("Label", typeof(RectTransform));
+            labelObject.transform.SetParent(barObject.transform, false);
+        }
+
+        RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = new Vector2(16f, 0f);
+        labelRect.offsetMax = new Vector2(-16f, 0f);
+
+        label = labelObject.GetComponent<TextMeshProUGUI>();
+
+        if (label == null)
+            label = labelObject.AddComponent<TextMeshProUGUI>();
+
+        label.alignment = TextAlignmentOptions.MidlineLeft;
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 15f;
+        label.fontSizeMax = 22f;
+        label.color = new Color(0.08f, 0.11f, 0.14f, 1f);
+        label.fontStyle = FontStyles.Bold;
+
+        if (runtimeFont != null && label.font == null)
+            label.font = runtimeFont;
+
+        return barImage;
     }
 
     TextMeshProUGUI FindOrCreateStretchText(
@@ -1339,7 +1539,6 @@ public class ShopOfferCardUI : MonoBehaviour
     {
         Transform existing = transform.Find(objectName);
         GameObject textObject;
-
         bool created = existing == null;
 
         if (existing != null)
@@ -1365,13 +1564,13 @@ public class ShopOfferCardUI : MonoBehaviour
 
         text.alignment = alignment;
         text.color = bodyColor;
+        text.margin = new Vector4(2f, 0f, 2f, 0f);
 
         if (created)
         {
             text.enableAutoSizing = true;
             text.fontSizeMin = minSize;
             text.fontSizeMax = maxSize;
-            text.margin = new Vector4(2f, 0f, 2f, 0f);
         }
 
         if (runtimeFont != null && text.font == null)
@@ -1380,8 +1579,55 @@ public class ShopOfferCardUI : MonoBehaviour
         return text;
     }
 
+    void ApplyCardChrome()
+    {
+        if (backgroundImage == null)
+            return;
+
+        Outline outline = backgroundImage.GetComponent<Outline>();
+
+        if (outline == null)
+            outline = backgroundImage.gameObject.AddComponent<Outline>();
+
+        outline.effectColor = new Color(0.78f, 0.66f, 0.34f, 0.16f);
+        outline.effectDistance = new Vector2(2f, -2f);
+
+        Shadow shadow = backgroundImage.GetComponent<Shadow>();
+
+        if (shadow == null)
+            shadow = backgroundImage.gameObject.AddComponent<Shadow>();
+
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.28f);
+        shadow.effectDistance = new Vector2(0f, -6f);
+    }
+
+    Color GetAccentColor(MonetizationOfferSnapshot snapshot)
+    {
+        if (snapshot.IsOwned)
+            return new Color(0.48f, 0.86f, 0.63f, 1f);
+
+        if (snapshot.Definition.IsStarterOffer)
+            return new Color(0.98f, 0.76f, 0.33f, 1f);
+
+        return new Color(0.46f, 0.87f, 0.92f, 1f);
+    }
+
     public void RefreshView(MonetizationOfferSnapshot snapshot, string valueSummary)
     {
+        Color accentColor = GetAccentColor(snapshot);
+
+        if (accentBarImage != null)
+            accentBarImage.color = accentColor;
+
+        if (accentText != null)
+        {
+            accentText.text = snapshot.IsOwned
+                ? "CACHE CLAIMED"
+                : snapshot.Definition.IsStarterOffer
+                    ? "STARTER CACHE"
+                    : "CRYSTAL PACK";
+        }
+
         if (titleText != null)
         {
             titleText.text = snapshot.Definition.DisplayName;
@@ -1395,21 +1641,28 @@ public class ShopOfferCardUI : MonoBehaviour
                 valueSummary +
                 (string.IsNullOrEmpty(snapshot.Definition.HighlightLabel)
                     ? string.Empty
-                    : "\n<color=#2F6FDB>" + snapshot.Definition.HighlightLabel + "</color>");
+                    : "\n<color=#9CE9F7>" + snapshot.Definition.HighlightLabel + "</color>");
             descriptionText.color = bodyColor;
+            descriptionText.lineSpacing = 6f;
         }
 
         if (metaText != null)
         {
-            string priceColorHex = snapshot.CanPurchase ? "E9AA33" : "8A8FA0";
+            string priceColorHex = snapshot.CanPurchase ? "FFD47A" : "8A8FA0";
+            string statusLabel = snapshot.StatusLabel;
+
+            if (string.Equals(statusLabel, "Loading offers", StringComparison.OrdinalIgnoreCase))
+                statusLabel = snapshot.CanPurchase ? "Tap to claim" : "Offer syncing";
+
             string statusColorHex = snapshot.IsOwned
-                ? "30945D"
-                : (snapshot.CanPurchase ? "2F6FDB" : "8A8FA0");
+                ? "7FF0A6"
+                : (snapshot.CanPurchase ? "9CE9F7" : "8A8FA0");
 
             metaText.text =
                 "<color=#" + priceColorHex + ">" + snapshot.PriceLabel + "</color>" +
-                "\n<color=#" + statusColorHex + ">" + snapshot.StatusLabel + "</color>";
+                "\n<color=#" + statusColorHex + ">" + statusLabel + "</color>";
             metaText.fontStyle = FontStyles.Bold;
+            metaText.color = new Color(0.92f, 0.96f, 0.99f, 1f);
         }
 
         if (button != null)
@@ -1419,17 +1672,18 @@ public class ShopOfferCardUI : MonoBehaviour
         {
             if (snapshot.IsOwned)
             {
-                backgroundImage.color = ownedColor;
+                backgroundImage.color = Color.Lerp(ownedColor, accentColor, 0.12f);
             }
             else if (snapshot.CanPurchase)
             {
-                backgroundImage.color = snapshot.Definition.IsStarterOffer
+                Color baseColor = snapshot.Definition.IsStarterOffer
                     ? starterAvailableColor
                     : coinPackAvailableColor;
+                backgroundImage.color = Color.Lerp(baseColor, accentColor, 0.12f);
             }
             else
             {
-                backgroundImage.color = unavailableColor;
+                backgroundImage.color = Color.Lerp(unavailableColor, accentColor, 0.06f);
             }
         }
     }

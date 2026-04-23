@@ -190,12 +190,6 @@ public static class AndroidSigningConfigResolver
         List<SigningCandidate> candidates = new List<SigningCandidate>();
         HashSet<string> seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        AddCandidate(
-            candidates,
-            seenPaths,
-            Path.Combine(GetProjectRoot(), LocalConfigRelativePath),
-            "project-local UserSettings/Android");
-
         string configPathFromEnvironment = Environment.GetEnvironmentVariable(SigningConfigPathEnvironmentVariable);
 
         if (!string.IsNullOrWhiteSpace(configPathFromEnvironment))
@@ -245,6 +239,12 @@ public static class AndroidSigningConfigResolver
             seenPaths,
             documentsSharedPath,
             "Documents shared signing folder");
+
+        AddCandidate(
+            candidates,
+            seenPaths,
+            Path.Combine(GetProjectRoot(), LocalConfigRelativePath),
+            "project-local UserSettings/Android");
 
         return candidates;
     }

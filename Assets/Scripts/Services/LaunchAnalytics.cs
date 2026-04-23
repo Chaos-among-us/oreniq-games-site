@@ -126,6 +126,28 @@ public static class LaunchAnalytics
             ("level_reached", levelReached));
     }
 
+    public static void RecordShareRewardClaimed(
+        int rewardDay,
+        int coinsGranted,
+        UpgradeType bonusUpgrade,
+        int bonusAmount,
+        int resultingStreak,
+        bool includedChallengeBonus,
+        bool includedBestScoreBonus,
+        bool includedDepthBonus)
+    {
+        RecordEvent(
+            "share_reward_claimed",
+            ("reward_day", rewardDay),
+            ("coins_granted", coinsGranted),
+            ("bonus_upgrade", bonusUpgrade.ToString()),
+            ("bonus_amount", bonusAmount),
+            ("resulting_streak", resultingStreak),
+            ("challenge_bonus", includedChallengeBonus),
+            ("best_score_bonus", includedBestScoreBonus),
+            ("depth_bonus", includedDepthBonus));
+    }
+
     public static void RecordReviewPromptShown(string surface, int completedRuns, int finalScore, bool newBestScore)
     {
         RecordEvent(

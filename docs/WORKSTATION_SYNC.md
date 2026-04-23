@@ -50,8 +50,16 @@ Read files in this order after switching machines:
 - Never create a new release keystore if the old one still exists anywhere.
 - A new keystore means a different Android signing identity.
 - Missing local signing data should not block day-to-day editor work, only signed release builds.
-- Preferred shared path for cross-PC builds:
+- Canonical shared path for cross-PC builds:
   - `Documents/EndlessDodge1/SharedSigning/Android/`
+- Seed or refresh that folder from the primary PC with:
+  - `powershell -ExecutionPolicy Bypass -File scripts/setup-shared-android-signing.ps1`
+- Resolver priority is now:
+  - `%ENDLESSDODGE_SIGNING_CONFIG%`
+  - `%ENDLESSDODGE_SIGNING_ROOT%`
+  - shared signing folder
+  - project-local `UserSettings/Android`
+- This is intentional so a stale machine-local file cannot silently override the team-shared signing identity.
 - Supported overrides:
   - `%ENDLESSDODGE_SIGNING_CONFIG%`
   - `%ENDLESSDODGE_SIGNING_ROOT%`
@@ -59,10 +67,11 @@ Read files in this order after switching machines:
 - If the phone already has an older machine-debug-signed build installed, uninstall it once before moving over to the shared-signed build identity.
 - Do not paste signing values or other secrets into the repo-backed handoff documents even for temporary convenience.
 - Temporary fallback if the currently installed phone app came from one PC's debug keystore:
-  - copy that PC's `%USERPROFILE%\.android\debug.keystore` to the same path on the other PC
-  - this lets both PCs update the same debug-installed app while shared signing is still being recovered
+  - run `scripts/setup-shared-android-signing.ps1` on the primary PC
+  - this copies the current machine's debug keystore into the shared external signing folder as `shared-debug.keystore`
+  - the shared config then lets both PCs update the same debug-installed app without copying `.android\debug.keystore` by hand
   - do not commit the debug keystore to Git
-  - move back to the shared-signing workflow once the real signing files are recovered
+  - this is only a QA bridge; move back to the shared release-signing workflow once the real signing files are recovered
 
 ## Shared Templates
 - Repo-tracked template:

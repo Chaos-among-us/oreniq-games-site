@@ -29,34 +29,32 @@
    - mid-run rewarded revive prompt
 
 ## If You Need Android Release Signing
-1. Open `UserSettings/Android`.
-2. Confirm whether these files exist:
-   - `release-signing.json`
-   - `oreniq-release.keystore`
-3. Also check the shared external signing folder:
+1. First check the shared external signing folder:
    - `Documents/EndlessDodge1/SharedSigning/Android/`
-4. On the previous machine, first check that repo's `UserSettings/Android` folder.
-5. If they are not there, search the previous machine for:
-   - `oreniq-release.keystore`
+2. The expected primary files are:
    - `release-signing.json`
-6. Put both files either in the current machine's `UserSettings/Android` or in the shared external signing folder.
-7. Supported override environment variables:
+   - `oreniq-release.keystore`
+3. Temporary QA bridge files may instead be:
+   - `release-signing.json`
+   - `shared-debug.keystore`
+4. Supported override environment variables:
    - `%ENDLESSDODGE_SIGNING_CONFIG%`
    - `%ENDLESSDODGE_SIGNING_ROOT%`
-8. In Unity, click `Tools/Android/Apply Local Release Signing`.
-9. If the phone already has an older machine-debug-signed build, uninstall it once before installing the new shared-signed build.
-10. Do not paste signing keys, passwords, or other secrets into `logs.md` or any repo-tracked file.
-11. Do not create a replacement keystore unless the original is truly gone and you intentionally want a new signing identity.
+5. In Unity, click `Tools/Android/Apply Local Release Signing`.
+6. If the phone already has an older machine-debug-signed build, uninstall it once before installing the new shared-signed build.
+7. Do not paste signing keys, passwords, or other secrets into `logs.md` or any repo-tracked file.
+8. Do not create a replacement keystore unless the original is truly gone and you intentionally want a new signing identity.
 
-## If You Need To Match This PC's Current Debug Install Exactly
-1. Current verified phone build from this PC used the local Android debug keystore, not shared signing yet.
-2. On this PC, the current debug-keystore file is:
-   - `C:\Users\antho\.android\debug.keystore`
-3. Copy that file to the other PC here:
-   - `%USERPROFILE%\.android\debug.keystore`
-4. Do not commit this file to Git.
-5. After copying it, debug APKs built on the other PC should be able to update the same currently installed phone app without uninstalling first.
-6. Treat this as a temporary bridge only until the shared/release signing files are recovered and configured.
+## If You Need To Match The Current Phone Install Exactly
+1. On the primary PC, run:
+   - `powershell -ExecutionPolicy Bypass -File scripts/setup-shared-android-signing.ps1`
+2. That seeds the shared signing folder from the best available source:
+   - recovered release keystore if present
+   - otherwise the current machine's Android debug keystore as a temporary QA bridge
+3. Wait for OneDrive to sync `Documents/EndlessDodge1/SharedSigning/Android/` to the other PC.
+4. On the other PC, run `scripts/bootstrap-workstation.ps1`, open Unity, and use `Tools/Android/Build And Install Debug APK`.
+5. The debug build helper will automatically prefer the shared signing folder, so both PCs can update the same phone install without copying `.android\debug.keystore` by hand.
+6. Replace the temporary shared debug bridge with the real release keystore as soon as it is recovered.
 
 ## If The Repo Is Dirty On Two Computers
 1. Preserve the dirty state on a safety branch.

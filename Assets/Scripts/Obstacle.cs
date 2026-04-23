@@ -7,9 +7,15 @@ public class Obstacle : MonoBehaviour
     public float baseFallSpeed = 6f;
     public float destroyY = -6f;
 
+    private bool nearMissEvaluated;
+    private Collider2D obstacleCollider;
+    private SpriteRenderer obstacleRenderer;
+
     void Awake()
     {
+        obstacleRenderer = GetComponent<SpriteRenderer>();
         CaveHazardVisuals.EnsureStyled(gameObject, preferBat: false);
+        obstacleCollider = CaveHazardCollisionProfiles.GetActiveCollider(gameObject);
     }
 
     void Update()
@@ -26,18 +32,60 @@ public class Obstacle : MonoBehaviour
         float finalSpeed = baseFallSpeed * speedMultiplier;
 
         transform.Translate(Vector3.down * finalSpeed * worldSpeedMultiplier * Time.deltaTime, Space.World);
+        TryRegisterNearMiss();
 
         if (transform.position.y < destroyY)
         {
             Destroy(gameObject);
         }
     }
+
+    void TryRegisterNearMiss()
+    {
+        if (nearMissEvaluated ||
+            GameManager.instance == null ||
+            GameManager.instance.player == null ||
+            GameManager.instance.player.IsInvulnerable())
+        {
+            return;
+        }
+
+        Bounds obstacleBounds = GetBounds();
+        Bounds playerBounds = GameManager.instance.player.GetBounds();
+
+        if (obstacleBounds.max.y > playerBounds.min.y - 0.04f)
+            return;
+
+        nearMissEvaluated = true;
+        float horizontalEdgeGap = Mathf.Abs(obstacleBounds.center.x - playerBounds.center.x) -
+                                  (obstacleBounds.extents.x + playerBounds.extents.x);
+
+        if (horizontalEdgeGap > 0.8f)
+            return;
+
+        float closeness = 1f - Mathf.InverseLerp(0.9f, -0.08f, horizontalEdgeGap);
+        GameManager.instance.RegisterNearMiss(Mathf.Clamp01(closeness));
+    }
+
+    Bounds GetBounds()
+    {
+        if (obstacleCollider == null || !obstacleCollider.enabled)
+            obstacleCollider = CaveHazardCollisionProfiles.GetActiveCollider(gameObject);
+
+        if (obstacleCollider != null)
+            return obstacleCollider.bounds;
+
+        if (obstacleRenderer != null)
+            return obstacleRenderer.bounds;
+
+        return new Bounds(transform.position, new Vector3(1f, 1f, 0.1f));
+    }
 }
 
 [RequireComponent(typeof(SpriteRenderer))]
 public class CaveHazardVisuals : MonoBehaviour
 {
-    private enum HazardStyle
+    internal enum HazardStyle
     {
         Rock,
         WideLedge,
@@ -126,6 +174,7 @@ public class CaveHazardVisuals : MonoBehaviour
         spriteRenderer.sprite = GetOrCreateSprite(theme, currentStyle);
         spriteRenderer.color = ResolveTint(theme, currentStyle);
         spriteRenderer.sortingOrder = currentStyle == HazardStyle.Bat ? 8 : 6;
+        CaveHazardCollisionProfiles.Apply(gameObject, currentStyle);
         styleApplied = true;
 
         if (currentStyle != HazardStyle.Bat)
@@ -163,16 +212,16 @@ public class CaveHazardVisuals : MonoBehaviour
 
         switch (style)
         {
-            case HazardStyle.WideLedge:
+            case CaveHazardVisuals.HazardStyle.WideLedge:
                 sprite = BuildWideLedgeSprite(theme, key);
                 break;
-            case HazardStyle.Stalactite:
+            case CaveHazardVisuals.HazardStyle.Stalactite:
                 sprite = BuildStalactiteSprite(theme, key);
                 break;
-            case HazardStyle.CrystalShard:
+            case CaveHazardVisuals.HazardStyle.CrystalShard:
                 sprite = BuildCrystalSprite(theme, key);
                 break;
-            case HazardStyle.Bat:
+            case CaveHazardVisuals.HazardStyle.Bat:
                 sprite = BuildBatSprite(theme, key);
                 break;
             default:
@@ -415,5 +464,133 @@ public class CaveHazardVisuals : MonoBehaviour
         float s = (a.y * c.x - a.x * c.y + (c.y - a.y) * p.x + (a.x - c.x) * p.y) * sign;
         float t = (a.x * b.y - a.y * b.x + (a.y - b.y) * p.x + (b.x - a.x) * p.y) * sign;
         return s >= 0f && t >= 0f && (s + t) <= 2f * area * sign;
+    }
+}
+
+internal static class CaveHazardCollisionProfiles
+{
+    public static Collider2D GetActiveCollider(GameObject target)
+    {
+        if (target == null)
+            return null;
+
+        Collider2D[] colliders = target.GetComponents<Collider2D>();
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] != null && colliders[i].enabled)
+                return colliders[i];
+        }
+
+        return target.GetComponent<Collider2D>();
+    }
+
+    internal static void Apply(GameObject target, CaveHazardVisuals.HazardStyle style)
+    {
+        if (target == null)
+            return;
+
+        switch (style)
+        {
+            case CaveHazardVisuals.HazardStyle.WideLedge:
+                ConfigurePolygon(
+                    target,
+                    new[]
+                    {
+                        new Vector2(-0.42f, 0.17f),
+                        new Vector2(-0.38f, -0.14f),
+                        new Vector2(-0.14f, -0.25f),
+                        new Vector2(0.18f, -0.23f),
+                        new Vector2(0.42f, -0.08f),
+                        new Vector2(0.38f, 0.2f),
+                        new Vector2(0.1f, 0.25f),
+                        new Vector2(-0.2f, 0.23f)
+                    });
+                break;
+            case CaveHazardVisuals.HazardStyle.Stalactite:
+                ConfigurePolygon(
+                    target,
+                    new[]
+                    {
+                        new Vector2(-0.34f, -0.28f),
+                        new Vector2(-0.12f, 0.34f),
+                        new Vector2(0f, 0.42f),
+                        new Vector2(0.12f, 0.34f),
+                        new Vector2(0.34f, -0.28f),
+                        new Vector2(0f, -0.42f)
+                    });
+                break;
+            case CaveHazardVisuals.HazardStyle.CrystalShard:
+                ConfigurePolygon(
+                    target,
+                    new[]
+                    {
+                        new Vector2(0f, 0.34f),
+                        new Vector2(-0.24f, -0.08f),
+                        new Vector2(-0.02f, -0.34f),
+                        new Vector2(0.26f, -0.02f)
+                    });
+                break;
+            case CaveHazardVisuals.HazardStyle.Bat:
+                ConfigureCapsule(target, new Vector2(0f, -0.02f), new Vector2(0.46f, 0.22f));
+                break;
+            default:
+                ConfigurePolygon(
+                    target,
+                    new[]
+                    {
+                        new Vector2(-0.34f, -0.18f),
+                        new Vector2(-0.28f, 0.14f),
+                        new Vector2(-0.06f, 0.34f),
+                        new Vector2(0.18f, 0.3f),
+                        new Vector2(0.34f, 0.04f),
+                        new Vector2(0.28f, -0.22f),
+                        new Vector2(0.04f, -0.36f),
+                        new Vector2(-0.2f, -0.3f)
+                    });
+                break;
+        }
+    }
+
+    static void ConfigureCapsule(GameObject target, Vector2 offset, Vector2 size)
+    {
+        DisableOtherColliders<CapsuleCollider2D>(target);
+        CapsuleCollider2D collider = target.GetComponent<CapsuleCollider2D>();
+
+        if (collider == null)
+            collider = target.AddComponent<CapsuleCollider2D>();
+
+        collider.enabled = true;
+        collider.isTrigger = true;
+        collider.offset = offset;
+        collider.size = size;
+        collider.direction = CapsuleDirection2D.Horizontal;
+    }
+
+    static void ConfigurePolygon(GameObject target, Vector2[] points)
+    {
+        DisableOtherColliders<PolygonCollider2D>(target);
+        PolygonCollider2D collider = target.GetComponent<PolygonCollider2D>();
+
+        if (collider == null)
+            collider = target.AddComponent<PolygonCollider2D>();
+
+        collider.enabled = true;
+        collider.isTrigger = true;
+        collider.pathCount = 1;
+        collider.SetPath(0, points);
+    }
+
+    static void DisableOtherColliders<T>(GameObject target) where T : Collider2D
+    {
+        Collider2D[] colliders = target.GetComponents<Collider2D>();
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] == null)
+                continue;
+
+            colliders[i].enabled = colliders[i] is T;
+        }
     }
 }

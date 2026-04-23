@@ -208,6 +208,17 @@ public class PlayerController : MonoBehaviour
         return isInvulnerable;
     }
 
+    public Bounds GetBounds()
+    {
+        if (playerCollider != null)
+            return playerCollider.bounds;
+
+        if (spriteRenderer != null)
+            return spriteRenderer.bounds;
+
+        return new Bounds(transform.position, new Vector3(0.8f, 0.8f, 0.1f));
+    }
+
     public void TriggerInvulnerability(float duration)
     {
         lastObstacleHitTime = Time.time;

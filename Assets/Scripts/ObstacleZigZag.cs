@@ -8,10 +8,15 @@ public class ObstacleZigZag : MonoBehaviour
     public float destroyY = -6f;
 
     private float timeOffset;
+    private bool nearMissEvaluated;
+    private Collider2D obstacleCollider;
+    private SpriteRenderer obstacleRenderer;
 
     void Awake()
     {
+        obstacleRenderer = GetComponent<SpriteRenderer>();
         CaveHazardVisuals.EnsureStyled(gameObject, preferBat: true);
+        obstacleCollider = CaveHazardCollisionProfiles.GetActiveCollider(gameObject);
     }
 
     void Start()
@@ -46,9 +51,52 @@ public class ObstacleZigZag : MonoBehaviour
             0f
         );
 
+        TryRegisterNearMiss();
+
         if (transform.position.y < destroyY)
         {
             Destroy(gameObject);
         }
+    }
+
+    void TryRegisterNearMiss()
+    {
+        if (nearMissEvaluated ||
+            GameManager.instance == null ||
+            GameManager.instance.player == null ||
+            GameManager.instance.player.IsInvulnerable())
+        {
+            return;
+        }
+
+        Bounds obstacleBounds = GetBounds();
+        Bounds playerBounds = GameManager.instance.player.GetBounds();
+
+        if (obstacleBounds.max.y > playerBounds.min.y - 0.04f)
+            return;
+
+        nearMissEvaluated = true;
+        float horizontalEdgeGap = Mathf.Abs(obstacleBounds.center.x - playerBounds.center.x) -
+                                  (obstacleBounds.extents.x + playerBounds.extents.x);
+
+        if (horizontalEdgeGap > 0.94f)
+            return;
+
+        float closeness = 1f - Mathf.InverseLerp(1.04f, -0.08f, horizontalEdgeGap);
+        GameManager.instance.RegisterNearMiss(Mathf.Clamp01(closeness));
+    }
+
+    Bounds GetBounds()
+    {
+        if (obstacleCollider == null || !obstacleCollider.enabled)
+            obstacleCollider = CaveHazardCollisionProfiles.GetActiveCollider(gameObject);
+
+        if (obstacleCollider != null)
+            return obstacleCollider.bounds;
+
+        if (obstacleRenderer != null)
+            return obstacleRenderer.bounds;
+
+        return new Bounds(transform.position, new Vector3(1f, 1f, 0.1f));
     }
 }
