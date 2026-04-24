@@ -308,6 +308,86 @@ Use this exact format for new entries:
 - Next best action:
 
 ## Structured Change Log
+### 2026-04-23 - QA one-tap submission groundwork
+- Goal:
+  - Make tester QA easier by keeping the existing auto-record + survey flow, but upgrading the return step from file juggling to a single in-app send action when a submission endpoint is configured.
+- What changed:
+  - Extended `Assets/Scripts/QaTestingSystem.cs` so the existing QA share button can now switch modes:
+    - fallback: Android share sheet (`Share QA Package`)
+    - configured path: direct upload (`Send QA Package`)
+  - Added direct-upload packaging in C#:
+    - ZIP bundle generation in the app temp cache
+    - included run video when available
+    - included the text report
+    - included structured `qa-metadata.json` for later analysis
+  - Added a repo-tracked config asset:
+    - `Assets/Resources/QaSubmissionConfig.json`
+  - Added setup documentation:
+    - `docs/QA_TESTER_PIPELINE.md`
+  - Updated the QA notice / status text so the main menu and post-run survey reflect whether one-tap send is configured or the game is still using the share-sheet fallback.
+- Decisions / reversions:
+  - Kept the current Android share sheet as the fallback path so the QA flow still works before the upload endpoint exists.
+  - Did not embed any auth secret in the app config; the intended model is a stable upload URL that is safe to include in tester builds.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+- Next best action:
+  - Fill in `Assets/Resources/QaSubmissionConfig.json` with the real tester build link and the real upload URL, then build an Android APK and verify the post-run button changes from share-sheet behavior to true one-tap send.
+### 2026-04-23 - Secondary PC original-package wireless install success
+- Goal:
+  - Build the original Android package from the laptop using the repo's shared-network signing path, then install it to the phone over wireless ADB.
+- What changed:
+  - Synced the laptop signing cache from the primary PC with `docs/SECONDARY_PC_SIGNING_QUICKSTART.md`, which set `%ENDLESSDODGE_SIGNING_ROOT%` to:
+    - `C:\Users\antho\OneDrive\Documents\EndlessDodge1\NetworkSigning\Android`
+  - Ran a fresh Unity batch build for `AndroidBuildUtility.BuildDebugApkBatchmode`.
+  - Confirmed the successful build used the network-shared signing config instead of the laptop's local release-signing file:
+    - `C:\Users\antho\OneDrive\Documents\EndlessDodge1\NetworkSigning\Android\release-signing.json`
+  - Reconnected the phone through wireless ADB and installed:
+    - `Builds/Android/EndlessDodge1-debug.apk`
+- Decisions / reversions:
+  - Used the wireless mDNS device serial for install after Unity restarted the local ADB server during the build.
+  - Avoided installing the earlier laptop-local-release-signed build after confirming it used the wrong signing source for cross-PC continuity.
+- Verification:
+  - Unity logged:
+    - `Build Finished, Result: Success.`
+    - `Android debug APK created at: C:\Users\antho\Documents\UnityProjects\Block-dodger1\Builds\Android\EndlessDodge1-debug.apk`
+    - `Using shared Android signing from C:\Users\antho\OneDrive\Documents\EndlessDodge1\NetworkSigning\Android\release-signing.json for the debug build.`
+  - `adb install -r` over the wireless device returned:
+    - `Success`
+  - `adb shell cmd package dump com.oreniq.endlessdodge` now reports:
+    - `lastUpdateTime=2026-04-23 19:10:51`
+    - `versionName=1.0`
+    - `versionCode=1`
+  - `adb shell monkey -p com.oreniq.endlessdodge -c android.intent.category.LAUNCHER 1` launched the app on the phone.
+- Next best action:
+  - Use the laptop for the next real-phone QA pass on the original package, starting with launch, audio, rewarded flow, and post-run checks.
+### 2026-04-23 - Secondary PC wireless ADB pairing confirmed
+- Goal:
+  - Pair the laptop to the phone over wireless ADB so this workstation can control installs without taking the USB cable from the primary PC.
+- What changed:
+  - Read `docs/WIRELESS_ADB_QUICKSTART.md` and `docs/SECONDARY_PC_WIRELESS_ADB_SESSION.md`.
+  - Verified the current session endpoints were still:
+    - pair `10.0.0.62:42049`
+    - connect `10.0.0.62:37195`
+  - Ran the laptop wireless ADB helpers:
+    - `powershell -ExecutionPolicy Bypass -File scripts/status-wireless-adb.ps1`
+    - `powershell -ExecutionPolicy Bypass -File scripts/pair-wireless-adb.ps1 -PairHostPort "10.0.0.62:42049" -PairingCode "<live phone code>"`
+    - `powershell -ExecutionPolicy Bypass -File scripts/connect-wireless-adb.ps1 -DeviceHostPort "10.0.0.62:37195"`
+- Decisions / reversions:
+  - Keep using the repo's wireless helper scripts instead of ad-hoc raw `adb` commands so future reconnects stay consistent between PCs.
+  - The live six-digit pairing code should stay out of the repo; only the endpoint addresses belong in the session note.
+- Verification:
+  - `adb mdns services` reported:
+    - `_adb-tls-pairing._tcp` at `10.0.0.62:42049`
+    - `_adb-tls-connect._tcp` at `10.0.0.62:37195`
+  - Pairing succeeded with:
+    - `Successfully paired to 10.0.0.62:42049`
+  - Wireless connect succeeded with:
+    - `connected to 10.0.0.62:37195`
+  - `adb devices -l` now shows the phone on this laptop as:
+    - `10.0.0.62:37195        device product:m3qsqw model:SM_S948U device:m3q`
+- Next best action:
+  - With Unity open on the laptop, use `Tools/Android/Build And Install Debug APK` for the next phone update test from this workstation.
 ### 2026-04-23 - Mastery roadmap and phone UI cohesion pass
 - Goal:
   - Add a visible mastery / milestones roadmap page, then tighten the phone presentation so the main menu, shop, inventory, and progression surfaces feel cohesive on the real package.
