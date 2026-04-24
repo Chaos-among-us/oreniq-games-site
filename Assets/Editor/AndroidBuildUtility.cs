@@ -12,6 +12,7 @@ public static class AndroidBuildUtility
 {
     private const string OutputDirectoryRelativePath = "Builds/Android";
     private const string DebugApkFileName = "EndlessDodge1-debug.apk";
+    private const string PlayInternalTestAabFileName = "EndlessDodge1-internal-test.aab";
     private const string SecondaryDebugApkFileName = "EndlessDodge1-secondary-debug.apk";
     private const string SecondaryApplicationIdentifier = "com.oreniq.endlessdodge.secondary";
     private const string SecondaryProductName = "Endless Dodge Test";
@@ -34,6 +35,15 @@ public static class AndroidBuildUtility
             return;
 
         InstallDebugApk(outputPath, interactive: true);
+    }
+
+    [MenuItem("Tools/Android/Build Play Internal Test AAB")]
+    private static void BuildPlayInternalTestAabFromMenu()
+    {
+        if (BuildPlayInternalTestAab(interactive: true, out string outputPath))
+        {
+            EditorUtility.RevealInFinder(outputPath);
+        }
     }
 
     [MenuItem("Tools/Android/Build Secondary Test APK")]
@@ -60,6 +70,14 @@ public static class AndroidBuildUtility
             throw new Exception("Android debug build failed.");
 
         UnityEngine.Debug.Log("Android debug APK created at: " + outputPath);
+    }
+
+    public static void BuildPlayInternalTestAabBatchmode()
+    {
+        if (!BuildPlayInternalTestAab(interactive: false, out string outputPath))
+            throw new Exception("Android Play internal test AAB build failed.");
+
+        UnityEngine.Debug.Log("Android Play internal test AAB created at: " + outputPath);
     }
 
     public static void BuildSecondaryDebugApkBatchmode()
@@ -90,6 +108,118 @@ public static class AndroidBuildUtility
             SecondaryProductName,
             "secondary debug",
             out outputPath);
+    }
+
+    private static bool BuildPlayInternalTestAab(bool interactive, out string outputPath)
+    {
+        string requestedOutputPath = Path.GetFullPath(Path.Combine(GetProjectRoot(), OutputDirectoryRelativePath, PlayInternalTestAabFileName));
+        outputPath = requestedOutputPath;
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? string.Empty);
+
+        string[] enabledScenes = EditorBuildSettings.scenes
+            .Where(scene => scene.enabled)
+            .Select(scene => scene.path)
+            .ToArray();
+
+        if (enabledScenes.Length == 0)
+            return Fail("No enabled scenes were found in Build Settings.", interactive);
+
+        bool previousUseCustomKeystore = PlayerSettings.Android.useCustomKeystore;
+        string previousKeystoreName = PlayerSettings.Android.keystoreName;
+        string previousKeystorePass = PlayerSettings.Android.keystorePass;
+        string previousAliasName = PlayerSettings.Android.keyaliasName;
+        string previousAliasPass = PlayerSettings.Android.keyaliasPass;
+        bool previousBuildAppBundle = EditorUserBuildSettings.buildAppBundle;
+        bool previousDevelopment = EditorUserBuildSettings.development;
+        bool previousConnectProfiler = EditorUserBuildSettings.connectProfiler;
+        bool previousAllowDebugging = EditorUserBuildSettings.allowDebugging;
+        ScriptingImplementation previousScriptingBackend = PlayerSettings.GetScriptingBackend(AndroidNamedBuildTarget);
+        AndroidArchitecture previousTargetArchitectures = PlayerSettings.Android.targetArchitectures;
+        int previousArchitectureValue = GetArchitectureValue(previousTargetArchitectures);
+        AndroidSigningResolutionStatus signingResolutionStatus = AndroidSigningConfigResolver.Resolve(
+            out ResolvedAndroidReleaseSigningConfig resolvedSigningConfig,
+            out string signingResolutionMessage);
+
+        try
+        {
+            if (!EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android))
+                return Fail("Unity could not switch the active build target to Android.", interactive);
+
+            if (signingResolutionStatus != AndroidSigningResolutionStatus.Success)
+                return Fail(signingResolutionMessage, interactive);
+
+            if (IsDebugBridgeSigning(resolvedSigningConfig))
+            {
+                return Fail(
+                    "The resolved signing config uses the shared debug bridge, which must not be uploaded to Google Play.\n\n" +
+                    "Create or recover the real Play upload keystore, place it in the shared signing folder, and update release-signing.json before building the Play AAB.",
+                    interactive);
+            }
+
+            EditorUserBuildSettings.buildAppBundle = true;
+            EditorUserBuildSettings.development = false;
+            EditorUserBuildSettings.connectProfiler = false;
+            EditorUserBuildSettings.allowDebugging = false;
+            ConfigureSupportedReleaseBuildSettings(previousScriptingBackend, previousTargetArchitectures);
+            ApplySigning(resolvedSigningConfig);
+
+            UnityEngine.Debug.Log(
+                "Using Android signing from " +
+                resolvedSigningConfig.ConfigPath +
+                " for the Play internal test AAB.");
+
+            BuildPlayerOptions options = new BuildPlayerOptions
+            {
+                scenes = enabledScenes,
+                locationPathName = outputPath,
+                target = BuildTarget.Android,
+                options = BuildOptions.None
+            };
+
+            BuildReport report = BuildPipeline.BuildPlayer(options);
+
+            if (report.summary.result != BuildResult.Succeeded)
+            {
+                return Fail(
+                    "Android Play internal test AAB build failed. Check the Unity Console or batchmode log for details.",
+                    interactive);
+            }
+
+            if (!TryFinalizeOutputAab(report, requestedOutputPath, out outputPath, out string finalizeError))
+                return Fail(finalizeError, interactive);
+
+            UnityEngine.Debug.Log("Android Play internal test AAB created at: " + outputPath);
+
+            if (interactive)
+            {
+                EditorUtility.DisplayDialog(
+                    "Android Build",
+                    "Play internal test AAB created:\n" + outputPath,
+                    "OK");
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            return Fail("Android Play internal test AAB build failed: " + ex.Message, interactive);
+        }
+        finally
+        {
+            PlayerSettings.Android.useCustomKeystore = previousUseCustomKeystore;
+            PlayerSettings.Android.keystoreName = previousKeystoreName;
+            PlayerSettings.Android.keystorePass = previousKeystorePass;
+            PlayerSettings.Android.keyaliasName = previousAliasName;
+            PlayerSettings.Android.keyaliasPass = previousAliasPass;
+            EditorUserBuildSettings.buildAppBundle = previousBuildAppBundle;
+            EditorUserBuildSettings.development = previousDevelopment;
+            EditorUserBuildSettings.connectProfiler = previousConnectProfiler;
+            EditorUserBuildSettings.allowDebugging = previousAllowDebugging;
+            PlayerSettings.SetScriptingBackend(AndroidNamedBuildTarget, previousScriptingBackend);
+            PlayerSettings.SetArchitecture(AndroidNamedBuildTarget, previousArchitectureValue);
+            PlayerSettings.Android.targetArchitectures = previousTargetArchitectures;
+            AssetDatabase.SaveAssets();
+        }
     }
 
     private static bool BuildDebugVariant(
@@ -235,6 +365,26 @@ public static class AndroidBuildUtility
             "Previous architecture setting was: " + previousTargetArchitectures + ".");
     }
 
+    private static void ConfigureSupportedReleaseBuildSettings(
+        ScriptingImplementation previousScriptingBackend,
+        AndroidArchitecture previousTargetArchitectures)
+    {
+        if (previousScriptingBackend != ScriptingImplementation.IL2CPP)
+        {
+            PlayerSettings.SetScriptingBackend(AndroidNamedBuildTarget, ScriptingImplementation.IL2CPP);
+            UnityEngine.Debug.Log(
+                "Using IL2CPP for Android release bundles so the Play build matches the supported " +
+                "phone configuration.");
+        }
+
+        int architectureValue = GetArchitectureValue(AndroidArchitecture.ARM64);
+        PlayerSettings.SetArchitecture(AndroidNamedBuildTarget, architectureValue);
+        PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+        UnityEngine.Debug.Log(
+            "Using ARM64 as the Android release-bundle architecture. " +
+            "Previous architecture setting was: " + previousTargetArchitectures + ".");
+    }
+
     private static int GetArchitectureValue(AndroidArchitecture architecture)
     {
         if (architecture == AndroidArchitecture.None)
@@ -244,6 +394,18 @@ public static class AndroidBuildUtility
             return 1;
 
         return 2;
+    }
+
+    private static bool IsDebugBridgeSigning(ResolvedAndroidReleaseSigningConfig resolvedConfig)
+    {
+        if (resolvedConfig == null || resolvedConfig.Config == null)
+            return true;
+
+        string keystoreFileName = Path.GetFileName(resolvedConfig.KeystorePath);
+
+        return string.Equals(resolvedConfig.Config.keyaliasName, "androiddebugkey", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(keystoreFileName, "debug.keystore", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(keystoreFileName, "shared-debug.keystore", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryFinalizeOutputApk(
@@ -275,6 +437,42 @@ public static class AndroidBuildUtility
         if (!File.Exists(normalizedOutputPath))
         {
             errorMessage = "Android build completed, but the APK could not be copied to the output folder.";
+            return false;
+        }
+
+        resolvedOutputPath = normalizedOutputPath;
+        return true;
+    }
+
+    private static bool TryFinalizeOutputAab(
+        BuildReport report,
+        string requestedOutputPath,
+        out string resolvedOutputPath,
+        out string errorMessage)
+    {
+        resolvedOutputPath = requestedOutputPath;
+        errorMessage = string.Empty;
+
+        string builtAabPath = ResolveBuiltAabPath(report, requestedOutputPath);
+
+        if (string.IsNullOrEmpty(builtAabPath))
+        {
+            errorMessage = "Android build completed, but the resulting AAB could not be located.";
+            return false;
+        }
+
+        string normalizedSourcePath = Path.GetFullPath(builtAabPath);
+        string normalizedOutputPath = Path.GetFullPath(requestedOutputPath);
+
+        if (!string.Equals(normalizedSourcePath, normalizedOutputPath, StringComparison.OrdinalIgnoreCase))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(normalizedOutputPath) ?? string.Empty);
+            File.Copy(normalizedSourcePath, normalizedOutputPath, true);
+        }
+
+        if (!File.Exists(normalizedOutputPath))
+        {
+            errorMessage = "Android build completed, but the AAB could not be copied to the output folder.";
             return false;
         }
 
@@ -323,6 +521,39 @@ public static class AndroidBuildUtility
             return generatedDebugApk;
 
         return GetNewestFile(generatedProjectRoot, "*.apk");
+    }
+
+    private static string ResolveBuiltAabPath(BuildReport report, string requestedOutputPath)
+    {
+        string normalizedRequestedPath = Path.GetFullPath(requestedOutputPath);
+
+        if (File.Exists(normalizedRequestedPath))
+            return normalizedRequestedPath;
+
+        string reportOutputPath = report.summary.outputPath;
+
+        if (!string.IsNullOrWhiteSpace(reportOutputPath))
+        {
+            string normalizedReportOutputPath = NormalizeBuildPath(reportOutputPath);
+
+            if (File.Exists(normalizedReportOutputPath))
+                return normalizedReportOutputPath;
+
+            if (Directory.Exists(normalizedReportOutputPath))
+            {
+                string aabFromReportDirectory = GetNewestFile(normalizedReportOutputPath, "*.aab");
+
+                if (!string.IsNullOrEmpty(aabFromReportDirectory))
+                    return aabFromReportDirectory;
+            }
+        }
+
+        string generatedProjectRoot = Path.Combine(GetProjectRoot(), GeneratedAndroidProjectRelativePath);
+
+        if (!Directory.Exists(generatedProjectRoot))
+            return string.Empty;
+
+        return GetNewestFile(generatedProjectRoot, "*.aab");
     }
 
     private static string NormalizeBuildPath(string path)

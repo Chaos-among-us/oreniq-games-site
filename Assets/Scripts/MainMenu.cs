@@ -86,6 +86,7 @@ public class MainMenu : MonoBehaviour
     private TextMeshProUGUI qaOverlayTitleText;
     private TextMeshProUGUI qaOverlayBodyText;
     private TextMeshProUGUI qaOverlayStatusText;
+    private TMP_InputField qaTesterNameInput;
     private Button qaOverlayToggleButton;
     private TextMeshProUGUI qaOverlayToggleButtonText;
     private Button qaOverlayPracticeButton;
@@ -253,12 +254,22 @@ public class MainMenu : MonoBehaviour
 
     public void CloseQaOverlay()
     {
+        SaveTesterNameFromInput();
         SetQaOverlayVisible(false);
     }
 
     public void ToggleQaMode()
     {
+        SaveTesterNameFromInput();
         bool enableQaMode = !QaTestingSystem.IsQaModeEnabled();
+
+        if (enableQaMode && !QaTestingSystem.HasTesterName())
+        {
+            if (qaOverlayStatusText != null)
+                qaOverlayStatusText.text = "Tester name is required before QA recording can be enabled.";
+
+            return;
+        }
 
         if (enableQaMode)
             QaTestingSystem.MarkNoticeAccepted();
@@ -277,10 +288,20 @@ public class MainMenu : MonoBehaviour
 
     public void StartQaPracticeRun()
     {
+        SaveTesterNameFromInput();
         QaTestingSystem.RequestPracticeRun();
         GameSettings.TriggerHaptic();
         DailyChallengeSystem.ClearActiveRun();
         SceneManager.LoadScene(gameSceneName);
+    }
+
+    void SaveTesterNameFromInput()
+    {
+        if (qaTesterNameInput == null)
+            return;
+
+        QaTestingSystem.SetTesterName(qaTesterNameInput.text);
+        RefreshQaMenu();
     }
 
     public void ClaimMissionRewards()
@@ -1324,6 +1345,7 @@ public class MainMenu : MonoBehaviour
         text.fontSizeMax = maxSize;
         text.color = color;
         text.lineSpacing = 0f;
+        text.raycastTarget = false;
 
         if (runtimeFont != null)
             text.font = runtimeFont;
@@ -1353,7 +1375,7 @@ public class MainMenu : MonoBehaviour
         buttonRect.anchoredPosition = anchoredPosition;
 
         Image buttonImage = buttonObject.GetComponent<Image>();
-        buttonImage.color = new Color(0.93f, 0.73f, 0.24f, 1f);
+        buttonImage.color = StudioUiTheme.Gold;
 
         GameObject labelObject = new GameObject("Label", typeof(RectTransform));
         labelObject.transform.SetParent(buttonObject.transform, false);
@@ -1371,11 +1393,99 @@ public class MainMenu : MonoBehaviour
         label.fontSizeMin = 20;
         label.fontSizeMax = 28;
         label.color = new Color(0.15f, 0.18f, 0.22f, 1f);
+        label.raycastTarget = false;
 
         if (runtimeFont != null)
             label.font = runtimeFont;
 
-        return buttonObject.GetComponent<Button>();
+        Button button = buttonObject.GetComponent<Button>();
+        StudioUiTheme.ApplyButton(button, StudioButtonStyle.Primary, label);
+        return button;
+    }
+
+    TMP_InputField CreatePanelInputField(
+        Transform parent,
+        string objectName,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 pivot,
+        Vector2 size,
+        Vector2 anchoredPosition,
+        string placeholderText)
+    {
+        GameObject inputObject = new GameObject(objectName, typeof(RectTransform), typeof(Image), typeof(TMP_InputField));
+        inputObject.transform.SetParent(parent, false);
+
+        RectTransform inputRect = inputObject.GetComponent<RectTransform>();
+        inputRect.anchorMin = anchorMin;
+        inputRect.anchorMax = anchorMax;
+        inputRect.pivot = pivot;
+        inputRect.sizeDelta = size;
+        inputRect.anchoredPosition = anchoredPosition;
+
+        Image inputImage = inputObject.GetComponent<Image>();
+        inputImage.color = new Color(0.07f, 0.11f, 0.15f, 0.96f);
+
+        GameObject viewportObject = new GameObject("Text Area", typeof(RectTransform), typeof(RectMask2D));
+        viewportObject.transform.SetParent(inputObject.transform, false);
+
+        RectTransform viewportRect = viewportObject.GetComponent<RectTransform>();
+        viewportRect.anchorMin = Vector2.zero;
+        viewportRect.anchorMax = Vector2.one;
+        viewportRect.offsetMin = new Vector2(18f, 8f);
+        viewportRect.offsetMax = new Vector2(-18f, -8f);
+
+        GameObject textObject = new GameObject("Text", typeof(RectTransform));
+        textObject.transform.SetParent(viewportObject.transform, false);
+
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = Vector2.zero;
+        textRect.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI text = textObject.AddComponent<TextMeshProUGUI>();
+        text.alignment = TextAlignmentOptions.Left;
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 18f;
+        text.fontSizeMax = 26f;
+        text.color = Color.white;
+        text.raycastTarget = false;
+
+        if (runtimeFont != null)
+            text.font = runtimeFont;
+
+        GameObject placeholderObject = new GameObject("Placeholder", typeof(RectTransform));
+        placeholderObject.transform.SetParent(viewportObject.transform, false);
+
+        RectTransform placeholderRect = placeholderObject.GetComponent<RectTransform>();
+        placeholderRect.anchorMin = Vector2.zero;
+        placeholderRect.anchorMax = Vector2.one;
+        placeholderRect.offsetMin = Vector2.zero;
+        placeholderRect.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI placeholder = placeholderObject.AddComponent<TextMeshProUGUI>();
+        placeholder.text = placeholderText;
+        placeholder.alignment = TextAlignmentOptions.Left;
+        placeholder.enableAutoSizing = true;
+        placeholder.fontSizeMin = 18f;
+        placeholder.fontSizeMax = 26f;
+        placeholder.color = new Color(0.72f, 0.78f, 0.84f, 1f);
+        placeholder.raycastTarget = false;
+
+        if (runtimeFont != null)
+            placeholder.font = runtimeFont;
+
+        TMP_InputField input = inputObject.GetComponent<TMP_InputField>();
+        input.textComponent = text;
+        input.placeholder = placeholder;
+        input.lineType = TMP_InputField.LineType.SingleLine;
+        input.characterLimit = 48;
+        input.text = QaTestingSystem.GetTesterName();
+        input.onEndEdit.RemoveAllListeners();
+        input.onEndEdit.AddListener(_ => SaveTesterNameFromInput());
+        StudioUiTheme.ApplyInput(input);
+        return input;
     }
 
     void EnsureQaOverlayPanel()
@@ -1390,9 +1500,20 @@ public class MainMenu : MonoBehaviour
             qaOverlayRoot = existingRoot.gameObject;
             qaOverlayPanel = existingRoot.Find("QaOverlayPanel")?.gameObject;
             Transform qaPanelTransform = existingRoot.Find("QaOverlayPanel");
+            Image existingRootImage = qaOverlayRoot.GetComponent<Image>();
+            if (existingRootImage != null)
+                existingRootImage.raycastTarget = false;
+
+            Image existingPanelImage = qaOverlayPanel != null ? qaOverlayPanel.GetComponent<Image>() : null;
+            if (existingPanelImage != null)
+                existingPanelImage.raycastTarget = false;
+
             qaOverlayTitleText = FindTextInParent(qaPanelTransform, "QaOverlayTitle");
             qaOverlayBodyText = FindTextInParent(qaPanelTransform, "QaOverlayBody");
             qaOverlayStatusText = FindTextInParent(qaPanelTransform, "QaOverlayStatus");
+            qaTesterNameInput = qaPanelTransform != null
+                ? qaPanelTransform.Find("QaTesterNameInput")?.GetComponent<TMP_InputField>()
+                : null;
 
             Transform toggleTransform = existingRoot.Find("QaOverlayPanel/QaOverlayToggleButton");
 
@@ -1439,6 +1560,7 @@ public class MainMenu : MonoBehaviour
 
             Image rootImage = qaOverlayRoot.GetComponent<Image>();
             rootImage.color = new Color(0.01f, 0.02f, 0.04f, 0.9f);
+            rootImage.raycastTarget = false;
 
             qaOverlayPanel = new GameObject("QaOverlayPanel", typeof(RectTransform), typeof(Image));
             qaOverlayPanel.transform.SetParent(qaOverlayRoot.transform, false);
@@ -1452,6 +1574,7 @@ public class MainMenu : MonoBehaviour
 
             Image panelImage = qaOverlayPanel.GetComponent<Image>();
             panelImage.color = new Color(0.11f, 0.16f, 0.24f, 0.98f);
+            panelImage.raycastTarget = false;
 
             qaOverlayTitleText = CreatePanelText(
                 qaOverlayPanel.transform,
@@ -1491,6 +1614,16 @@ public class MainMenu : MonoBehaviour
                 18f,
                 24f,
                 new Color(0.82f, 0.9f, 0.98f, 1f));
+
+            qaTesterNameInput = CreatePanelInputField(
+                qaOverlayPanel.transform,
+                "QaTesterNameInput",
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(430f, 58f),
+                new Vector2(0f, 350f),
+                "Tester name");
 
             qaOverlayToggleButton = CreatePanelButton(
                 qaOverlayPanel.transform,
@@ -1591,14 +1724,12 @@ public class MainMenu : MonoBehaviour
 
             if (buttonImage != null)
             {
-                buttonImage.color = qaModeEnabled
-                    ? Color.Lerp(theme.WallColor, theme.AccentColor, 0.62f)
-                    : Color.Lerp(theme.WallColor, theme.FogColor, 0.4f);
+                StudioUiTheme.ApplyButton(qaModeButton, qaModeEnabled ? StudioButtonStyle.Warning : StudioButtonStyle.Qa, qaModeButtonText);
             }
         }
 
         if (qaOverlayTitleText != null)
-            qaOverlayTitleText.text = "QA Capture Mode";
+            qaOverlayTitleText.text = "QA Tester Setup";
 
         if (qaOverlayBodyText != null)
         {
@@ -1609,8 +1740,11 @@ public class MainMenu : MonoBehaviour
         if (qaOverlayStatusText != null)
             qaOverlayStatusText.text = QaTestingSystem.GetMenuStatusText();
 
+        if (qaTesterNameInput != null && !qaTesterNameInput.isFocused)
+            qaTesterNameInput.SetTextWithoutNotify(QaTestingSystem.GetTesterName());
+
         if (qaOverlayToggleButtonText != null)
-            qaOverlayToggleButtonText.text = qaModeEnabled ? "Disable QA Mode" : "Enable QA Mode";
+            qaOverlayToggleButtonText.text = qaModeEnabled ? "Disable QA Recording" : "Enable QA Recording";
 
         if (qaOverlayPracticeButtonText != null)
             qaOverlayPracticeButtonText.text = qaModeEnabled ? "Practice Tutorial Run" : "Practice Run First";
@@ -1636,10 +1770,12 @@ public class MainMenu : MonoBehaviour
         string dangerLabel = profile.BestDangerCombo > 0 ? "Peak x" + profile.BestDangerCombo : "Peak x0";
 
         profileStatsText.text =
-            "<color=#FFF1B9>" + profile.RankTitle + " Lv " + profile.Level + "</color>" +
-            "\nXP " + profile.ExperienceIntoLevel + "/" + profile.ExperienceForNextLevel + "   Best " + profile.BestScore +
-            "\nCoins " + PlayerPrefs.GetInt("TotalCoins", 0) + "   Streak " + streak + "   " + dangerLabel +
-            "\nGoal: " + nextGoal;
+            "<color=#F4C76C>" + profile.RankTitle + " Lv " + profile.Level + "</color>" +
+            "\nXP " + profile.ExperienceIntoLevel + "/" + profile.ExperienceForNextLevel +
+            "    Best " + profile.BestScore +
+            "    Coins " + PlayerPrefs.GetInt("TotalCoins", 0) +
+            "\nStreak " + streak + "    " + dangerLabel +
+            "\n" + nextGoal;
     }
 
     void RefreshMasteryRoadmapButton()
@@ -1668,30 +1804,27 @@ public class MainMenu : MonoBehaviour
 
         if (panelImage != null)
         {
-            panelImage.color = canClaimToday
-                ? new Color(0.1f, 0.18f, 0.32f, 0.96f)
-                : new Color(0.1f, 0.18f, 0.32f, 0.56f);
+            StudioUiTheme.ApplyPanel(panelImage, canClaimToday ? StudioPanelStyle.Accent : StudioPanelStyle.Surface, canClaimToday ? 1f : 0.7f);
         }
 
         if (dailyRewardTitleText != null)
         {
             dailyRewardTitleText.text = canClaimToday ? "Reward Ready" : "Reward Claimed";
             dailyRewardTitleText.color = canClaimToday
-                ? new Color(1f, 0.94f, 0.72f, 1f)
-                : new Color(0.86f, 0.92f, 1f, 0.9f);
+                ? StudioUiTheme.Gold
+                : StudioUiTheme.MutedText;
         }
 
         if (dailyRewardBodyText != null)
         {
             dailyRewardBodyText.text = canClaimToday
-                ? rewardPackage.coins + " Coins" +
-                  "\n+ " + rewardPackage.bonusAmount + " " +
+                ? rewardPackage.coins + " Coins  + " + rewardPackage.bonusAmount + " " +
                   UpgradeInventory.GetDisplayName(rewardPackage.bonusUpgrade)
                 : "Come back tomorrow";
 
             dailyRewardBodyText.color = canClaimToday
-                ? new Color(0.94f, 0.97f, 1f, 1f)
-                : new Color(0.9f, 0.95f, 1f, 0.84f);
+                ? StudioUiTheme.Text
+                : StudioUiTheme.MutedText;
         }
 
         if (dailyRewardStatusText != null)
@@ -1701,8 +1834,8 @@ public class MainMenu : MonoBehaviour
                 : "Next " + DailyRewardSystem.GetNextClaimCountdownText();
 
             dailyRewardStatusText.color = canClaimToday
-                ? new Color(0.9f, 0.96f, 1f, 1f)
-                : new Color(0.84f, 0.9f, 0.98f, 0.8f);
+                ? StudioUiTheme.MutedText
+                : StudioUiTheme.WithAlpha(StudioUiTheme.MutedText, 0.76f);
         }
 
         if (claimRewardButton != null)
@@ -1718,9 +1851,7 @@ public class MainMenu : MonoBehaviour
 
         if (rewardButtonImage != null)
         {
-            rewardButtonImage.color = canClaimToday
-                ? new Color(0.93f, 0.73f, 0.24f, 1f)
-                : new Color(0.7f, 0.58f, 0.33f, 0.6f);
+            StudioUiTheme.ApplyButton(claimRewardButton, canClaimToday ? StudioButtonStyle.Primary : StudioButtonStyle.Quiet, claimRewardButtonText);
         }
     }
 
@@ -1759,11 +1890,10 @@ public class MainMenu : MonoBehaviour
 
         if (panelImage != null)
         {
-            panelImage.color = rewardClaimed
-                ? new Color(0.14f, 0.2f, 0.29f, 0.82f)
-                : canClaimReward
-                    ? new Color(0.15f, 0.3f, 0.23f, 0.97f)
-                    : new Color(0.1f, 0.19f, 0.34f, 0.97f);
+            StudioUiTheme.ApplyPanel(
+                panelImage,
+                rewardClaimed ? StudioPanelStyle.Surface : (canClaimReward ? StudioPanelStyle.Accent : StudioPanelStyle.Elevated),
+                rewardClaimed ? 0.78f : 1f);
         }
 
         if (challengeSummaryTitleText != null)
@@ -1811,11 +1941,10 @@ public class MainMenu : MonoBehaviour
 
         if (buttonImage != null)
         {
-            buttonImage.color = rewardClaimed
-                ? new Color(0.42f, 0.46f, 0.5f, 0.72f)
-                : canClaimReward
-                    ? new Color(0.3f, 0.75f, 0.46f, 1f)
-                    : new Color(0.93f, 0.73f, 0.24f, 1f);
+            StudioUiTheme.ApplyButton(
+                challengeSummaryActionButton,
+                rewardClaimed ? StudioButtonStyle.Quiet : StudioButtonStyle.Primary,
+                challengeSummaryActionButtonText);
         }
     }
 
@@ -2126,7 +2255,7 @@ public class MainMenu : MonoBehaviour
 
     void NormalizeHeaderLayout()
     {
-        float contentWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
+        float contentWidth = GetMenuContentWidth();
 
         if (titleText == null)
             titleText = FindText(titleObjectName);
@@ -2139,15 +2268,17 @@ public class MainMenu : MonoBehaviour
             titleRect.anchorMin = new Vector2(0.5f, 1f);
             titleRect.anchorMax = new Vector2(0.5f, 1f);
             titleRect.pivot = new Vector2(0.5f, 1f);
-            titleRect.sizeDelta = new Vector2(contentWidth, 240f);
-            titleRect.anchoredPosition = new Vector2(0f, -44f);
+            titleRect.sizeDelta = new Vector2(contentWidth, 84f);
+            titleRect.anchoredPosition = new Vector2(0f, -34f);
 
             titleText.enableAutoSizing = true;
-            titleText.fontSizeMin = 52f;
-            titleText.fontSizeMax = 100f;
+            titleText.fontSizeMin = 34f;
+            titleText.fontSizeMax = 56f;
             titleText.alignment = TextAlignmentOptions.Center;
-            titleText.lineSpacing = -10f;
-            titleText.color = new Color(0.94f, 0.97f, 0.99f, 1f);
+            titleText.lineSpacing = 0f;
+            titleText.text = "ENDLESS DODGE";
+            titleText.fontStyle = FontStyles.Bold;
+            titleText.color = StudioUiTheme.Text;
         }
 
         if (profileStatsText != null)
@@ -2156,13 +2287,21 @@ public class MainMenu : MonoBehaviour
             statsRect.anchorMin = new Vector2(0.5f, 1f);
             statsRect.anchorMax = new Vector2(0.5f, 1f);
             statsRect.pivot = new Vector2(0.5f, 1f);
-            statsRect.sizeDelta = new Vector2(contentWidth, 156f);
-            statsRect.anchoredPosition = new Vector2(0f, -304f);
-            profileStatsText.fontSizeMin = 16f;
-            profileStatsText.fontSizeMax = 24f;
-            profileStatsText.lineSpacing = 8f;
-            profileStatsText.color = new Color(0.8f, 0.88f, 0.94f, 1f);
+            statsRect.sizeDelta = new Vector2(contentWidth, 118f);
+            statsRect.anchoredPosition = new Vector2(0f, -116f);
+            profileStatsText.fontSizeMin = 14f;
+            profileStatsText.fontSizeMax = 22f;
+            profileStatsText.lineSpacing = 1f;
+            profileStatsText.color = StudioUiTheme.MutedText;
         }
+    }
+
+    float GetMenuContentWidth()
+    {
+        if (menuRootRect == null)
+            return 1080f;
+
+        return Mathf.Clamp(menuRootRect.rect.width + 360f, 900f, 1160f);
     }
 
     void NormalizeMasteryRoadmapButton()
@@ -2171,7 +2310,7 @@ public class MainMenu : MonoBehaviour
             return;
 
         RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
-        float contentWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
+        float contentWidth = GetMenuContentWidth();
         RectTransform buttonRect = masteryRoadmapButton.GetComponent<RectTransform>();
 
         if (buttonRect != null)
@@ -2179,24 +2318,21 @@ public class MainMenu : MonoBehaviour
             buttonRect.anchorMin = new Vector2(0.5f, 1f);
             buttonRect.anchorMax = new Vector2(0.5f, 1f);
             buttonRect.pivot = new Vector2(0.5f, 1f);
-            buttonRect.sizeDelta = new Vector2(Mathf.Min(430f, contentWidth), 58f);
-            buttonRect.anchoredPosition = new Vector2(0f, -472f);
+            buttonRect.sizeDelta = new Vector2(contentWidth, 64f);
+            buttonRect.anchoredPosition = new Vector2(0f, -492f);
         }
 
         if (masteryRoadmapButtonText != null)
         {
             masteryRoadmapButtonText.enableAutoSizing = true;
-            masteryRoadmapButtonText.fontSizeMin = 16f;
-            masteryRoadmapButtonText.fontSizeMax = 24f;
+            masteryRoadmapButtonText.fontSizeMin = 13f;
+            masteryRoadmapButtonText.fontSizeMax = 20f;
             masteryRoadmapButtonText.alignment = TextAlignmentOptions.Center;
-            masteryRoadmapButtonText.lineSpacing = -4f;
-            masteryRoadmapButtonText.color = new Color(0.95f, 0.98f, 1f, 1f);
+            masteryRoadmapButtonText.lineSpacing = 0f;
+            masteryRoadmapButtonText.color = StudioUiTheme.Text;
         }
 
-        Image buttonImage = masteryRoadmapButton.GetComponent<Image>();
-
-        if (buttonImage != null)
-            buttonImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.54f);
+        StudioUiTheme.ApplyButton(masteryRoadmapButton, StudioButtonStyle.Quiet, masteryRoadmapButtonText);
     }
 
     void NormalizeQaModeButton()
@@ -2212,24 +2348,21 @@ public class MainMenu : MonoBehaviour
             buttonRect.anchorMin = new Vector2(0f, 0f);
             buttonRect.anchorMax = new Vector2(0f, 0f);
             buttonRect.pivot = new Vector2(0f, 0f);
-            buttonRect.sizeDelta = new Vector2(274f, 76f);
+            buttonRect.sizeDelta = new Vector2(268f, 60f);
             buttonRect.anchoredPosition = new Vector2(18f, 18f);
         }
 
         if (qaModeButtonText != null)
         {
             qaModeButtonText.enableAutoSizing = true;
-            qaModeButtonText.fontSizeMin = 16f;
-            qaModeButtonText.fontSizeMax = 24f;
+            qaModeButtonText.fontSizeMin = 13f;
+            qaModeButtonText.fontSizeMax = 18f;
             qaModeButtonText.alignment = TextAlignmentOptions.Center;
-            qaModeButtonText.lineSpacing = -4f;
-            qaModeButtonText.color = new Color(0.95f, 0.98f, 1f, 1f);
+            qaModeButtonText.lineSpacing = 0f;
+            qaModeButtonText.color = StudioUiTheme.Text;
         }
 
-        Image buttonImage = qaModeButton.GetComponent<Image>();
-
-        if (buttonImage != null && !QaTestingSystem.IsQaModeEnabled())
-            buttonImage.color = Color.Lerp(theme.WallColor, theme.FogColor, 0.4f);
+        StudioUiTheme.ApplyButton(qaModeButton, StudioButtonStyle.Qa, qaModeButtonText);
     }
 
     void NormalizeDailyRewardPanel()
@@ -2242,56 +2375,53 @@ public class MainMenu : MonoBehaviour
         if (panelRect == null)
             return;
 
-        float panelWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
-        float textWidth = panelWidth - 72f;
-        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        float panelWidth = GetMenuContentWidth();
+        float textWidth = panelWidth - 360f;
 
         panelRect.anchorMin = new Vector2(0.5f, 1f);
         panelRect.anchorMax = new Vector2(0.5f, 1f);
         panelRect.pivot = new Vector2(0.5f, 1f);
-        panelRect.sizeDelta = new Vector2(panelWidth, 292f);
-        panelRect.anchoredPosition = new Vector2(0f, -532f);
+        panelRect.sizeDelta = new Vector2(panelWidth, 148f);
+        panelRect.anchoredPosition = new Vector2(0f, -574f);
 
         Image panelImage = dailyRewardPanel.GetComponent<Image>();
 
-        if (panelImage != null)
-            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.26f);
+        StudioUiTheme.ApplyPanel(panelImage, StudioPanelStyle.Accent);
 
         if (dailyRewardTitleText != null)
         {
             RectTransform titleRect = dailyRewardTitleText.rectTransform;
-            titleRect.anchorMin = new Vector2(0.5f, 1f);
-            titleRect.anchorMax = new Vector2(0.5f, 1f);
-            titleRect.pivot = new Vector2(0.5f, 1f);
-            titleRect.sizeDelta = new Vector2(textWidth, 42f);
-            titleRect.anchoredPosition = new Vector2(0f, -22f);
-            dailyRewardTitleText.fontSizeMin = 24f;
-            dailyRewardTitleText.fontSizeMax = 34f;
+            titleRect.anchorMin = new Vector2(0f, 1f);
+            titleRect.anchorMax = new Vector2(0f, 1f);
+            titleRect.pivot = new Vector2(0f, 1f);
+            titleRect.sizeDelta = new Vector2(textWidth, 34f);
+            titleRect.anchoredPosition = new Vector2(30f, -18f);
+            dailyRewardTitleText.alignment = TextAlignmentOptions.Left;
+            StudioUiTheme.ApplyText(dailyRewardTitleText, 18f, 25f, StudioUiTheme.Gold, FontStyles.Bold);
         }
 
         if (dailyRewardBodyText != null)
         {
             RectTransform bodyRect = dailyRewardBodyText.rectTransform;
-            bodyRect.anchorMin = new Vector2(0.5f, 1f);
-            bodyRect.anchorMax = new Vector2(0.5f, 1f);
-            bodyRect.pivot = new Vector2(0.5f, 1f);
-            bodyRect.sizeDelta = new Vector2(textWidth, 82f);
-            bodyRect.anchoredPosition = new Vector2(0f, -84f);
-            dailyRewardBodyText.lineSpacing = 4f;
-            dailyRewardBodyText.fontSizeMin = 18f;
-            dailyRewardBodyText.fontSizeMax = 28f;
+            bodyRect.anchorMin = new Vector2(0f, 1f);
+            bodyRect.anchorMax = new Vector2(0f, 1f);
+            bodyRect.pivot = new Vector2(0f, 1f);
+            bodyRect.sizeDelta = new Vector2(textWidth, 44f);
+            bodyRect.anchoredPosition = new Vector2(30f, -56f);
+            dailyRewardBodyText.alignment = TextAlignmentOptions.Left;
+            StudioUiTheme.ApplyText(dailyRewardBodyText, 17f, 24f, StudioUiTheme.Text, FontStyles.Bold);
         }
 
         if (dailyRewardStatusText != null)
         {
             RectTransform statusRect = dailyRewardStatusText.rectTransform;
-            statusRect.anchorMin = new Vector2(0.5f, 1f);
-            statusRect.anchorMax = new Vector2(0.5f, 1f);
-            statusRect.pivot = new Vector2(0.5f, 1f);
+            statusRect.anchorMin = new Vector2(0f, 0f);
+            statusRect.anchorMax = new Vector2(0f, 0f);
+            statusRect.pivot = new Vector2(0f, 0f);
             statusRect.sizeDelta = new Vector2(textWidth, 28f);
-            statusRect.anchoredPosition = new Vector2(0f, -176f);
-            dailyRewardStatusText.fontSizeMin = 18f;
-            dailyRewardStatusText.fontSizeMax = 24f;
+            statusRect.anchoredPosition = new Vector2(30f, 20f);
+            dailyRewardStatusText.alignment = TextAlignmentOptions.Left;
+            StudioUiTheme.ApplyText(dailyRewardStatusText, 13f, 18f, StudioUiTheme.MutedText);
         }
 
         if (claimRewardButton != null)
@@ -2300,15 +2430,20 @@ public class MainMenu : MonoBehaviour
 
             if (buttonRect != null)
             {
-                buttonRect.sizeDelta = new Vector2(320f, 56f);
-                buttonRect.anchoredPosition = new Vector2(0f, 16f);
+                buttonRect.anchorMin = new Vector2(1f, 0.5f);
+                buttonRect.anchorMax = new Vector2(1f, 0.5f);
+                buttonRect.pivot = new Vector2(1f, 0.5f);
+                buttonRect.sizeDelta = new Vector2(280f, 58f);
+                buttonRect.anchoredPosition = new Vector2(-28f, 0f);
             }
+
+            StudioUiTheme.ApplyButton(claimRewardButton, StudioButtonStyle.Primary, claimRewardButtonText);
         }
 
         if (claimRewardButtonText != null)
         {
-            claimRewardButtonText.fontSizeMin = 20f;
-            claimRewardButtonText.fontSizeMax = 28f;
+            claimRewardButtonText.fontSizeMin = 16f;
+            claimRewardButtonText.fontSizeMax = 24f;
         }
     }
 
@@ -2322,42 +2457,41 @@ public class MainMenu : MonoBehaviour
         if (panelRect == null)
             return;
 
-        float panelWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
-        float textWidth = panelWidth - 72f;
-        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        float panelWidth = GetMenuContentWidth();
+        float textWidth = panelWidth - 360f;
 
-        panelRect.anchorMin = new Vector2(0.5f, 0f);
-        panelRect.anchorMax = new Vector2(0.5f, 0f);
-        panelRect.pivot = new Vector2(0.5f, 0f);
-        panelRect.sizeDelta = new Vector2(panelWidth, 212f);
-        panelRect.anchoredPosition = new Vector2(0f, 18f);
+        panelRect.anchorMin = new Vector2(0.5f, 1f);
+        panelRect.anchorMax = new Vector2(0.5f, 1f);
+        panelRect.pivot = new Vector2(0.5f, 1f);
+        panelRect.sizeDelta = new Vector2(panelWidth, 118f);
+        panelRect.anchoredPosition = new Vector2(0f, -906f);
 
         Image panelImage = missionSummaryPanel.GetComponent<Image>();
 
-        if (panelImage != null)
-            panelImage.color = Color.Lerp(theme.WallColor, theme.FogColor, 0.18f);
+        StudioUiTheme.ApplyPanel(panelImage, StudioPanelStyle.Surface, 0.92f);
 
         if (missionSummaryTitleText != null)
         {
             RectTransform titleRect = missionSummaryTitleText.rectTransform;
-            titleRect.anchorMin = new Vector2(0.5f, 1f);
-            titleRect.anchorMax = new Vector2(0.5f, 1f);
-            titleRect.pivot = new Vector2(0.5f, 1f);
-            titleRect.sizeDelta = new Vector2(textWidth, 40f);
-            titleRect.anchoredPosition = new Vector2(0f, -20f);
+            titleRect.anchorMin = new Vector2(0f, 1f);
+            titleRect.anchorMax = new Vector2(0f, 1f);
+            titleRect.pivot = new Vector2(0f, 1f);
+            titleRect.sizeDelta = new Vector2(textWidth, 32f);
+            titleRect.anchoredPosition = new Vector2(28f, -18f);
+            missionSummaryTitleText.alignment = TextAlignmentOptions.Left;
+            StudioUiTheme.ApplyText(missionSummaryTitleText, 18f, 24f, StudioUiTheme.Gold, FontStyles.Bold);
         }
 
         if (missionSummaryStatusText != null)
         {
             RectTransform statusRect = missionSummaryStatusText.rectTransform;
-            statusRect.anchorMin = new Vector2(0.5f, 1f);
-            statusRect.anchorMax = new Vector2(0.5f, 1f);
-            statusRect.pivot = new Vector2(0.5f, 1f);
-            statusRect.sizeDelta = new Vector2(textWidth, 36f);
-            statusRect.anchoredPosition = new Vector2(0f, -78f);
-            missionSummaryStatusText.fontSizeMin = 20f;
-            missionSummaryStatusText.fontSizeMax = 28f;
-            missionSummaryStatusText.lineSpacing = 2f;
+            statusRect.anchorMin = new Vector2(0f, 1f);
+            statusRect.anchorMax = new Vector2(0f, 1f);
+            statusRect.pivot = new Vector2(0f, 1f);
+            statusRect.sizeDelta = new Vector2(textWidth, 34f);
+            statusRect.anchoredPosition = new Vector2(28f, -58f);
+            missionSummaryStatusText.alignment = TextAlignmentOptions.Left;
+            StudioUiTheme.ApplyText(missionSummaryStatusText, 15f, 21f, StudioUiTheme.Text);
         }
 
         if (missionSummaryOpenButton != null)
@@ -2366,15 +2500,20 @@ public class MainMenu : MonoBehaviour
 
             if (buttonRect != null)
             {
-                buttonRect.sizeDelta = new Vector2(380f, 64f);
-                buttonRect.anchoredPosition = new Vector2(0f, 18f);
+                buttonRect.anchorMin = new Vector2(1f, 0.5f);
+                buttonRect.anchorMax = new Vector2(1f, 0.5f);
+                buttonRect.pivot = new Vector2(1f, 0.5f);
+                buttonRect.sizeDelta = new Vector2(280f, 56f);
+                buttonRect.anchoredPosition = new Vector2(-26f, 0f);
             }
+
+            StudioUiTheme.ApplyButton(missionSummaryOpenButton, StudioButtonStyle.Secondary, missionSummaryOpenButtonText);
         }
 
         if (missionSummaryOpenButtonText != null)
         {
-            missionSummaryOpenButtonText.fontSizeMin = 22f;
-            missionSummaryOpenButtonText.fontSizeMax = 30f;
+            missionSummaryOpenButtonText.fontSizeMin = 14f;
+            missionSummaryOpenButtonText.fontSizeMax = 20f;
         }
     }
 
@@ -2388,57 +2527,53 @@ public class MainMenu : MonoBehaviour
         if (panelRect == null)
             return;
 
-        float panelWidth = SafeAreaUtility.GetContentWidth(menuRootRect, 760f, 72f);
-        float textWidth = panelWidth - 60f;
-        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
+        float panelWidth = GetMenuContentWidth();
+        float textWidth = panelWidth - 360f;
 
-        panelRect.anchorMin = new Vector2(0.5f, 0f);
-        panelRect.anchorMax = new Vector2(0.5f, 0f);
-        panelRect.pivot = new Vector2(0.5f, 0f);
-        panelRect.sizeDelta = new Vector2(panelWidth, 344f);
-        panelRect.anchoredPosition = new Vector2(0f, 244f);
+        panelRect.anchorMin = new Vector2(0.5f, 1f);
+        panelRect.anchorMax = new Vector2(0.5f, 1f);
+        panelRect.pivot = new Vector2(0.5f, 1f);
+        panelRect.sizeDelta = new Vector2(panelWidth, 138f);
+        panelRect.anchoredPosition = new Vector2(0f, -746f);
 
         Image panelImage = challengeSummaryPanel.GetComponent<Image>();
 
-        if (panelImage != null)
-            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.22f);
+        StudioUiTheme.ApplyPanel(panelImage, StudioPanelStyle.Elevated);
 
         if (challengeSummaryTitleText != null)
         {
             RectTransform titleRect = challengeSummaryTitleText.rectTransform;
-            titleRect.anchorMin = new Vector2(0.5f, 1f);
-            titleRect.anchorMax = new Vector2(0.5f, 1f);
-            titleRect.pivot = new Vector2(0.5f, 1f);
-            titleRect.sizeDelta = new Vector2(textWidth, 46f);
-            titleRect.anchoredPosition = new Vector2(0f, -20f);
-            challengeSummaryTitleText.fontSizeMin = 26f;
-            challengeSummaryTitleText.fontSizeMax = 36f;
+            titleRect.anchorMin = new Vector2(0f, 1f);
+            titleRect.anchorMax = new Vector2(0f, 1f);
+            titleRect.pivot = new Vector2(0f, 1f);
+            titleRect.sizeDelta = new Vector2(textWidth, 30f);
+            titleRect.anchoredPosition = new Vector2(28f, -16f);
+            challengeSummaryTitleText.alignment = TextAlignmentOptions.Left;
+            StudioUiTheme.ApplyText(challengeSummaryTitleText, 17f, 23f, StudioUiTheme.Gold, FontStyles.Bold);
         }
 
         if (challengeSummaryBodyText != null)
         {
             RectTransform bodyRect = challengeSummaryBodyText.rectTransform;
-            bodyRect.anchorMin = new Vector2(0.5f, 1f);
-            bodyRect.anchorMax = new Vector2(0.5f, 1f);
-            bodyRect.pivot = new Vector2(0.5f, 1f);
-            bodyRect.sizeDelta = new Vector2(textWidth, 52f);
-            bodyRect.anchoredPosition = new Vector2(0f, -84f);
-            challengeSummaryBodyText.fontSizeMin = 24f;
-            challengeSummaryBodyText.fontSizeMax = 34f;
-            challengeSummaryBodyText.lineSpacing = 2f;
+            bodyRect.anchorMin = new Vector2(0f, 1f);
+            bodyRect.anchorMax = new Vector2(0f, 1f);
+            bodyRect.pivot = new Vector2(0f, 1f);
+            bodyRect.sizeDelta = new Vector2(textWidth, 38f);
+            bodyRect.anchoredPosition = new Vector2(28f, -48f);
+            challengeSummaryBodyText.alignment = TextAlignmentOptions.Left;
+            StudioUiTheme.ApplyText(challengeSummaryBodyText, 20f, 28f, StudioUiTheme.Text, FontStyles.Bold);
         }
 
         if (challengeSummaryStatusText != null)
         {
             RectTransform statusRect = challengeSummaryStatusText.rectTransform;
-            statusRect.anchorMin = new Vector2(0.5f, 1f);
-            statusRect.anchorMax = new Vector2(0.5f, 1f);
-            statusRect.pivot = new Vector2(0.5f, 1f);
-            statusRect.sizeDelta = new Vector2(textWidth, 50f);
-            statusRect.anchoredPosition = new Vector2(0f, -146f);
-            challengeSummaryStatusText.fontSizeMin = 20f;
-            challengeSummaryStatusText.fontSizeMax = 28f;
-            challengeSummaryStatusText.lineSpacing = 2f;
+            statusRect.anchorMin = new Vector2(0f, 1f);
+            statusRect.anchorMax = new Vector2(0f, 1f);
+            statusRect.pivot = new Vector2(0f, 1f);
+            statusRect.sizeDelta = new Vector2(textWidth, 30f);
+            statusRect.anchoredPosition = new Vector2(28f, -88f);
+            challengeSummaryStatusText.alignment = TextAlignmentOptions.Left;
+            StudioUiTheme.ApplyText(challengeSummaryStatusText, 14f, 20f, StudioUiTheme.MutedText);
         }
 
         if (challengeSummaryActionButton != null)
@@ -2447,15 +2582,20 @@ public class MainMenu : MonoBehaviour
 
             if (buttonRect != null)
             {
-                buttonRect.sizeDelta = new Vector2(440f, 62f);
-                buttonRect.anchoredPosition = new Vector2(0f, 22f);
+                buttonRect.anchorMin = new Vector2(1f, 0.5f);
+                buttonRect.anchorMax = new Vector2(1f, 0.5f);
+                buttonRect.pivot = new Vector2(1f, 0.5f);
+                buttonRect.sizeDelta = new Vector2(280f, 58f);
+                buttonRect.anchoredPosition = new Vector2(-26f, 0f);
             }
+
+            StudioUiTheme.ApplyButton(challengeSummaryActionButton, StudioButtonStyle.Primary, challengeSummaryActionButtonText);
         }
 
         if (challengeSummaryActionButtonText != null)
         {
-            challengeSummaryActionButtonText.fontSizeMin = 24f;
-            challengeSummaryActionButtonText.fontSizeMax = 34f;
+            challengeSummaryActionButtonText.fontSizeMin = 16f;
+            challengeSummaryActionButtonText.fontSizeMax = 24f;
         }
     }
 
@@ -2486,8 +2626,7 @@ public class MainMenu : MonoBehaviour
 
         Image panelImage = missionOverlayPanel.GetComponent<Image>();
 
-        if (panelImage != null)
-            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.24f);
+        StudioUiTheme.ApplyPanel(panelImage, StudioPanelStyle.Elevated);
 
         if (missionOverlayTitleText != null)
         {
@@ -2501,6 +2640,7 @@ public class MainMenu : MonoBehaviour
             if (missionCardImages[i] == null)
                 continue;
 
+            StudioUiTheme.ApplyPanel(missionCardImages[i], StudioPanelStyle.Surface);
             RectTransform cardRect = missionCardImages[i].rectTransform;
             cardRect.sizeDelta = new Vector2(760f, 170f);
             cardRect.anchoredPosition = new Vector2(0f, -116f - (i * 186f));
@@ -2595,8 +2735,7 @@ public class MainMenu : MonoBehaviour
 
         Image panelImage = masteryOverlayPanel.GetComponent<Image>();
 
-        if (panelImage != null)
-            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.24f);
+        StudioUiTheme.ApplyPanel(panelImage, StudioPanelStyle.Elevated);
 
         if (masteryOverlayTitleText != null)
         {
@@ -2617,6 +2756,7 @@ public class MainMenu : MonoBehaviour
             if (masteryTitleCardImages[i] == null)
                 continue;
 
+            StudioUiTheme.ApplyPanel(masteryTitleCardImages[i], i == 0 ? StudioPanelStyle.Accent : StudioPanelStyle.Surface);
             RectTransform cardRect = masteryTitleCardImages[i].rectTransform;
             cardRect.sizeDelta = new Vector2(titleCardWidth, 138f);
             cardRect.anchoredPosition = new Vector2(titleStartX + (i * (titleCardWidth + titleGap)), -164f);
@@ -2648,6 +2788,7 @@ public class MainMenu : MonoBehaviour
             if (masteryMilestoneCardImages[i] == null)
                 continue;
 
+            StudioUiTheme.ApplyPanel(masteryMilestoneCardImages[i], StudioPanelStyle.Surface);
             RectTransform cardRect = masteryMilestoneCardImages[i].rectTransform;
             cardRect.sizeDelta = new Vector2(milestoneWidth, 132f);
             cardRect.anchoredPosition = new Vector2(0f, -342f - (i * 140f));
@@ -2746,12 +2887,11 @@ public class MainMenu : MonoBehaviour
         Image rootImage = qaOverlayRoot.GetComponent<Image>();
 
         if (rootImage != null)
-            rootImage.color = new Color(0.01f, 0.02f, 0.04f, 0.88f);
+            StudioUiTheme.ApplyPanel(rootImage, StudioPanelStyle.Scrim);
 
         Image panelImage = qaOverlayPanel.GetComponent<Image>();
 
-        if (panelImage != null)
-            panelImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.22f);
+        StudioUiTheme.ApplyPanel(panelImage, StudioPanelStyle.Elevated);
 
         if (qaOverlayTitleText != null)
         {
@@ -2763,7 +2903,7 @@ public class MainMenu : MonoBehaviour
         if (qaOverlayBodyText != null)
         {
             RectTransform bodyRect = qaOverlayBodyText.rectTransform;
-            bodyRect.sizeDelta = new Vector2(textWidth, panelHeight - 650f);
+            bodyRect.sizeDelta = new Vector2(textWidth, panelHeight - 730f);
             bodyRect.anchoredPosition = new Vector2(0f, -112f);
             qaOverlayBodyText.fontSizeMin = 15f;
             qaOverlayBodyText.fontSizeMax = 20f;
@@ -2773,17 +2913,40 @@ public class MainMenu : MonoBehaviour
         if (qaOverlayStatusText != null)
         {
             RectTransform statusRect = qaOverlayStatusText.rectTransform;
-            statusRect.sizeDelta = new Vector2(textWidth, 120f);
-            statusRect.anchoredPosition = new Vector2(0f, -(panelHeight - 390f));
+            statusRect.sizeDelta = new Vector2(textWidth, 112f);
+            statusRect.anchoredPosition = new Vector2(0f, -(panelHeight - 520f));
             qaOverlayStatusText.fontSizeMin = 16f;
             qaOverlayStatusText.fontSizeMax = 22f;
             qaOverlayStatusText.lineSpacing = 2f;
         }
 
+        NormalizeInputField(qaTesterNameInput, new Vector2(430f, 58f), new Vector2(0f, 350f));
         NormalizeOverlayButton(qaOverlayToggleButton, qaOverlayToggleButtonText, new Vector2(430f, 74f), new Vector2(0f, 262f));
         NormalizeOverlayButton(qaOverlayPracticeButton, qaOverlayPracticeButtonText, new Vector2(430f, 74f), new Vector2(0f, 178f));
         NormalizeOverlayButton(qaOverlayClearButton, qaOverlayClearButtonText, new Vector2(430f, 74f), new Vector2(0f, 94f));
         NormalizeOverlayButton(qaOverlayCloseButton, qaOverlayCloseButtonText, new Vector2(230f, 64f), new Vector2(0f, 18f));
+    }
+
+    void NormalizeInputField(TMP_InputField input, Vector2 size, Vector2 anchoredPosition)
+    {
+        if (input == null)
+            return;
+
+        RectTransform inputRect = input.GetComponent<RectTransform>();
+
+        if (inputRect != null)
+        {
+            inputRect.anchorMin = new Vector2(0.5f, 0f);
+            inputRect.anchorMax = new Vector2(0.5f, 0f);
+            inputRect.pivot = new Vector2(0.5f, 0f);
+            inputRect.sizeDelta = size;
+            inputRect.anchoredPosition = anchoredPosition;
+        }
+
+        Image inputImage = input.GetComponent<Image>();
+
+        if (inputImage != null)
+            StudioUiTheme.ApplyInput(input);
     }
 
     void NormalizeOverlayButton(Button button, TextMeshProUGUI label, Vector2 size, Vector2 anchoredPosition)
@@ -2807,19 +2970,32 @@ public class MainMenu : MonoBehaviour
             label.enableAutoSizing = true;
             label.fontSizeMin = 18f;
             label.fontSizeMax = 28f;
-            label.color = new Color(0.14f, 0.18f, 0.22f, 1f);
+            label.color = StudioUiTheme.Text;
         }
+
+        StudioUiTheme.ApplyButton(button, StudioButtonStyle.Qa, label);
     }
 
     void NormalizeButtons()
     {
-        SetButtonLayout(playButtonObjectName, 202f);
-        SetButtonLayout(shopButtonObjectName, 60f);
-        SetButtonLayout(inventoryButtonObjectName, -82f);
-        SetButtonLayout(exitButtonObjectName, -224f);
+        float contentWidth = GetMenuContentWidth();
+        float splitWidth = (contentWidth - 18f) * 0.5f;
+
+        SetButtonLayout(playButtonObjectName, 0f, -268f, new Vector2(contentWidth, 88f), StudioButtonStyle.Primary, 22f, 34f);
+        SetButtonLayout(shopButtonObjectName, -(splitWidth + 18f) * 0.5f, -374f, new Vector2(splitWidth, 66f), StudioButtonStyle.Secondary, 18f, 26f);
+        SetButtonLayout(inventoryButtonObjectName, (splitWidth + 18f) * 0.5f, -374f, new Vector2(splitWidth, 66f), StudioButtonStyle.Secondary, 18f, 26f);
+        SetButtonLayout(exitButtonObjectName, 1f, 18f, new Vector2(160f, 54f), StudioButtonStyle.Quiet, 14f, 20f, true);
     }
 
-    void SetButtonLayout(string objectName, float anchoredY)
+    void SetButtonLayout(
+        string objectName,
+        float anchoredX,
+        float anchoredY,
+        Vector2 size,
+        StudioButtonStyle style,
+        float minSize,
+        float maxSize,
+        bool bottomRight = false)
     {
         Button button = FindButton(objectName);
 
@@ -2830,25 +3006,38 @@ public class MainMenu : MonoBehaviour
 
         if (buttonRect != null)
         {
-            Vector2 anchoredPosition = buttonRect.anchoredPosition;
-            buttonRect.anchoredPosition = new Vector2(anchoredPosition.x, anchoredY);
+            if (bottomRight)
+            {
+                buttonRect.anchorMin = new Vector2(1f, 0f);
+                buttonRect.anchorMax = new Vector2(1f, 0f);
+                buttonRect.pivot = new Vector2(1f, 0f);
+                buttonRect.anchoredPosition = new Vector2(-18f, anchoredY);
+            }
+            else
+            {
+                buttonRect.anchorMin = new Vector2(0.5f, 1f);
+                buttonRect.anchorMax = new Vector2(0.5f, 1f);
+                buttonRect.pivot = new Vector2(0.5f, 1f);
+                buttonRect.anchoredPosition = new Vector2(anchoredX, anchoredY);
+            }
+
+            buttonRect.sizeDelta = size;
         }
-
-        Image buttonImage = button.GetComponent<Image>();
-        RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
-
-        if (buttonImage != null)
-            buttonImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.46f);
 
         TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
 
         if (label != null)
         {
             label.enableAutoSizing = true;
-            label.fontSizeMin = 24;
-            label.fontSizeMax = 34;
-            label.color = new Color(0.96f, 0.98f, 1f, 1f);
+            label.fontSizeMin = minSize;
+            label.fontSizeMax = maxSize;
+            label.color = style == StudioButtonStyle.Primary
+                ? new Color(0.08f, 0.095f, 0.09f, 1f)
+                : StudioUiTheme.Text;
+            label.fontStyle = FontStyles.Bold;
         }
+
+        StudioUiTheme.ApplyButton(button, style, label as TextMeshProUGUI);
     }
 
     TMP_Text FindText(string objectName)

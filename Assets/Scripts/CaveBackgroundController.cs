@@ -99,9 +99,9 @@ public class CaveBackgroundController : MonoBehaviour
         if (layers.Count > 0)
             return;
 
-        layers.Add(CreateLayer("FarLayer", 0.14f, 0.97f, 0, -82));
-        layers.Add(CreateLayer("MidLayer", 0.28f, 0.92f, 1, -72));
-        layers.Add(CreateLayer("FrontLayer", 0.46f, 0.88f, 2, -62));
+        layers.Add(CreateLayer("FarLayer", 0.14f, 0.66f, 0, -82));
+        layers.Add(CreateLayer("MidLayer", 0.28f, 0.58f, 1, -72));
+        layers.Add(CreateLayer("FrontLayer", 0.46f, 0.48f, 2, -62));
     }
 
     private ScrollingLayer CreateLayer(string layerName, float scrollSpeed, float baseOpacity, int layerIndex, int sortingOrder)
@@ -323,8 +323,8 @@ public class CaveBackgroundController : MonoBehaviour
 
         if (targetCamera != null)
         {
-            Color currentBackground = Color.Lerp(currentTheme.BackgroundBottom, currentTheme.FogColor, 0.28f);
-            Color nextBackground = Color.Lerp(nextTheme.BackgroundBottom, nextTheme.FogColor, 0.28f);
+            Color currentBackground = Color.Lerp(Color.Lerp(currentTheme.BackgroundBottom, currentTheme.WallColor, 0.58f), Color.black, 0.2f);
+            Color nextBackground = Color.Lerp(Color.Lerp(nextTheme.BackgroundBottom, nextTheme.WallColor, 0.58f), Color.black, 0.2f);
             targetCamera.backgroundColor = Color.Lerp(currentBackground, nextBackground, blend);
         }
 

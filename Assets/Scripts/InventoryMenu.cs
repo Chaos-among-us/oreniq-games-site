@@ -61,14 +61,14 @@ public class InventoryMenu : MonoBehaviour
 
     void ApplyRuntimeLayoutDefaults()
     {
-        sidePadding = 18f;
-        topPadding = 188f;
-        bottomPadding = 96f;
+        sidePadding = 20f;
+        topPadding = 154f;
+        bottomPadding = 92f;
         columnSpacing = 18f;
-        rowSpacing = 22f;
-        slotHeight = 248f;
-        cardHorizontalInset = 18f;
-        cardMaxWidth = 820f;
+        rowSpacing = 16f;
+        slotHeight = 206f;
+        cardHorizontalInset = 20f;
+        cardMaxWidth = 780f;
     }
 
     void Start()
@@ -196,7 +196,7 @@ public class InventoryMenu : MonoBehaviour
         Image panelImage = GetComponent<Image>();
 
         if (panelImage != null)
-            panelImage.color = new Color(0.02f, 0.03f, 0.05f, 0.16f);
+            panelImage.color = new Color(0.02f, 0.03f, 0.05f, 0.08f);
     }
 
     void ApplySceneTheme()
@@ -267,7 +267,7 @@ public class InventoryMenu : MonoBehaviour
         if (viewportImage == null)
             viewportImage = slotViewport.gameObject.AddComponent<Image>();
 
-        viewportImage.color = new Color(0.03f, 0.05f, 0.07f, 0.18f);
+        StudioUiTheme.ApplyPanel(viewportImage, StudioPanelStyle.Scrim, 0.38f);
         viewportImage.raycastTarget = false;
 
         if (slotContent == null)
@@ -315,18 +315,19 @@ public class InventoryMenu : MonoBehaviour
             titleRect.anchorMin = new Vector2(0.5f, 1f);
             titleRect.anchorMax = new Vector2(0.5f, 1f);
             titleRect.pivot = new Vector2(0.5f, 1f);
-            titleRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 56f);
-            titleRect.anchoredPosition = new Vector2(0f, -40f);
+            titleRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 46f);
+            titleRect.anchoredPosition = new Vector2(0f, -34f);
         }
 
         if (titleText != null)
         {
             titleText.text = "Build Your Loadout";
             titleText.enableAutoSizing = true;
-            titleText.fontSizeMin = 30;
-            titleText.fontSizeMax = 42;
+            titleText.fontSizeMin = 24;
+            titleText.fontSizeMax = 38;
             titleText.alignment = TextAlignmentOptions.Center;
-            titleText.color = new Color(0.94f, 0.97f, 0.99f, 1f);
+            titleText.fontStyle = FontStyles.Bold;
+            titleText.color = StudioUiTheme.Text;
         }
 
         if (equippedCountText != null)
@@ -335,12 +336,12 @@ public class InventoryMenu : MonoBehaviour
             countRect.anchorMin = new Vector2(0.5f, 1f);
             countRect.anchorMax = new Vector2(0.5f, 1f);
             countRect.pivot = new Vector2(0.5f, 1f);
-            countRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 38f);
-            countRect.anchoredPosition = new Vector2(0f, -88f);
+            countRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 30f);
+            countRect.anchoredPosition = new Vector2(0f, -78f);
             equippedCountText.enableAutoSizing = true;
-            equippedCountText.fontSizeMin = 20;
-            equippedCountText.fontSizeMax = 28;
-            equippedCountText.color = new Color(0.84f, 0.9f, 0.95f, 1f);
+            equippedCountText.fontSizeMin = 15;
+            equippedCountText.fontSizeMax = 22;
+            equippedCountText.color = StudioUiTheme.Gold;
         }
 
         if (feedbackText != null)
@@ -349,12 +350,12 @@ public class InventoryMenu : MonoBehaviour
             feedbackRect.anchorMin = new Vector2(0.5f, 1f);
             feedbackRect.anchorMax = new Vector2(0.5f, 1f);
             feedbackRect.pivot = new Vector2(0.5f, 1f);
-            feedbackRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 34f);
-            feedbackRect.anchoredPosition = new Vector2(0f, -124f);
+            feedbackRect.sizeDelta = new Vector2(panelWidth - (sidePadding * 2f), 28f);
+            feedbackRect.anchoredPosition = new Vector2(0f, -108f);
             feedbackText.enableAutoSizing = true;
-            feedbackText.fontSizeMin = 18;
-            feedbackText.fontSizeMax = 24;
-            feedbackText.color = new Color(0.76f, 0.85f, 0.92f, 1f);
+            feedbackText.fontSizeMin = 13;
+            feedbackText.fontSizeMax = 19;
+            feedbackText.color = StudioUiTheme.MutedText;
         }
 
         if (backButtonRect != null)
@@ -362,16 +363,16 @@ public class InventoryMenu : MonoBehaviour
             backButtonRect.anchorMin = new Vector2(0.5f, 0f);
             backButtonRect.anchorMax = new Vector2(0.5f, 0f);
             backButtonRect.pivot = new Vector2(0.5f, 0f);
-            backButtonRect.sizeDelta = new Vector2(260f, 62f);
+            backButtonRect.sizeDelta = new Vector2(230f, 56f);
             backButtonRect.anchoredPosition = new Vector2(0f, 18f);
         }
 
         if (backButtonText != null)
         {
             backButtonText.enableAutoSizing = true;
-            backButtonText.fontSizeMin = 18;
-            backButtonText.fontSizeMax = 28;
-            backButtonText.color = new Color(0.95f, 0.98f, 0.99f, 1f);
+            backButtonText.fontSizeMin = 16;
+            backButtonText.fontSizeMax = 24;
+            backButtonText.color = StudioUiTheme.Text;
         }
 
         if (backButtonRect != null)
@@ -379,7 +380,7 @@ public class InventoryMenu : MonoBehaviour
             Image backButtonImage = backButtonRect.GetComponent<Image>();
 
             if (backButtonImage != null)
-                backButtonImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.42f);
+                StudioUiTheme.ApplyButton(backButtonRect.GetComponent<Button>(), StudioButtonStyle.Quiet, backButtonText);
         }
 
         if (slotViewport != null)

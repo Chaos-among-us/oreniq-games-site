@@ -97,6 +97,7 @@ public class CaveHazardVisuals : MonoBehaviour
     private static readonly Dictionary<string, Sprite> spriteCache = new Dictionary<string, Sprite>();
 
     private SpriteRenderer spriteRenderer;
+    private SpriteRenderer hazardGlowRenderer;
     private Vector3 baseScale;
     private bool prefersBat;
     private HazardStyle currentStyle;
@@ -128,6 +129,7 @@ public class CaveHazardVisuals : MonoBehaviour
     void Awake()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
+        EnsureGlowRenderer();
         baseScale = transform.localScale;
         animationSeed = UnityEngine.Random.Range(0f, 10f);
         spawnThemeLevel = Mathf.Max(1, GameManager.instance != null ? GameManager.instance.GetDifficultyLevel() : 1);
@@ -145,6 +147,9 @@ public class CaveHazardVisuals : MonoBehaviour
             float flap = 0.85f + Mathf.Sin(Time.time * 18f + animationSeed) * 0.18f;
             transform.localScale = new Vector3(baseScale.x * (1f + Mathf.Sin(Time.time * 8f + animationSeed) * 0.06f), baseScale.y * flap, baseScale.z);
             spriteRenderer.flipX = Mathf.Sin(Time.time * 5f + animationSeed) > 0f;
+
+            if (hazardGlowRenderer != null)
+                hazardGlowRenderer.flipX = spriteRenderer.flipX;
         }
         else if (currentStyle == HazardStyle.CrystalShard)
         {
@@ -173,7 +178,8 @@ public class CaveHazardVisuals : MonoBehaviour
         RuntimeCaveTheme theme = CaveThemeLibrary.GetThemeForLevel(spawnThemeLevel);
         spriteRenderer.sprite = GetOrCreateSprite(theme, currentStyle);
         spriteRenderer.color = ResolveTint(theme, currentStyle);
-        spriteRenderer.sortingOrder = currentStyle == HazardStyle.Bat ? 8 : 6;
+        spriteRenderer.sortingOrder = currentStyle == HazardStyle.Bat ? 10 : 9;
+        RefreshGlow(theme, currentStyle);
         CaveHazardCollisionProfiles.Apply(gameObject, currentStyle);
         styleApplied = true;
 
@@ -238,11 +244,77 @@ public class CaveHazardVisuals : MonoBehaviour
         switch (style)
         {
             case HazardStyle.Bat:
-                return Color.Lerp(new Color(0.28f, 0.29f, 0.33f, 1f), theme.AccentColor, 0.24f);
+                return Color.Lerp(Color.white, theme.AccentColor, 0.04f);
             case HazardStyle.CrystalShard:
-                return Color.Lerp(theme.CrystalColor, Color.white, 0.18f);
+                return Color.Lerp(Color.white, theme.CrystalColor, 0.04f);
             default:
-                return Color.Lerp(theme.WallColor, Color.white, 0.34f);
+                return Color.white;
+        }
+    }
+
+    private void EnsureGlowRenderer()
+    {
+        Transform existing = transform.Find("HazardReadabilityGlow");
+        GameObject glowObject = existing != null ? existing.gameObject : new GameObject("HazardReadabilityGlow");
+
+        if (existing == null)
+            glowObject.transform.SetParent(transform, false);
+
+        hazardGlowRenderer = glowObject.GetComponent<SpriteRenderer>();
+
+        if (hazardGlowRenderer == null)
+            hazardGlowRenderer = glowObject.AddComponent<SpriteRenderer>();
+
+        hazardGlowRenderer.enabled = true;
+    }
+
+    private void RefreshGlow(RuntimeCaveTheme theme, HazardStyle style)
+    {
+        if (hazardGlowRenderer == null)
+            EnsureGlowRenderer();
+
+        if (hazardGlowRenderer == null || spriteRenderer == null)
+            return;
+
+        float outlineScale = style == HazardStyle.WideLedge ? 1.16f : (style == HazardStyle.Stalactite ? 1.2f : 1.06f);
+        Color glowColor = ResolveGlowTint(theme, style);
+
+        hazardGlowRenderer.sprite = spriteRenderer.sprite;
+        hazardGlowRenderer.color = glowColor;
+        hazardGlowRenderer.sortingOrder = style == HazardStyle.Bat ? 9 : 8;
+        hazardGlowRenderer.transform.localPosition = Vector3.zero;
+        hazardGlowRenderer.transform.localRotation = Quaternion.identity;
+        hazardGlowRenderer.transform.localScale = new Vector3(outlineScale, outlineScale, 1f);
+        hazardGlowRenderer.flipX = spriteRenderer.flipX;
+        hazardGlowRenderer.enabled = true;
+    }
+
+    private Color ResolveGlowTint(RuntimeCaveTheme theme, HazardStyle style)
+    {
+        Color color;
+
+        switch (style)
+        {
+            case HazardStyle.WideLedge:
+                color = Color.Lerp(theme.CrystalColor, StudioUiTheme.Gold, 0.58f);
+                color.a = 0.62f;
+                return color;
+            case HazardStyle.Stalactite:
+                color = Color.Lerp(theme.CrystalColor, Color.white, 0.55f);
+                color.a = 0.64f;
+                return color;
+            case HazardStyle.CrystalShard:
+                color = Color.Lerp(theme.CrystalColor, Color.white, 0.36f);
+                color.a = 0.46f;
+                return color;
+            case HazardStyle.Bat:
+                color = Color.Lerp(theme.AccentColor, Color.white, 0.18f);
+                color.a = 0.34f;
+                return color;
+            default:
+                color = Color.Lerp(theme.FogColor, StudioUiTheme.Gold, 0.3f);
+                color.a = 0.42f;
+                return color;
         }
     }
 
@@ -277,9 +349,14 @@ public class CaveHazardVisuals : MonoBehaviour
                 if (inside)
                 {
                     float facet = Mathf.Clamp01((angularShape - radius) / 0.18f);
-                    Color stoneBase = Color.Lerp(theme.WallColor, theme.FogColor, 0.24f);
-                    color = Color.Lerp(stoneBase, theme.AccentColor, facet * 0.1f + ridgeNoise * 0.06f);
-                    color = Color.Lerp(color, theme.CrystalColor, Mathf.SmoothStep(0.95f, 1f, ridgeNoise) * 0.08f);
+                    float rim = 1f - Smooth01(0.035f, 0.11f, angularShape - radius);
+                    float upperLight = Mathf.Clamp01((centeredY + 0.82f) * 0.46f + (1f - Mathf.Abs(centeredX)) * 0.18f);
+                    Color stoneBase = Color.Lerp(theme.WallColor, theme.FogColor, 0.72f);
+                    Color warmFacet = Color.Lerp(theme.AccentColor, Color.white, 0.42f);
+                    color = Color.Lerp(stoneBase, warmFacet, facet * 0.26f + ridgeNoise * 0.12f + upperLight * 0.2f);
+                    color = Color.Lerp(color, Color.black, (1f - Smooth01(-0.78f, -0.15f, centeredY)) * 0.08f);
+                    color = Color.Lerp(color, theme.CrystalColor, Smooth01(0.86f, 1f, ridgeNoise) * 0.22f);
+                    color = Color.Lerp(color, Color.white, rim * 0.24f);
                     color.a = 1f;
                 }
 
@@ -313,11 +390,16 @@ public class CaveHazardVisuals : MonoBehaviour
                 if (inside)
                 {
                     float ridgeNoise = Mathf.PerlinNoise((x + theme.Level * 11f) * 0.07f, (y + theme.Level * 13f) * 0.09f);
-                    float edgeHighlight = Mathf.Max(
-                        Mathf.Clamp01((topEdge - y01) / 0.12f),
-                        Mathf.Clamp01((y01 - bottomEdge) / 0.12f));
-                    Color ledgeBase = Color.Lerp(theme.WallColor, theme.FogColor, 0.2f);
-                    color = Color.Lerp(ledgeBase, theme.AccentColor, edgeHighlight * 0.18f + ridgeNoise * 0.08f);
+                    float topRim = 1f - Smooth01(0.02f, 0.12f, topEdge - y01);
+                    float bottomRim = 1f - Smooth01(0.02f, 0.12f, y01 - bottomEdge);
+                    float edgeHighlight = Mathf.Max(topRim, bottomRim);
+                    Color ledgeBase = Color.Lerp(theme.WallColor, theme.FogColor, 0.82f);
+                    Color bevel = Color.Lerp(theme.CrystalColor, Color.white, 0.58f);
+                    color = Color.Lerp(ledgeBase, bevel, edgeHighlight * 0.78f + ridgeNoise * 0.14f);
+                    color = Color.Lerp(color, StudioUiTheme.Gold, topRim * 0.22f);
+                    color = Color.Lerp(color, Color.black, Mathf.Clamp01((0.22f - y01) * 0.06f));
+                    color = Color.Lerp(color, theme.CrystalColor, Smooth01(0.88f, 1f, ridgeNoise) * 0.24f);
+                    color = Color.Lerp(color, Color.white, 0.08f);
                     color.a = 1f;
                 }
 
@@ -353,9 +435,14 @@ public class CaveHazardVisuals : MonoBehaviour
                 if (inside)
                 {
                     float shade = Mathf.Clamp01(1f - centeredX / Mathf.Max(0.06f, widthAtY));
-                    Color spikeBase = Color.Lerp(theme.WallColor, theme.FogColor, 0.18f);
-                    color = Color.Lerp(spikeBase, theme.AccentColor, shade * 0.16f + y01 * 0.09f);
-                    color = Color.Lerp(color, theme.CrystalColor, Mathf.SmoothStep(0.9f, 1f, shade) * 0.12f);
+                    float rim = 1f - Smooth01(0.02f, 0.12f, (widthAtY + jag) - centeredX);
+                    float centerLine = 1f - Smooth01(0.02f, 0.18f, centeredX);
+                    Color spikeBase = Color.Lerp(theme.WallColor, theme.FogColor, 0.84f);
+                    Color centerLight = Color.Lerp(theme.CrystalColor, Color.white, 0.62f);
+                    color = Color.Lerp(spikeBase, centerLight, 0.18f + shade * 0.38f + centerLine * 0.22f + y01 * 0.1f);
+                    color = Color.Lerp(color, StudioUiTheme.Gold, centerLine * 0.08f);
+                    color = Color.Lerp(color, theme.CrystalColor, Smooth01(0.86f, 1f, shade) * 0.24f);
+                    color = Color.Lerp(color, Color.white, rim * 0.34f + 0.08f);
                     color.a = 1f;
                 }
 
@@ -390,7 +477,10 @@ public class CaveHazardVisuals : MonoBehaviour
                 {
                     float vertical = y / (size - 1f);
                     float shimmer = Mathf.PerlinNoise((x + theme.Level * 6f) * 0.12f, (y + theme.Level * 3f) * 0.12f);
-                    color = Color.Lerp(theme.CrystalColor, Color.white, vertical * 0.48f + shimmer * 0.16f);
+                    float centerFacet = 1f - Mathf.Clamp01(Mathf.Abs((x / (size - 1f)) - 0.5f) * 2f);
+                    color = Color.Lerp(Color.Lerp(theme.CrystalColor, Color.black, 0.1f), Color.white, vertical * 0.38f + shimmer * 0.14f);
+                    color = Color.Lerp(color, theme.AccentColor, (1f - centerFacet) * 0.18f);
+                    color = Color.Lerp(color, Color.white, Smooth01(0.72f, 1f, centerFacet) * 0.18f);
                     color.a = 1f;
                 }
 
@@ -409,7 +499,8 @@ public class CaveHazardVisuals : MonoBehaviour
         const int height = 96;
         Texture2D texture = NewTexture(width, height);
         Color[] pixels = new Color[width * height];
-        Color body = Color.Lerp(new Color(0.15f, 0.16f, 0.19f, 1f), theme.AccentColor, 0.14f);
+        Color body = Color.Lerp(new Color(0.16f, 0.17f, 0.2f, 1f), theme.AccentColor, 0.22f);
+        Color wingLight = Color.Lerp(theme.FogColor, theme.CrystalColor, 0.2f);
 
         for (int y = 0; y < height; y++)
         {
@@ -425,13 +516,20 @@ public class CaveHazardVisuals : MonoBehaviour
                 bool bodyMask = centeredX * centeredX * 2.4f + centeredY * centeredY * 4.6f < 0.22f;
                 bool earLeft = centeredX > -0.22f && centeredX < -0.06f && centeredY > 0.2f && centeredY < 0.52f;
                 bool earRight = centeredX < 0.22f && centeredX > 0.06f && centeredY > 0.2f && centeredY < 0.52f;
+                bool eyeLeft = centeredX > -0.12f && centeredX < -0.06f && centeredY > 0.02f && centeredY < 0.08f;
+                bool eyeRight = centeredX < 0.12f && centeredX > 0.06f && centeredY > 0.02f && centeredY < 0.08f;
                 Color color = Color.clear;
 
                 if (wing || bodyMask || earLeft || earRight)
                 {
-                    color = body;
+                    float wingAccent = Mathf.Clamp01((0.78f - Mathf.Abs(centeredX)) * 0.5f + (centeredY + 0.28f) * 0.08f);
+                    color = Color.Lerp(body, wingLight, wingAccent * (wing ? 0.14f : 0.08f));
+                    color = Color.Lerp(color, Color.black, Mathf.Clamp01((-centeredY - 0.25f) * 0.16f));
                     color.a = 1f;
                 }
+
+                if (eyeLeft || eyeRight)
+                    color = Color.Lerp(color, new Color(1f, 0.72f, 0.18f, 1f), 0.86f);
 
                 pixels[y * width + x] = color;
             }
@@ -445,7 +543,7 @@ public class CaveHazardVisuals : MonoBehaviour
     private static Texture2D NewTexture(int width, int height)
     {
         Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
-        texture.filterMode = FilterMode.Point;
+        texture.filterMode = FilterMode.Bilinear;
         texture.wrapMode = TextureWrapMode.Clamp;
         return texture;
     }
@@ -464,6 +562,11 @@ public class CaveHazardVisuals : MonoBehaviour
         float s = (a.y * c.x - a.x * c.y + (c.y - a.y) * p.x + (a.x - c.x) * p.y) * sign;
         float t = (a.x * b.y - a.y * b.x + (a.y - b.y) * p.x + (b.x - a.x) * p.y) * sign;
         return s >= 0f && t >= 0f && (s + t) <= 2f * area * sign;
+    }
+
+    private static float Smooth01(float from, float to, float value)
+    {
+        return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(from, to, value));
     }
 }
 
@@ -497,14 +600,14 @@ internal static class CaveHazardCollisionProfiles
                     target,
                     new[]
                     {
-                        new Vector2(-0.42f, 0.17f),
-                        new Vector2(-0.38f, -0.14f),
-                        new Vector2(-0.14f, -0.25f),
-                        new Vector2(0.18f, -0.23f),
-                        new Vector2(0.42f, -0.08f),
-                        new Vector2(0.38f, 0.2f),
-                        new Vector2(0.1f, 0.25f),
-                        new Vector2(-0.2f, 0.23f)
+                        new Vector2(-0.46f, 0.2f),
+                        new Vector2(-0.43f, -0.11f),
+                        new Vector2(-0.2f, -0.24f),
+                        new Vector2(0.18f, -0.22f),
+                        new Vector2(0.44f, -0.08f),
+                        new Vector2(0.46f, 0.18f),
+                        new Vector2(0.16f, 0.25f),
+                        new Vector2(-0.18f, 0.25f)
                     });
                 break;
             case CaveHazardVisuals.HazardStyle.Stalactite:
@@ -512,12 +615,12 @@ internal static class CaveHazardCollisionProfiles
                     target,
                     new[]
                     {
-                        new Vector2(-0.34f, -0.28f),
-                        new Vector2(-0.12f, 0.34f),
-                        new Vector2(0f, 0.42f),
-                        new Vector2(0.12f, 0.34f),
-                        new Vector2(0.34f, -0.28f),
-                        new Vector2(0f, -0.42f)
+                        new Vector2(-0.36f, -0.28f),
+                        new Vector2(-0.18f, 0.32f),
+                        new Vector2(0f, 0.44f),
+                        new Vector2(0.18f, 0.32f),
+                        new Vector2(0.36f, -0.28f),
+                        new Vector2(0f, -0.46f)
                     });
                 break;
             case CaveHazardVisuals.HazardStyle.CrystalShard:
@@ -525,28 +628,27 @@ internal static class CaveHazardCollisionProfiles
                     target,
                     new[]
                     {
-                        new Vector2(0f, 0.34f),
-                        new Vector2(-0.24f, -0.08f),
-                        new Vector2(-0.02f, -0.34f),
-                        new Vector2(0.26f, -0.02f)
+                        new Vector2(0f, 0.38f),
+                        new Vector2(-0.27f, -0.08f),
+                        new Vector2(-0.02f, -0.37f),
+                        new Vector2(0.3f, -0.02f)
                     });
                 break;
             case CaveHazardVisuals.HazardStyle.Bat:
-                ConfigureCapsule(target, new Vector2(0f, -0.02f), new Vector2(0.46f, 0.22f));
+                ConfigureCapsule(target, new Vector2(0f, -0.03f), new Vector2(0.52f, 0.24f));
                 break;
             default:
                 ConfigurePolygon(
                     target,
                     new[]
                     {
-                        new Vector2(-0.34f, -0.18f),
-                        new Vector2(-0.28f, 0.14f),
-                        new Vector2(-0.06f, 0.34f),
-                        new Vector2(0.18f, 0.3f),
-                        new Vector2(0.34f, 0.04f),
-                        new Vector2(0.28f, -0.22f),
-                        new Vector2(0.04f, -0.36f),
-                        new Vector2(-0.2f, -0.3f)
+                        new Vector2(-0.3f, -0.24f),
+                        new Vector2(-0.36f, 0.02f),
+                        new Vector2(-0.2f, 0.3f),
+                        new Vector2(0.1f, 0.34f),
+                        new Vector2(0.34f, 0.14f),
+                        new Vector2(0.3f, -0.22f),
+                        new Vector2(0.04f, -0.34f)
                     });
                 break;
         }

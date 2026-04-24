@@ -75,6 +75,8 @@ public class GameManager : MonoBehaviour
     private GameObject qaCaptureOverlayRoot;
     private TextMeshProUGUI qaCaptureOverlayTitleText;
     private TextMeshProUGUI qaCaptureOverlayBodyText;
+    private Button qaCaptureOverlayContinueButton;
+    private TextMeshProUGUI qaCaptureOverlayContinueButtonText;
     private GameObject qaSurveyPanel;
     private TextMeshProUGUI qaSurveyStatusText;
     private Button qaFairnessButton;
@@ -85,6 +87,17 @@ public class GameManager : MonoBehaviour
     private TextMeshProUGUI qaRewardButtonText;
     private Button qaReplayButton;
     private TextMeshProUGUI qaReplayButtonText;
+    private Button qaPriceButton;
+    private TextMeshProUGUI qaPriceButtonText;
+    private Button qaShopValueButton;
+    private TextMeshProUGUI qaShopValueButtonText;
+    private Button qaAdButton;
+    private TextMeshProUGUI qaAdButtonText;
+    private Button qaDangerButton;
+    private TextMeshProUGUI qaDangerButtonText;
+    private Button qaFeatureButton;
+    private TextMeshProUGUI qaFeatureButtonText;
+    private TMP_InputField qaTesterNotesInput;
     private Button qaSavePackageButton;
     private TextMeshProUGUI qaSavePackageButtonText;
     private Button qaSharePackageButton;
@@ -108,10 +121,11 @@ public class GameManager : MonoBehaviour
     private string lastShareRewardSummary;
     private bool openingGraceShieldAvailable;
     private bool qaCaptureRequestedThisScene;
+    private bool qaCaptureNoticePending;
     private bool qaPracticeRunActive;
 
-    private const float RunUpgradeButtonWidth = 230f;
-    private const float RunUpgradeButtonHeight = 78f;
+    private const float RunUpgradeButtonWidth = 216f;
+    private const float RunUpgradeButtonHeight = 66f;
     private const float ShieldProtectionDuration = 0.35f;
     private const float ExtraLifeReviveDelay = 0.2f;
     private const float ExtraLifeInvulnerabilityDuration = 1.4f;
@@ -166,11 +180,12 @@ public class GameManager : MonoBehaviour
         lastShareRewardSummary = string.Empty;
         openingGraceShieldAvailable = !isDailyChallengeRun;
         qaCaptureRequestedThisScene = false;
+        qaCaptureNoticePending = false;
         qaPracticeRunActive = QaTestingSystem.ConsumePracticeRunRequest();
         QaTestingSystem.EnsureRuntime();
 
         if (totalCoinsText != null)
-            totalCoinsText.text = "Coins: " + totalCoins;
+            totalCoinsText.text = "Coins " + totalCoins;
 
         if (isDailyChallengeRun)
             UpdateUpgradeText();
@@ -203,7 +218,7 @@ public class GameManager : MonoBehaviour
             !IsRevivePromptVisible())
         {
             qaCaptureRequestedThisScene = true;
-            QaTestingSystem.BeginGameplayCapture();
+            qaCaptureNoticePending = true;
             RefreshQaFeedbackUi();
         }
 
@@ -218,7 +233,7 @@ public class GameManager : MonoBehaviour
         score += Time.deltaTime * GetScoreMultiplier();
 
         if (scoreText != null)
-            scoreText.text = "Score: " + Mathf.FloorToInt(score);
+            scoreText.text = "Score " + Mathf.FloorToInt(score);
 
         if (isDailyChallengeRun)
             UpdateUpgradeText();
@@ -330,7 +345,7 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.Save();
 
         if (totalCoinsText != null)
-            totalCoinsText.text = "Coins: " + totalCoins;
+            totalCoinsText.text = "Coins " + totalCoins;
 
         if (isDailyChallengeRun)
         {
@@ -766,11 +781,11 @@ public class GameManager : MonoBehaviour
         runUpgradePanel.anchorMin = new Vector2(1f, 0f);
         runUpgradePanel.anchorMax = new Vector2(1f, 0f);
         runUpgradePanel.pivot = new Vector2(1f, 0f);
-        runUpgradePanel.anchoredPosition = new Vector2(-18f, 26f);
+        runUpgradePanel.anchoredPosition = new Vector2(-20f, 22f);
         runUpgradePanel.sizeDelta = new Vector2(RunUpgradeButtonWidth, 0f);
 
         VerticalLayoutGroup layoutGroup = panelObject.GetComponent<VerticalLayoutGroup>();
-        layoutGroup.spacing = 10f;
+        layoutGroup.spacing = 8f;
         layoutGroup.childAlignment = TextAnchor.LowerRight;
         layoutGroup.childControlHeight = false;
         layoutGroup.childControlWidth = true;
@@ -814,7 +829,7 @@ public class GameManager : MonoBehaviour
         layoutElement.preferredWidth = RunUpgradeButtonWidth;
 
         Image buttonImage = buttonObject.GetComponent<Image>();
-        buttonImage.color = new Color(0.16f, 0.2f, 0.3f, 0.92f);
+        buttonImage.color = StudioUiTheme.WithAlpha(StudioUiTheme.Surface, 0.95f);
 
         GameObject labelObject = new GameObject("Label", typeof(RectTransform));
         labelObject.transform.SetParent(buttonObject.transform, false);
@@ -829,8 +844,9 @@ public class GameManager : MonoBehaviour
         label.alignment = TextAlignmentOptions.Center;
         label.enableAutoSizing = true;
         label.fontSizeMin = 12f;
-        label.fontSizeMax = 22f;
-        label.color = Color.white;
+        label.fontSizeMax = 20f;
+        label.color = StudioUiTheme.Text;
+        label.lineSpacing = -8f;
 
         if (runtimeFont != null)
             label.font = runtimeFont;
@@ -867,6 +883,12 @@ public class GameManager : MonoBehaviour
 
     void RefreshRunUpgradeButtons()
     {
+        if (runUpgradePanel != null)
+            runUpgradePanel.gameObject.SetActive(!gameEnded && !IsRevivePromptVisible());
+
+        if (gameEnded || IsRevivePromptVisible())
+            return;
+
         if (runUpgradeButtons.Count == 0)
             return;
 
@@ -1168,7 +1190,7 @@ public class GameManager : MonoBehaviour
         totalCoins = PlayerPrefs.GetInt("TotalCoins", totalCoins);
 
         if (totalCoinsText != null)
-            totalCoinsText.text = "Coins: " + totalCoins;
+            totalCoinsText.text = "Coins " + totalCoins;
 
         dangerComboCount = 0;
         dangerComboDecayTimer = 0f;
@@ -1319,78 +1341,93 @@ public class GameManager : MonoBehaviour
                 pauseRect.anchorMin = new Vector2(0f, 1f);
                 pauseRect.anchorMax = new Vector2(0f, 1f);
                 pauseRect.pivot = new Vector2(0f, 1f);
-                pauseRect.sizeDelta = new Vector2(200f, 72f);
-                pauseRect.anchoredPosition = new Vector2(20f, -36f);
+                pauseRect.sizeDelta = new Vector2(162f, 58f);
+                pauseRect.anchoredPosition = new Vector2(20f, -28f);
             }
 
             if (pauseButtonText != null)
             {
                 pauseButtonText.enableAutoSizing = true;
-                pauseButtonText.fontSizeMin = 20f;
-                pauseButtonText.fontSizeMax = 32f;
+                pauseButtonText.fontSizeMin = 18f;
+                pauseButtonText.fontSizeMax = 28f;
             }
+
+            ApplyGameplayButtonStyle(pauseButton, StudioButtonStyle.Secondary);
         }
+
+        StyleSceneGameplayButton(parentRect, "MenuButton", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(162f, 58f), new Vector2(-20f, -28f), StudioButtonStyle.Quiet);
+        StyleSceneGameplayButton(parentRect, "RestartButton", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(300f, 72f), new Vector2(0f, -86f), StudioButtonStyle.Primary);
 
         ConfigureHudText(
             totalCoinsText,
             new Vector2(0f, 1f),
             new Vector2(0f, 1f),
             new Vector2(0f, 1f),
-            new Vector2(280f, 42f),
-            new Vector2(20f, -124f),
+            new Vector2(240f, 40f),
+            new Vector2(20f, -98f),
             TextAlignmentOptions.Left,
-            20f,
-            32f);
+            18f,
+            28f);
 
         ConfigureHudText(
             scoreText,
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(360f, 56f),
-            new Vector2(0f, -34f),
+            new Vector2(330f, 54f),
+            new Vector2(0f, -30f),
             TextAlignmentOptions.Center,
             30f,
-            48f);
+            44f);
 
         ConfigureHudText(
             bestScoreHudText,
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(360f, 34f),
-            new Vector2(0f, -92f),
+            new Vector2(300f, 28f),
+            new Vector2(0f, -82f),
             TextAlignmentOptions.Center,
-            18f,
-            28f);
+            16f,
+            24f);
 
         ConfigureHudText(
             levelText,
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(240f, 30f),
-            new Vector2(0f, -126f),
+            new Vector2(180f, 28f),
+            new Vector2(0f, -112f),
             TextAlignmentOptions.Center,
-            18f,
-            28f);
+            16f,
+            24f);
 
         ConfigureHudText(
             upgradeText,
             new Vector2(1f, 1f),
             new Vector2(1f, 1f),
             new Vector2(1f, 1f),
-            new Vector2(260f, 120f),
-            new Vector2(-18f, -126f),
+            new Vector2(220f, 98f),
+            new Vector2(-20f, -96f),
             TextAlignmentOptions.TopRight,
-            16f,
-            24f);
+            14f,
+            20f);
 
         if (upgradeText != null)
             upgradeText.lineSpacing = 2f;
 
+        ApplyHudTextStyle(scoreText, StudioUiTheme.Text, FontStyles.Bold);
+        ApplyHudTextStyle(bestScoreHudText, StudioUiTheme.MutedText, FontStyles.Normal);
+        ApplyHudTextStyle(levelText, StudioUiTheme.Gold, FontStyles.Bold);
+        ApplyHudTextStyle(totalCoinsText, StudioUiTheme.Text, FontStyles.Bold);
+        ApplyHudTextStyle(upgradeText, StudioUiTheme.MutedText, FontStyles.Normal);
+
+        ConfigureHudBackplate(scoreText, "ScoreHudBackplate", new Vector2(38f, 18f), StudioPanelStyle.Scrim, 0.38f);
+        ConfigureHudBackplate(totalCoinsText, "CoinsHudBackplate", new Vector2(28f, 14f), StudioPanelStyle.Scrim, 0.34f);
+        ConfigureHudBackplate(upgradeText, "LoadoutHudBackplate", new Vector2(26f, 18f), StudioPanelStyle.Scrim, 0.3f);
+
         if (runUpgradePanel != null)
-            runUpgradePanel.anchoredPosition = new Vector2(-18f, 26f);
+            runUpgradePanel.anchoredPosition = new Vector2(-20f, 22f);
     }
 
     void ConfigureHudText(
@@ -1419,6 +1456,103 @@ public class GameManager : MonoBehaviour
         text.fontSizeMin = minFontSize;
         text.fontSizeMax = maxFontSize;
         text.raycastTarget = false;
+    }
+
+    void ApplyHudTextStyle(TextMeshProUGUI text, Color color, FontStyles style)
+    {
+        if (text == null)
+            return;
+
+        text.color = color;
+        text.fontStyle = style;
+
+        Shadow shadow = text.GetComponent<Shadow>();
+
+        if (shadow == null)
+            shadow = text.gameObject.AddComponent<Shadow>();
+
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.52f);
+        shadow.effectDistance = new Vector2(0f, -2.5f);
+        shadow.useGraphicAlpha = true;
+    }
+
+    void ConfigureHudBackplate(TextMeshProUGUI text, string objectName, Vector2 padding, StudioPanelStyle style, float alpha)
+    {
+        if (text == null || text.rectTransform.parent == null)
+            return;
+
+        RectTransform parentRect = text.rectTransform.parent as RectTransform;
+
+        if (parentRect == null)
+            return;
+
+        Transform existing = parentRect.Find(objectName);
+        GameObject plateObject = existing != null ? existing.gameObject : new GameObject(objectName, typeof(RectTransform), typeof(Image));
+
+        if (existing == null)
+            plateObject.transform.SetParent(parentRect, false);
+
+        RectTransform plateRect = plateObject.GetComponent<RectTransform>();
+        plateRect.anchorMin = text.rectTransform.anchorMin;
+        plateRect.anchorMax = text.rectTransform.anchorMax;
+        plateRect.pivot = text.rectTransform.pivot;
+        plateRect.sizeDelta = text.rectTransform.sizeDelta + padding;
+        plateRect.anchoredPosition = text.rectTransform.anchoredPosition;
+
+        Image plateImage = plateObject.GetComponent<Image>();
+        StudioUiTheme.ApplyPanel(plateImage, style, alpha);
+        plateImage.raycastTarget = false;
+
+        int textIndex = text.transform.GetSiblingIndex();
+        plateObject.transform.SetSiblingIndex(Mathf.Max(0, textIndex));
+        text.transform.SetSiblingIndex(Mathf.Min(parentRect.childCount - 1, plateObject.transform.GetSiblingIndex() + 1));
+    }
+
+    void StyleSceneGameplayButton(
+        RectTransform parentRect,
+        string objectName,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 pivot,
+        Vector2 size,
+        Vector2 anchoredPosition,
+        StudioButtonStyle style)
+    {
+        if (parentRect == null)
+            return;
+
+        Transform buttonTransform = parentRect.Find(objectName);
+
+        if (buttonTransform == null)
+            return;
+
+        RectTransform buttonRect = buttonTransform as RectTransform;
+
+        if (buttonRect != null)
+        {
+            buttonRect.anchorMin = anchorMin;
+            buttonRect.anchorMax = anchorMax;
+            buttonRect.pivot = pivot;
+            buttonRect.sizeDelta = size;
+            buttonRect.anchoredPosition = anchoredPosition;
+        }
+
+        ApplyGameplayButtonStyle(buttonTransform.GetComponent<Button>(), style);
+    }
+
+    void ApplyGameplayButtonStyle(Button button, StudioButtonStyle style)
+    {
+        if (button == null)
+            return;
+
+        TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
+        StudioUiTheme.ApplyButton(button, style, label);
+
+        if (label != null)
+        {
+            label.fontSizeMin = 16f;
+            label.fontSizeMax = 28f;
+        }
     }
 
     TextMeshProUGUI TryBindSceneText(RectTransform parentRect, string objectName)
@@ -1528,8 +1662,8 @@ public class GameManager : MonoBehaviour
             return;
 
         bool qaModeActive = QaTestingSystem.IsQaModeEnabled() && !qaPracticeRunActive;
-        panelRect.sizeDelta = qaModeActive ? new Vector2(620f, 820f) : new Vector2(620f, 430f);
-        panelRect.anchoredPosition = new Vector2(0f, -250f);
+        panelRect.sizeDelta = qaModeActive ? new Vector2(700f, 1280f) : new Vector2(620f, 430f);
+        panelRect.anchoredPosition = qaModeActive ? new Vector2(0f, -120f) : new Vector2(0f, -250f);
 
         if (postRunDoubleCoinsButton == null)
         {
@@ -1613,7 +1747,7 @@ public class GameManager : MonoBehaviour
         if (postRunSummaryText != null)
         {
             RectTransform summaryRect = postRunSummaryText.rectTransform;
-            summaryRect.offsetMin = qaModeActive ? new Vector2(28f, 408f) : new Vector2(28f, 204f);
+            summaryRect.offsetMin = qaModeActive ? new Vector2(40f, 760f) : new Vector2(28f, 204f);
             summaryRect.offsetMax = new Vector2(-28f, -24f);
         }
 
@@ -1700,7 +1834,7 @@ public class GameManager : MonoBehaviour
         panelRect.anchoredPosition = new Vector2(0f, -250f);
 
         Image panelImage = postRunPanel.GetComponent<Image>();
-        panelImage.color = new Color(0.12f, 0.18f, 0.3f, 0.9f);
+        StudioUiTheme.ApplyPanel(panelImage, StudioPanelStyle.Elevated, 0.96f);
 
         postRunSummaryText = CreateRuntimeLabel(
             panelRect,
@@ -1740,7 +1874,7 @@ public class GameManager : MonoBehaviour
         rootRect.offsetMax = Vector2.zero;
 
         Image overlayImage = qaCaptureOverlayRoot.GetComponent<Image>();
-        overlayImage.color = new Color(0.02f, 0.04f, 0.06f, 0.9f);
+        StudioUiTheme.ApplyPanel(overlayImage, StudioPanelStyle.Scrim);
 
         GameObject panelObject = new GameObject("QaCaptureOverlayPanel", typeof(RectTransform), typeof(Image));
         panelObject.transform.SetParent(qaCaptureOverlayRoot.transform, false);
@@ -1749,11 +1883,11 @@ public class GameManager : MonoBehaviour
         panelRect.anchorMin = new Vector2(0.5f, 0.5f);
         panelRect.anchorMax = new Vector2(0.5f, 0.5f);
         panelRect.pivot = new Vector2(0.5f, 0.5f);
-        panelRect.sizeDelta = new Vector2(700f, 360f);
+        panelRect.sizeDelta = new Vector2(720f, 500f);
         panelRect.anchoredPosition = new Vector2(0f, -10f);
 
         Image panelImage = panelObject.GetComponent<Image>();
-        panelImage.color = new Color(0.11f, 0.17f, 0.28f, 0.98f);
+        StudioUiTheme.ApplyPanel(panelImage, StudioPanelStyle.Elevated);
 
         qaCaptureOverlayTitleText = CreateRuntimeLabel(
             panelRect,
@@ -1762,7 +1896,7 @@ public class GameManager : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(560f, 62f),
-            new Vector2(0f, -34f),
+            new Vector2(0f, -36f),
             TextAlignmentOptions.Center,
             28f,
             40f,
@@ -1774,15 +1908,33 @@ public class GameManager : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(580f, 200f),
-            new Vector2(0f, -132f),
+            new Vector2(620f, 250f),
+            new Vector2(0f, -126f),
             TextAlignmentOptions.Center,
             20f,
             28f,
             new Color(0.92f, 0.97f, 1f, 1f));
 
         if (qaCaptureOverlayBodyText != null)
-            qaCaptureOverlayBodyText.lineSpacing = 6f;
+            qaCaptureOverlayBodyText.lineSpacing = 4f;
+
+        qaCaptureOverlayContinueButton = CreateRuntimeButton(
+            panelRect,
+            "QaCaptureOverlayContinueButton",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(460f, 76f),
+            new Vector2(0f, 36f),
+            "I Agree - Open Android Prompt",
+            StudioUiTheme.Gold,
+            out qaCaptureOverlayContinueButtonText);
+
+        if (qaCaptureOverlayContinueButton != null)
+        {
+            qaCaptureOverlayContinueButton.onClick.RemoveAllListeners();
+            qaCaptureOverlayContinueButton.onClick.AddListener(ConfirmQaCaptureNotice);
+        }
 
         qaCaptureOverlayRoot.SetActive(false);
     }
@@ -1796,11 +1948,11 @@ public class GameManager : MonoBehaviour
         panelRect.anchorMin = new Vector2(0.5f, 0f);
         panelRect.anchorMax = new Vector2(0.5f, 0f);
         panelRect.pivot = new Vector2(0.5f, 0f);
-        panelRect.sizeDelta = new Vector2(540f, 454f);
-        panelRect.anchoredPosition = new Vector2(0f, 20f);
+        panelRect.sizeDelta = new Vector2(580f, 720f);
+        panelRect.anchoredPosition = new Vector2(0f, 18f);
 
         Image panelImage = qaSurveyPanel.GetComponent<Image>();
-        panelImage.color = new Color(0.1f, 0.14f, 0.2f, 0.96f);
+        StudioUiTheme.ApplyPanel(panelImage, StudioPanelStyle.Elevated);
 
         CreateRuntimeLabel(
             panelRect,
@@ -1808,8 +1960,8 @@ public class GameManager : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(420f, 38f),
-            new Vector2(0f, -18f),
+            new Vector2(500f, 36f),
+            new Vector2(0f, -14f),
             TextAlignmentOptions.Center,
             22f,
             30f,
@@ -1821,11 +1973,11 @@ public class GameManager : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(470f, 64f),
-            new Vector2(0f, -62f),
+            new Vector2(520f, 56f),
+            new Vector2(0f, -54f),
             TextAlignmentOptions.Center,
-            15f,
-            20f,
+            14f,
+            19f,
             new Color(0.84f, 0.91f, 0.98f, 1f));
 
         if (qaSurveyStatusText != null)
@@ -1837,8 +1989,8 @@ public class GameManager : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(470f, 44f),
-            new Vector2(0f, -128f),
+            new Vector2(250f, 44f),
+            new Vector2(-135f, -116f),
             "Collision Feel",
             new Color(0.29f, 0.47f, 0.66f, 1f),
             out qaFairnessButtonText);
@@ -1849,8 +2001,8 @@ public class GameManager : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(470f, 44f),
-            new Vector2(0f, -180f),
+            new Vector2(250f, 44f),
+            new Vector2(135f, -116f),
             "Difficulty Curve",
             new Color(0.34f, 0.53f, 0.34f, 1f),
             out qaDifficultyButtonText);
@@ -1861,8 +2013,8 @@ public class GameManager : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(470f, 44f),
-            new Vector2(0f, -232f),
+            new Vector2(250f, 44f),
+            new Vector2(-135f, -168f),
             "Reward Feel",
             new Color(0.66f, 0.48f, 0.21f, 1f),
             out qaRewardButtonText);
@@ -1873,11 +2025,82 @@ public class GameManager : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(470f, 44f),
-            new Vector2(0f, -284f),
+            new Vector2(250f, 44f),
+            new Vector2(135f, -168f),
             "One-More-Run Pull",
             new Color(0.54f, 0.33f, 0.62f, 1f),
             out qaReplayButtonText);
+
+        qaPriceButton = CreateRuntimeButton(
+            panelRect,
+            "QaPriceButton",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(250f, 44f),
+            new Vector2(-135f, -220f),
+            "Shop Prices",
+            new Color(0.31f, 0.5f, 0.58f, 1f),
+            out qaPriceButtonText);
+
+        qaShopValueButton = CreateRuntimeButton(
+            panelRect,
+            "QaShopValueButton",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(250f, 44f),
+            new Vector2(135f, -220f),
+            "Shop Rewards",
+            new Color(0.53f, 0.42f, 0.23f, 1f),
+            out qaShopValueButtonText);
+
+        qaAdButton = CreateRuntimeButton(
+            panelRect,
+            "QaAdButton",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(250f, 44f),
+            new Vector2(-135f, -272f),
+            "Ad Offers",
+            new Color(0.27f, 0.46f, 0.43f, 1f),
+            out qaAdButtonText);
+
+        qaDangerButton = CreateRuntimeButton(
+            panelRect,
+            "QaDangerButton",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(250f, 44f),
+            new Vector2(135f, -272f),
+            "Danger Multiplier",
+            new Color(0.48f, 0.24f, 0.27f, 1f),
+            out qaDangerButtonText);
+
+        qaFeatureButton = CreateRuntimeButton(
+            panelRect,
+            "QaFeatureButton",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(520f, 44f),
+            new Vector2(0f, -324f),
+            "Feature Clarity",
+            new Color(0.29f, 0.35f, 0.54f, 1f),
+            out qaFeatureButtonText);
+
+        qaTesterNotesInput = CreateRuntimeInputField(
+            panelRect,
+            "QaTesterNotesInput",
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(520f, 92f),
+            new Vector2(0f, -378f),
+            "Optional notes: danger multiplier, shop prices, ads, confusing moments...",
+            true);
 
         qaSavePackageButton = CreateRuntimeButton(
             panelRect,
@@ -1885,33 +2108,33 @@ public class GameManager : MonoBehaviour
             new Vector2(0.5f, 0f),
             new Vector2(0.5f, 0f),
             new Vector2(0.5f, 0f),
-            new Vector2(470f, 52f),
-            new Vector2(0f, 84f),
-            "Save QA Bundle",
+            new Vector2(210f, 44f),
+            new Vector2(-154f, 22f),
+            "Save Local Copy",
             new Color(0.17f, 0.46f, 0.55f, 1f),
             out qaSavePackageButtonText);
 
         qaSharePackageButton = CreateRuntimeButton(
             panelRect,
             "QaSharePackageButton",
-            new Vector2(0f, 0f),
-            new Vector2(0f, 0f),
-            new Vector2(0f, 0f),
-            new Vector2(286f, 52f),
-            new Vector2(20f, 18f),
-            "Share QA Package",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(520f, 58f),
+            new Vector2(0f, 76f),
+            "Send QA Package",
             new Color(0.22f, 0.56f, 0.46f, 1f),
             out qaSharePackageButtonText);
 
         qaDeletePackageButton = CreateRuntimeButton(
             panelRect,
             "QaDeletePackageButton",
-            new Vector2(1f, 0f),
-            new Vector2(1f, 0f),
-            new Vector2(1f, 0f),
-            new Vector2(150f, 52f),
-            new Vector2(-20f, 18f),
-            "Delete QA",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(210f, 44f),
+            new Vector2(154f, 22f),
+            "Delete Local",
             new Color(0.42f, 0.28f, 0.22f, 1f),
             out qaDeletePackageButtonText);
 
@@ -1939,6 +2162,42 @@ public class GameManager : MonoBehaviour
             qaReplayButton.onClick.AddListener(CycleQaReplayPull);
         }
 
+        if (qaPriceButton != null)
+        {
+            qaPriceButton.onClick.RemoveAllListeners();
+            qaPriceButton.onClick.AddListener(CycleQaPriceFeel);
+        }
+
+        if (qaShopValueButton != null)
+        {
+            qaShopValueButton.onClick.RemoveAllListeners();
+            qaShopValueButton.onClick.AddListener(CycleQaShopValueFeel);
+        }
+
+        if (qaAdButton != null)
+        {
+            qaAdButton.onClick.RemoveAllListeners();
+            qaAdButton.onClick.AddListener(CycleQaAdFeel);
+        }
+
+        if (qaDangerButton != null)
+        {
+            qaDangerButton.onClick.RemoveAllListeners();
+            qaDangerButton.onClick.AddListener(CycleQaDangerFeel);
+        }
+
+        if (qaFeatureButton != null)
+        {
+            qaFeatureButton.onClick.RemoveAllListeners();
+            qaFeatureButton.onClick.AddListener(CycleQaFeatureFeel);
+        }
+
+        if (qaTesterNotesInput != null)
+        {
+            qaTesterNotesInput.onEndEdit.RemoveAllListeners();
+            qaTesterNotesInput.onEndEdit.AddListener(_ => QaTestingSystem.SetTesterNotes(qaTesterNotesInput.text));
+        }
+
         if (qaSavePackageButton != null)
         {
             qaSavePackageButton.onClick.RemoveAllListeners();
@@ -1957,7 +2216,44 @@ public class GameManager : MonoBehaviour
             qaDeletePackageButton.onClick.AddListener(DeleteQaPackage);
         }
 
+        ConfigureQaSurveyQuestionText(qaFairnessButtonText);
+        ConfigureQaSurveyQuestionText(qaDifficultyButtonText);
+        ConfigureQaSurveyQuestionText(qaRewardButtonText);
+        ConfigureQaSurveyQuestionText(qaReplayButtonText);
+        ConfigureQaSurveyQuestionText(qaPriceButtonText);
+        ConfigureQaSurveyQuestionText(qaShopValueButtonText);
+        ConfigureQaSurveyQuestionText(qaAdButtonText);
+        ConfigureQaSurveyQuestionText(qaDangerButtonText);
+        ConfigureQaSurveyQuestionText(qaFeatureButtonText);
+        ConfigureQaSurveyActionText(qaSavePackageButtonText, 16f, 24f);
+        ConfigureQaSurveyActionText(qaSharePackageButtonText, 22f, 32f);
+        ConfigureQaSurveyActionText(qaDeletePackageButtonText, 16f, 24f);
+
         qaSurveyPanel.SetActive(false);
+    }
+
+    void ConfigureQaSurveyQuestionText(TextMeshProUGUI label)
+    {
+        if (label == null)
+            return;
+
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 11f;
+        label.fontSizeMax = 18f;
+        label.lineSpacing = -8f;
+        label.alignment = TextAlignmentOptions.Center;
+    }
+
+    void ConfigureQaSurveyActionText(TextMeshProUGUI label, float minSize, float maxSize)
+    {
+        if (label == null)
+            return;
+
+        label.enableAutoSizing = true;
+        label.fontSizeMin = minSize;
+        label.fontSizeMax = maxSize;
+        label.lineSpacing = -2f;
+        label.alignment = TextAlignmentOptions.Center;
     }
 
     void CreateRevivePrompt(RectTransform parentRect)
@@ -2356,7 +2652,96 @@ public class GameManager : MonoBehaviour
         if (runtimeFont != null)
             label.font = runtimeFont;
 
-        return buttonObject.GetComponent<Button>();
+        Button button = buttonObject.GetComponent<Button>();
+        Color labelColor = backgroundColor.r > 0.75f && backgroundColor.g > 0.5f
+            ? new Color(0.08f, 0.095f, 0.09f, 1f)
+            : StudioUiTheme.Text;
+        StudioUiTheme.ApplyButtonChrome(button, backgroundColor, label, labelColor);
+        return button;
+    }
+
+    TMP_InputField CreateRuntimeInputField(
+        RectTransform parent,
+        string objectName,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 pivot,
+        Vector2 size,
+        Vector2 anchoredPosition,
+        string placeholderText,
+        bool multiLine)
+    {
+        GameObject inputObject = new GameObject(objectName, typeof(RectTransform), typeof(Image), typeof(TMP_InputField));
+        inputObject.transform.SetParent(parent, false);
+
+        RectTransform inputRect = inputObject.GetComponent<RectTransform>();
+        inputRect.anchorMin = anchorMin;
+        inputRect.anchorMax = anchorMax;
+        inputRect.pivot = pivot;
+        inputRect.sizeDelta = size;
+        inputRect.anchoredPosition = anchoredPosition;
+
+        Image inputImage = inputObject.GetComponent<Image>();
+        inputImage.color = new Color(0.07f, 0.1f, 0.15f, 0.96f);
+
+        GameObject viewportObject = new GameObject("Text Area", typeof(RectTransform), typeof(RectMask2D));
+        viewportObject.transform.SetParent(inputObject.transform, false);
+
+        RectTransform viewportRect = viewportObject.GetComponent<RectTransform>();
+        viewportRect.anchorMin = Vector2.zero;
+        viewportRect.anchorMax = Vector2.one;
+        viewportRect.offsetMin = new Vector2(14f, 8f);
+        viewportRect.offsetMax = new Vector2(-14f, -8f);
+
+        GameObject textObject = new GameObject("Text", typeof(RectTransform));
+        textObject.transform.SetParent(viewportObject.transform, false);
+
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = Vector2.zero;
+        textRect.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI text = textObject.AddComponent<TextMeshProUGUI>();
+        text.alignment = TextAlignmentOptions.TopLeft;
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 14f;
+        text.fontSizeMax = 20f;
+        text.color = Color.white;
+
+        if (runtimeFont != null)
+            text.font = runtimeFont;
+
+        GameObject placeholderObject = new GameObject("Placeholder", typeof(RectTransform));
+        placeholderObject.transform.SetParent(viewportObject.transform, false);
+
+        RectTransform placeholderRect = placeholderObject.GetComponent<RectTransform>();
+        placeholderRect.anchorMin = Vector2.zero;
+        placeholderRect.anchorMax = Vector2.one;
+        placeholderRect.offsetMin = Vector2.zero;
+        placeholderRect.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI placeholder = placeholderObject.AddComponent<TextMeshProUGUI>();
+        placeholder.text = placeholderText;
+        placeholder.alignment = TextAlignmentOptions.TopLeft;
+        placeholder.enableAutoSizing = true;
+        placeholder.fontSizeMin = 14f;
+        placeholder.fontSizeMax = 20f;
+        placeholder.color = new Color(0.74f, 0.8f, 0.86f, 1f);
+
+        if (runtimeFont != null)
+            placeholder.font = runtimeFont;
+
+        TMP_InputField input = inputObject.GetComponent<TMP_InputField>();
+        input.textComponent = text;
+        input.placeholder = placeholder;
+        input.lineType = multiLine
+            ? TMP_InputField.LineType.MultiLineNewline
+            : TMP_InputField.LineType.SingleLine;
+        input.characterLimit = multiLine ? 600 : 48;
+        input.text = QaTestingSystem.GetTesterNotes();
+        StudioUiTheme.ApplyInput(input);
+        return input;
     }
 
     void RefreshPauseOverlayState()
@@ -2624,22 +3009,52 @@ public class GameManager : MonoBehaviour
         RefreshPostRunDoubleCoinsButton();
         RefreshPostRunShareButton();
         RefreshPostRunReviewButton();
+
+        if (QaTestingSystem.IsQaModeEnabled() && !qaPracticeRunActive && gameEnded)
+        {
+            if (postRunDoubleCoinsButton != null)
+                postRunDoubleCoinsButton.gameObject.SetActive(false);
+
+            if (postRunShareButton != null)
+                postRunShareButton.gameObject.SetActive(false);
+
+            if (postRunReviewButton != null)
+                postRunReviewButton.gameObject.SetActive(false);
+        }
+
         RefreshQaSurveyUi();
     }
 
     void RefreshQaFeedbackUi()
     {
-        SetQaCaptureOverlayVisible(QaTestingSystem.IsAwaitingConsent());
+        bool showCaptureOverlay = qaCaptureNoticePending || QaTestingSystem.IsAwaitingConsent();
+        SetQaCaptureOverlayVisible(showCaptureOverlay);
 
         if (qaCaptureOverlayTitleText != null)
-            qaCaptureOverlayTitleText.text = "QA Capture Permission";
+            qaCaptureOverlayTitleText.text = qaCaptureNoticePending
+                ? "Before Recording Starts"
+                : "QA Capture Permission";
 
         if (qaCaptureOverlayBodyText != null)
         {
-            qaCaptureOverlayBodyText.text =
-                "Android is about to show its screen-capture prompt for this run.\n" +
-                "Only gameplay, in-game menus, and the QA survey are intended to be captured.\n\n" +
-                QaTestingSystem.GetLiveCaptureStatus();
+            qaCaptureOverlayBodyText.text = qaCaptureNoticePending
+                ? "This temporary QA build records gameplay, in-game menus, and the post-run survey after Android permission.\n\n" +
+                  "Do not enter private information while recording is active.\nMicrophone audio is not captured.\n\n" +
+                  "Tap below when ready. If Android shows Share one app, switch it to Share full screen, then approve."
+                : "Android is showing or preparing its screen-capture prompt for this run.\n" +
+                  "Choose EndlessDodge1 if Android offers that option, or share the full screen only for this QA run.\n\n" +
+                  QaTestingSystem.GetLiveCaptureStatus();
+        }
+
+        if (qaCaptureOverlayContinueButton != null)
+        {
+            qaCaptureOverlayContinueButton.gameObject.SetActive(qaCaptureNoticePending);
+            qaCaptureOverlayContinueButton.interactable = qaCaptureNoticePending;
+        }
+
+        if (qaCaptureOverlayContinueButtonText != null)
+        {
+            qaCaptureOverlayContinueButtonText.text = "I Agree - Open Android Prompt";
         }
 
         RefreshQaSurveyUi();
@@ -2671,6 +3086,32 @@ public class GameManager : MonoBehaviour
         if (qaReplayButtonText != null)
             qaReplayButtonText.text = QaTestingSystem.GetReplayLabel();
 
+        if (qaPriceButtonText != null)
+            qaPriceButtonText.text = QaTestingSystem.GetPriceLabel();
+
+        if (qaShopValueButtonText != null)
+            qaShopValueButtonText.text = QaTestingSystem.GetShopValueLabel();
+
+        if (qaAdButtonText != null)
+            qaAdButtonText.text = QaTestingSystem.GetAdLabel();
+
+        if (qaDangerButtonText != null)
+            qaDangerButtonText.text = QaTestingSystem.GetDangerLabel();
+
+        if (qaFeatureButtonText != null)
+            qaFeatureButtonText.text = QaTestingSystem.GetFeatureLabel();
+
+        if (qaTesterNotesInput != null && !qaTesterNotesInput.isFocused)
+            qaTesterNotesInput.SetTextWithoutNotify(QaTestingSystem.GetTesterNotes());
+
+        bool uploadConfigured = QaTestingSystem.HasUploadTargetConfigured();
+
+        if (qaSavePackageButton != null)
+            qaSavePackageButton.gameObject.SetActive(!uploadConfigured);
+
+        if (qaDeletePackageButton != null)
+            qaDeletePackageButton.gameObject.SetActive(!uploadConfigured);
+
         if (qaSavePackageButtonText != null)
             qaSavePackageButtonText.text = QaTestingSystem.GetSaveButtonLabel();
 
@@ -2678,16 +3119,16 @@ public class GameManager : MonoBehaviour
             qaSharePackageButtonText.text = QaTestingSystem.GetShareButtonLabel();
 
         if (qaDeletePackageButtonText != null)
-            qaDeletePackageButtonText.text = "Delete QA";
+            qaDeletePackageButtonText.text = "Delete Local";
 
         if (qaSavePackageButton != null)
-            qaSavePackageButton.interactable = QaTestingSystem.CanSaveCurrentRun();
+            qaSavePackageButton.interactable = !uploadConfigured && QaTestingSystem.CanSaveCurrentRun();
 
         if (qaSharePackageButton != null)
             qaSharePackageButton.interactable = QaTestingSystem.CanShareCurrentRun();
 
         if (qaDeletePackageButton != null)
-            qaDeletePackageButton.interactable = QaTestingSystem.HasLastPackage();
+            qaDeletePackageButton.interactable = !uploadConfigured && QaTestingSystem.HasLastPackage();
     }
 
     public void CycleQaFairness()
@@ -2718,11 +3159,47 @@ public class GameManager : MonoBehaviour
         RefreshQaSurveyUi();
     }
 
+    public void CycleQaPriceFeel()
+    {
+        QaTestingSystem.CyclePriceFeel();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
+    public void CycleQaShopValueFeel()
+    {
+        QaTestingSystem.CycleShopValueFeel();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
+    public void CycleQaAdFeel()
+    {
+        QaTestingSystem.CycleAdFeel();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
+    public void CycleQaDangerFeel()
+    {
+        QaTestingSystem.CycleDangerFeel();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
+    public void CycleQaFeatureFeel()
+    {
+        QaTestingSystem.CycleFeatureFeel();
+        GameSettings.TriggerHaptic();
+        RefreshQaSurveyUi();
+    }
+
     public void SaveQaPackage()
     {
         if (!QaTestingSystem.CanSaveCurrentRun())
             return;
 
+        SaveQaTesterNotes();
         QaTestingSystem.SaveCurrentRunToDownloads();
         GameSettings.TriggerHaptic();
         RefreshQaSurveyUi();
@@ -2733,9 +3210,21 @@ public class GameManager : MonoBehaviour
         if (!QaTestingSystem.CanShareCurrentRun())
             return;
 
+        SaveQaTesterNotes();
         QaTestingSystem.ShareCurrentRun();
         GameSettings.TriggerHaptic();
         RefreshQaSurveyUi();
+    }
+
+    public void ConfirmQaCaptureNotice()
+    {
+        if (!qaCaptureNoticePending)
+            return;
+
+        qaCaptureNoticePending = false;
+        QaTestingSystem.BeginGameplayCapture();
+        GameSettings.TriggerHaptic();
+        RefreshQaFeedbackUi();
     }
 
     public void DeleteQaPackage()
@@ -2743,6 +3232,12 @@ public class GameManager : MonoBehaviour
         QaTestingSystem.DeleteLastPackage();
         GameSettings.TriggerHaptic();
         RefreshQaSurveyUi();
+    }
+
+    void SaveQaTesterNotes()
+    {
+        if (qaTesterNotesInput != null)
+            QaTestingSystem.SetTesterNotes(qaTesterNotesInput.text);
     }
 
     public void SharePostRunResult()
@@ -2768,7 +3263,7 @@ public class GameManager : MonoBehaviour
             lastShareRewardSummary = ShareGrowthSystem.GetRewardBreakdownLabel(reward);
 
             if (totalCoinsText != null)
-                totalCoinsText.text = "Coins: " + totalCoins;
+                totalCoinsText.text = "Coins " + totalCoins;
 
             if (postRunShareButtonText != null)
                 postRunShareButtonText.text = "Echo Cache Claimed";
@@ -2880,7 +3375,7 @@ public class GameManager : MonoBehaviour
             PlayerPrefs.Save();
 
             if (totalCoinsText != null)
-                totalCoinsText.text = "Coins: " + totalCoins;
+                totalCoinsText.text = "Coins " + totalCoins;
 
             if (isDailyChallengeRun)
                 UpdateUpgradeText();
@@ -3084,7 +3579,7 @@ public class GameManager : MonoBehaviour
         PlayerPrefs.Save();
 
         if (totalCoinsText != null)
-            totalCoinsText.text = "Coins: " + totalCoins;
+            totalCoinsText.text = "Coins " + totalCoins;
 
         GameSettings.TriggerHaptic();
         ShowPostRunSummary(Mathf.FloorToInt(score));
@@ -3318,11 +3813,11 @@ public class RunUpgradeButtonUI : MonoBehaviour
     private Image backgroundImage;
     private Button button;
 
-    private readonly Color readyColor = new Color(0.18f, 0.33f, 0.56f, 0.96f);
-    private readonly Color selectedColor = new Color(0.17f, 0.46f, 0.52f, 0.98f);
-    private readonly Color activeColor = new Color(0.18f, 0.58f, 0.38f, 0.98f);
-    private readonly Color manualColor = new Color(0.6f, 0.36f, 0.13f, 0.98f);
-    private readonly Color disabledColor = new Color(0.3f, 0.32f, 0.37f, 0.88f);
+    private readonly Color readyColor = new Color(0.2f, 0.32f, 0.28f, 0.96f);
+    private readonly Color selectedColor = new Color(0.18f, 0.46f, 0.42f, 0.98f);
+    private readonly Color activeColor = new Color(0.24f, 0.6f, 0.42f, 0.98f);
+    private readonly Color manualColor = new Color(0.74f, 0.5f, 0.18f, 0.98f);
+    private readonly Color disabledColor = new Color(0.14f, 0.18f, 0.16f, 0.86f);
 
     public void Initialize(
         GameManager manager,
@@ -3341,6 +3836,7 @@ public class RunUpgradeButtonUI : MonoBehaviour
         {
             button.onClick.RemoveListener(OnPressed);
             button.onClick.AddListener(OnPressed);
+            StudioUiTheme.ApplyButtonChrome(button, new Color(0.2f, 0.28f, 0.24f, 0.96f), label, StudioUiTheme.Text);
         }
     }
 
@@ -3357,8 +3853,7 @@ public class RunUpgradeButtonUI : MonoBehaviour
         {
             label.text =
                 UpgradeInventory.GetDisplayName(upgradeType) +
-                "\n<size=80%>" + modeText + "</size>" +
-                "\n<size=68%>" + stateText + "  |  Owned " + ownedAmount + "</size>";
+                "\n<size=72%>" + modeText + "  |  " + stateText + "  |  x" + ownedAmount + "</size>";
         }
 
         if (backgroundImage != null)

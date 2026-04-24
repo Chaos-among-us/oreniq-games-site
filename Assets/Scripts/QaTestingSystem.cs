@@ -27,6 +27,12 @@ public static class QaTestingSystem
         public int difficultyIndex;
         public int rewardIndex;
         public int replayIndex;
+        public int priceIndex;
+        public int shopValueIndex;
+        public int adIndex;
+        public int dangerIndex;
+        public int featureIndex;
+        public string testerNotes;
 
         public static QaSurveyState CreateDefault()
         {
@@ -35,7 +41,13 @@ public static class QaTestingSystem
                 fairnessIndex = 1,
                 difficultyIndex = 1,
                 rewardIndex = 1,
-                replayIndex = 1
+                replayIndex = 1,
+                priceIndex = 1,
+                shopValueIndex = 1,
+                adIndex = 1,
+                dangerIndex = 1,
+                featureIndex = 1,
+                testerNotes = string.Empty
             };
         }
     }
@@ -44,6 +56,7 @@ public static class QaTestingSystem
     private sealed class QaRunSummary
     {
         public string runId;
+        public string testerName;
         public string startedAtUtc;
         public string finishedAtUtc;
         public string buildVersion;
@@ -91,6 +104,12 @@ public static class QaTestingSystem
         public string difficultyCurve;
         public string rewardFeel;
         public string replayPull;
+        public string priceFeel;
+        public string shopValueFeel;
+        public string adFeel;
+        public string dangerMultiplierFeel;
+        public string featureBalanceFeel;
+        public string testerNotes;
         public string testerBuildUrl;
         public string testerSurveyUrl;
     }
@@ -118,6 +137,7 @@ public static class QaTestingSystem
     private const string QaModeEnabledKey = "Qa_ModeEnabled";
     private const string QaNoticeAcceptedKey = "Qa_NoticeAccepted";
     private const string QaPracticeRunRequestedKey = "Qa_PracticeRunRequested";
+    private const string QaTesterNameKey = "Qa_TesterName";
     private const string ReportDirectoryName = "qa-reports";
     private const string SubmissionDirectoryName = "qa-submissions";
     private const string RuntimeObjectName = "QaTestingSystemRuntime";
@@ -128,6 +148,11 @@ public static class QaTestingSystem
     private static readonly string[] DifficultyOptions = { "Too Easy", "Balanced", "Too Hard" };
     private static readonly string[] RewardOptions = { "Flat", "Good", "Exciting" };
     private static readonly string[] ReplayOptions = { "No Pull", "Maybe", "Yes" };
+    private static readonly string[] PriceOptions = { "Too Cheap", "Fair", "Too Expensive" };
+    private static readonly string[] ShopValueOptions = { "Too Small", "Balanced", "Great Value" };
+    private static readonly string[] AdOptions = { "Too Many", "Fair", "Would Watch More" };
+    private static readonly string[] DangerOptions = { "Too Weak", "Fair", "Too Strong" };
+    private static readonly string[] FeatureOptions = { "Confusing", "Useful", "Exciting" };
 
     private static QaCaptureState captureState = QaCaptureState.Idle;
     private static QaSubmissionState submissionState = QaSubmissionState.Idle;
@@ -184,6 +209,22 @@ public static class QaTestingSystem
         PlayerPrefs.Save();
     }
 
+    public static string GetTesterName()
+    {
+        return PlayerPrefs.GetString(QaTesterNameKey, string.Empty).Trim();
+    }
+
+    public static bool HasTesterName()
+    {
+        return !string.IsNullOrWhiteSpace(GetTesterName());
+    }
+
+    public static void SetTesterName(string testerName)
+    {
+        PlayerPrefs.SetString(QaTesterNameKey, NormalizeTesterName(testerName));
+        PlayerPrefs.Save();
+    }
+
     public static void EnsureRuntime()
     {
         GameObject existing = GameObject.Find(RuntimeObjectName);
@@ -215,30 +256,29 @@ public static class QaTestingSystem
         QaSubmissionConfig config = GetSubmissionConfig();
         string handoffAction = HasUploadTargetConfigured()
             ? GetConfiguredSubmissionButtonLabel()
-            : "Share QA Package";
+            : "Send QA Package";
         string optionalDownloadLine = string.IsNullOrWhiteSpace(config.testerBuildUrl)
             ? string.Empty
             : "\nTester build link is configured for this QA lane.\n";
 
         return
-            "QA mode records only while a test run is active and Endless Dodge stays in the foreground.\n" +
-            "\n" +
+            "Temporary QA build only. These tools are for internal testing and must be removed before production release.\n\n" +
+            "1. Enter your tester name so every package is traceable.\n" +
+            "2. Run Practice Tutorial once if you have not played before.\n" +
+            "3. Enable QA Recording, then start a normal run.\n" +
+            "4. Android will ask for screen-capture consent before each recorded run. On newer Android versions, choose EndlessDodge1 or share the full screen if Android asks what to share.\n" +
+            "5. After the run, answer the quick survey and tap " + handoffAction + ".\n\n" +
             "Captured: gameplay, in-game menus, and the post-run QA survey.\n" +
-            "Not captured: microphone audio.\n" +
-            "Android may show its own screen-capture chip or notification.\n" +
-            "\n" +
-            "Before each recorded QA run, Android still asks for screen-capture consent.\n" +
-            "Recording stops automatically when the run ends or the app leaves the foreground.\n" +
-            "Bundles can be saved to Files > Downloads > EndlessDodgeQA for easy handoff.\n" +
-            optionalDownloadLine +
-            "\n" +
-            "Tester flow: Practice Tutorial Run once, then after each QA run tap Save QA Bundle or " +
-            handoffAction +
-            ", and delete the files when testing is done.";
+            "Not captured: microphone audio. Recording stops when the run ends or the app leaves the foreground.\n" +
+            "Bundles can be saved to Files > Downloads > EndlessDodgeQA for easy handoff." +
+            optionalDownloadLine;
     }
 
     public static string GetMenuButtonLabel()
     {
+        if (IsQaModeEnabled() && !HasTesterName())
+            return "QA Needs Name\nTap to finish";
+
         if (IsQaModeEnabled())
             return "QA Mode: On\nAuto-record + survey";
 
@@ -251,7 +291,12 @@ public static class QaTestingSystem
         string artifactLabel = storedArtifacts == 1 ? "1 stored QA file" : storedArtifacts + " stored QA files";
         string modeLabel = IsQaModeEnabled() ? "Enabled" : "Disabled";
         string sendLabel = HasUploadTargetConfigured() ? "Send: One tap upload" : "Send: Share sheet fallback";
-        return "Mode: " + modeLabel + "\n" + artifactLabel + "\n" + sendLabel + "\n" + liveStatusMessage;
+        string testerLabel = HasTesterName() ? "Tester: " + GetTesterName() : "Tester: name required";
+
+        if (IsQaModeEnabled() && !HasTesterName())
+            return testerLabel + "\nMode: Waiting for tester name\n" + artifactLabel + "\n" + sendLabel + "\nRecording is paused until the tester name is saved.";
+
+        return testerLabel + "\nMode: " + modeLabel + "\n" + artifactLabel + "\n" + sendLabel + "\n" + liveStatusMessage;
     }
 
     public static void RequestPracticeRun()
@@ -316,11 +361,18 @@ public static class QaTestingSystem
         if (!IsQaModeEnabled())
             return;
 
+        if (!HasTesterName())
+        {
+            liveStatusMessage = "Tester name is required before QA recording can start.";
+            return;
+        }
+
         EnsureRuntime();
         currentSurvey = QaSurveyState.CreateDefault();
         currentRunSummary = new QaRunSummary
         {
             runId = "qa-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"),
+            testerName = GetTesterName(),
             startedAtUtc = DateTime.UtcNow.ToString("o"),
             buildVersion = Application.version,
             packageId = Application.identifier,
@@ -403,6 +455,7 @@ public static class QaTestingSystem
             currentRunSummary = new QaRunSummary
             {
                 runId = "qa-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss"),
+                testerName = GetTesterName(),
                 startedAtUtc = DateTime.UtcNow.ToString("o"),
                 buildVersion = Application.version,
                 packageId = Application.identifier,
@@ -412,6 +465,7 @@ public static class QaTestingSystem
         }
 
         currentRunSummary.finishedAtUtc = DateTime.UtcNow.ToString("o");
+        currentRunSummary.testerName = GetTesterName();
         currentRunSummary.finalScore = finalScore;
         currentRunSummary.levelReached = levelReached;
         currentRunSummary.coinsEarned = coinsEarned;
@@ -459,6 +513,41 @@ public static class QaTestingSystem
         return "One-More-Run Pull\n" + ReplayOptions[currentSurvey.replayIndex];
     }
 
+    public static string GetPriceLabel()
+    {
+        return "Shop Prices\n" + PriceOptions[currentSurvey.priceIndex];
+    }
+
+    public static string GetShopValueLabel()
+    {
+        return "Shop Rewards\n" + ShopValueOptions[currentSurvey.shopValueIndex];
+    }
+
+    public static string GetAdLabel()
+    {
+        return "Ad Offers\n" + AdOptions[currentSurvey.adIndex];
+    }
+
+    public static string GetDangerLabel()
+    {
+        return "Danger Multiplier\n" + DangerOptions[currentSurvey.dangerIndex];
+    }
+
+    public static string GetFeatureLabel()
+    {
+        return "Feature Clarity\n" + FeatureOptions[currentSurvey.featureIndex];
+    }
+
+    public static string GetTesterNotes()
+    {
+        return currentSurvey.testerNotes ?? string.Empty;
+    }
+
+    public static void SetTesterNotes(string testerNotes)
+    {
+        currentSurvey.testerNotes = NormalizeTesterNotes(testerNotes);
+    }
+
     public static void CycleFairness()
     {
         currentSurvey.fairnessIndex = (currentSurvey.fairnessIndex + 1) % FairnessOptions.Length;
@@ -479,6 +568,31 @@ public static class QaTestingSystem
         currentSurvey.replayIndex = (currentSurvey.replayIndex + 1) % ReplayOptions.Length;
     }
 
+    public static void CyclePriceFeel()
+    {
+        currentSurvey.priceIndex = (currentSurvey.priceIndex + 1) % PriceOptions.Length;
+    }
+
+    public static void CycleShopValueFeel()
+    {
+        currentSurvey.shopValueIndex = (currentSurvey.shopValueIndex + 1) % ShopValueOptions.Length;
+    }
+
+    public static void CycleAdFeel()
+    {
+        currentSurvey.adIndex = (currentSurvey.adIndex + 1) % AdOptions.Length;
+    }
+
+    public static void CycleDangerFeel()
+    {
+        currentSurvey.dangerIndex = (currentSurvey.dangerIndex + 1) % DangerOptions.Length;
+    }
+
+    public static void CycleFeatureFeel()
+    {
+        currentSurvey.featureIndex = (currentSurvey.featureIndex + 1) % FeatureOptions.Length;
+    }
+
     public static string GetSurveyStatusText()
     {
         if (!IsQaModeEnabled())
@@ -491,7 +605,9 @@ public static class QaTestingSystem
             return "Sending the QA package directly...";
 
         if (IsCurrentRunAlreadySubmitted())
-            return "QA package sent successfully. You can still save a local copy.";
+            return HasUploadTargetConfigured()
+                ? "QA package sent successfully."
+                : "QA package sent successfully. You can still save a local copy.";
 
         if (submissionState == QaSubmissionState.Failed && !string.IsNullOrWhiteSpace(submissionStatusMessage))
             return submissionStatusMessage;
@@ -506,7 +622,7 @@ public static class QaTestingSystem
                 ? "Notes were saved in Downloads. Video was unavailable for this run."
                 : "Video is unavailable for this run. Notes-only sending is still ready.";
 
-        return "Tap each row to tune the report, then save the bundle or send it.";
+        return "Tap each row to tune the report, then send the QA package.";
     }
 
     public static string GetShareButtonLabel()
@@ -521,9 +637,9 @@ public static class QaTestingSystem
             return "Sent";
 
         if (HasUploadTargetConfigured())
-            return HasLastCapture() ? GetConfiguredSubmissionButtonLabel() : "Send QA Notes";
+            return GetConfiguredSubmissionButtonLabel();
 
-        return HasLastCapture() ? "Share QA Package" : "Share QA Notes";
+        return HasLastCapture() ? "Send QA Package" : "Send QA Notes";
     }
 
     public static string GetSaveButtonLabel()
@@ -838,6 +954,7 @@ public static class QaTestingSystem
             currentRunSummary = new QaRunSummary
             {
                 runId = nativeEvent.runId,
+                testerName = GetTesterName(),
                 startedAtUtc = DateTime.UtcNow.ToString("o"),
                 buildVersion = Application.version,
                 packageId = Application.identifier,
@@ -890,11 +1007,21 @@ public static class QaTestingSystem
     {
         StringBuilder builder = new StringBuilder();
         builder.AppendLine("Endless Dodge QA package attached.");
+        builder.AppendLine("Tester: " + SafeValue(GetTesterName()));
         builder.AppendLine("Score " + currentRunSummary.finalScore + " | Level " + currentRunSummary.levelReached + " | Coins +" + currentRunSummary.coinsEarned);
         builder.AppendLine("Collision: " + FairnessOptions[currentSurvey.fairnessIndex]);
         builder.AppendLine("Difficulty: " + DifficultyOptions[currentSurvey.difficultyIndex]);
         builder.AppendLine("Rewards: " + RewardOptions[currentSurvey.rewardIndex]);
         builder.AppendLine("One more run: " + ReplayOptions[currentSurvey.replayIndex]);
+        builder.AppendLine("Shop prices: " + PriceOptions[currentSurvey.priceIndex]);
+        builder.AppendLine("Shop rewards: " + ShopValueOptions[currentSurvey.shopValueIndex]);
+        builder.AppendLine("Ad offers: " + AdOptions[currentSurvey.adIndex]);
+        builder.AppendLine("Danger multiplier: " + DangerOptions[currentSurvey.dangerIndex]);
+        builder.AppendLine("Feature clarity: " + FeatureOptions[currentSurvey.featureIndex]);
+
+        if (!string.IsNullOrWhiteSpace(currentSurvey.testerNotes))
+            builder.AppendLine("Notes: " + currentSurvey.testerNotes);
+
         return builder.ToString().Trim();
     }
 
@@ -964,6 +1091,7 @@ public static class QaTestingSystem
         List<IMultipartFormSection> formSections = new List<IMultipartFormSection>
         {
             new MultipartFormDataSection("run_id", runId ?? string.Empty),
+            new MultipartFormDataSection("tester_name", GetTesterName()),
             new MultipartFormDataSection("package_id", currentRunSummary != null ? currentRunSummary.packageId : Application.identifier),
             new MultipartFormDataSection("build_version", currentRunSummary != null ? currentRunSummary.buildVersion : Application.version),
             new MultipartFormDataSection("survey_json", BuildSurveyJson()),
@@ -986,7 +1114,7 @@ public static class QaTestingSystem
             }
 
             submissionState = QaSubmissionState.Failed;
-            submissionStatusMessage = "Send failed. Try again or save a local copy.";
+            submissionStatusMessage = "Send failed. Make sure the QA collector is running, then try again.";
             liveStatusMessage = submissionStatusMessage;
             Debug.LogWarning(
                 "QA submission upload failed: " +
@@ -1017,6 +1145,7 @@ public static class QaTestingSystem
         StringBuilder builder = new StringBuilder();
         builder.AppendLine("Endless Dodge QA Report");
         builder.AppendLine("======================");
+        builder.AppendLine("Tester: " + SafeValue(currentRunSummary != null ? currentRunSummary.testerName : GetTesterName()));
         builder.AppendLine("Run ID: " + SafeValue(currentRunSummary != null ? currentRunSummary.runId : string.Empty));
         builder.AppendLine("Started UTC: " + SafeValue(currentRunSummary != null ? currentRunSummary.startedAtUtc : string.Empty));
         builder.AppendLine("Finished UTC: " + SafeValue(currentRunSummary != null ? currentRunSummary.finishedAtUtc : string.Empty));
@@ -1046,6 +1175,15 @@ public static class QaTestingSystem
         builder.AppendLine("Difficulty Curve: " + DifficultyOptions[currentSurvey.difficultyIndex]);
         builder.AppendLine("Reward Feel: " + RewardOptions[currentSurvey.rewardIndex]);
         builder.AppendLine("One-More-Run Pull: " + ReplayOptions[currentSurvey.replayIndex]);
+        builder.AppendLine("Shop Prices: " + PriceOptions[currentSurvey.priceIndex]);
+        builder.AppendLine("Shop Rewards: " + ShopValueOptions[currentSurvey.shopValueIndex]);
+        builder.AppendLine("Ad Offers: " + AdOptions[currentSurvey.adIndex]);
+        builder.AppendLine("Danger Multiplier: " + DangerOptions[currentSurvey.dangerIndex]);
+        builder.AppendLine("Feature Clarity: " + FeatureOptions[currentSurvey.featureIndex]);
+        builder.AppendLine();
+        builder.AppendLine("Tester Notes");
+        builder.AppendLine("------------");
+        builder.AppendLine(SafeValue(currentSurvey.testerNotes));
         return builder.ToString().TrimEnd();
     }
 
@@ -1061,6 +1199,12 @@ public static class QaTestingSystem
             difficultyCurve = DifficultyOptions[currentSurvey.difficultyIndex],
             rewardFeel = RewardOptions[currentSurvey.rewardIndex],
             replayPull = ReplayOptions[currentSurvey.replayIndex],
+            priceFeel = PriceOptions[currentSurvey.priceIndex],
+            shopValueFeel = ShopValueOptions[currentSurvey.shopValueIndex],
+            adFeel = AdOptions[currentSurvey.adIndex],
+            dangerMultiplierFeel = DangerOptions[currentSurvey.dangerIndex],
+            featureBalanceFeel = FeatureOptions[currentSurvey.featureIndex],
+            testerNotes = currentSurvey.testerNotes,
             testerBuildUrl = config.testerBuildUrl,
             testerSurveyUrl = config.testerSurveyUrl
         };
@@ -1077,7 +1221,13 @@ public static class QaTestingSystem
             collisionFeel = FairnessOptions[currentSurvey.fairnessIndex],
             difficultyCurve = DifficultyOptions[currentSurvey.difficultyIndex],
             rewardFeel = RewardOptions[currentSurvey.rewardIndex],
-            replayPull = ReplayOptions[currentSurvey.replayIndex]
+            replayPull = ReplayOptions[currentSurvey.replayIndex],
+            priceFeel = PriceOptions[currentSurvey.priceIndex],
+            shopValueFeel = ShopValueOptions[currentSurvey.shopValueIndex],
+            adFeel = AdOptions[currentSurvey.adIndex],
+            dangerMultiplierFeel = DangerOptions[currentSurvey.dangerIndex],
+            featureBalanceFeel = FeatureOptions[currentSurvey.featureIndex],
+            testerNotes = currentSurvey.testerNotes
         };
         return JsonUtility.ToJson(metadata);
     }
@@ -1211,6 +1361,46 @@ public static class QaTestingSystem
     private static string SafeValue(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? "(none)" : value;
+    }
+
+    private static string NormalizeTesterName(string testerName)
+    {
+        if (string.IsNullOrWhiteSpace(testerName))
+            return string.Empty;
+
+        string trimmedName = testerName.Trim();
+        StringBuilder builder = new StringBuilder(trimmedName.Length);
+
+        for (int i = 0; i < trimmedName.Length && builder.Length < 48; i++)
+        {
+            char character = trimmedName[i];
+
+            if (char.IsControl(character))
+                continue;
+
+            builder.Append(character);
+        }
+
+        return builder.ToString().Trim();
+    }
+
+    private static string NormalizeTesterNotes(string testerNotes)
+    {
+        if (string.IsNullOrWhiteSpace(testerNotes))
+            return string.Empty;
+
+        string trimmedNotes = testerNotes.Trim();
+        StringBuilder builder = new StringBuilder(Mathf.Min(trimmedNotes.Length, 600));
+
+        for (int i = 0; i < trimmedNotes.Length && builder.Length < 600; i++)
+        {
+            char character = trimmedNotes[i];
+
+            if (character == '\n' || character == '\r' || character == '\t' || !char.IsControl(character))
+                builder.Append(character);
+        }
+
+        return builder.ToString().Trim();
     }
 }
 

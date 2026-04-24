@@ -98,22 +98,22 @@ public class InventorySlotUI : MonoBehaviour
         if (nameText != null)
         {
             nameText.text = UpgradeInventory.GetDisplayName(upgradeType);
-            nameText.color = Color.white;
+            nameText.color = StudioUiTheme.Text;
             nameText.fontStyle = FontStyles.Bold;
         }
 
         if (descriptionText != null)
         {
             descriptionText.text = GetUpgradeDescription(upgradeType);
-            descriptionText.color = new Color(0.83f, 0.89f, 0.94f, 0.96f);
+            descriptionText.color = StudioUiTheme.MutedText;
         }
 
         if (ownedText != null)
         {
             ownedText.text = "Owned: " + ownedAmount;
             ownedText.color = ownedAmount > 0
-                ? new Color(0.86f, 0.93f, 0.97f, 0.96f)
-                : new Color(0.68f, 0.74f, 0.8f, 0.9f);
+                ? StudioUiTheme.Text
+                : StudioUiTheme.WithAlpha(StudioUiTheme.MutedText, 0.74f);
         }
 
         if (statusText != null)
@@ -121,17 +121,17 @@ public class InventorySlotUI : MonoBehaviour
             if (isEquipped)
             {
                 statusText.text = "Selected";
-                statusText.color = new Color(0.58f, 0.93f, 0.72f, 1f);
+                statusText.color = StudioUiTheme.Gold;
             }
             else if (ownedAmount > 0)
             {
                 statusText.text = "Tap to use";
-                statusText.color = new Color(0.64f, 0.79f, 0.95f, 1f);
+                statusText.color = StudioUiTheme.Blue;
             }
             else
             {
                 statusText.text = "Shop first";
-                statusText.color = new Color(0.82f, 0.74f, 0.54f, 0.96f);
+                statusText.color = StudioUiTheme.WithAlpha(StudioUiTheme.Gold, 0.78f);
             }
         }
 
@@ -141,11 +141,12 @@ public class InventorySlotUI : MonoBehaviour
         if (backgroundImage != null)
         {
             RuntimeCaveTheme theme = CaveThemeLibrary.GetMenuTheme();
-            Color normalColor = Color.Lerp(theme.WallColor, theme.BackgroundBottom, 0.28f);
+            StudioUiTheme.ApplyPanel(backgroundImage, isEquipped ? StudioPanelStyle.Accent : StudioPanelStyle.Surface);
+            Color normalColor = StudioUiTheme.Surface;
             normalColor.a = 0.96f;
-            Color selectedColor = Color.Lerp(theme.AccentColor, theme.CrystalColor, 0.28f);
+            Color selectedColor = new Color(0.18f, 0.34f, 0.24f, 0.97f);
             selectedColor.a = 0.97f;
-            Color unavailableColor = Color.Lerp(theme.WallColor, Color.black, 0.22f);
+            Color unavailableColor = StudioUiTheme.Dim(StudioUiTheme.Surface, 0.42f);
             unavailableColor.a = 0.9f;
 
             if (isEquipped)
@@ -166,25 +167,25 @@ public class InventorySlotUI : MonoBehaviour
             nameText,
             runtimeFont,
             20f,
-            52f,
+            42f,
             26f,
-            180f,
+            150f,
             TextAlignmentOptions.TopLeft,
-            24f,
-            38f,
+            21f,
+            32f,
             FontStyles.Bold);
 
         descriptionText = EnsureTopBandLabel(
             "DescriptionText",
             descriptionText,
             runtimeFont,
-            82f,
-            30f,
+            68f,
+            56f,
             26f,
             26f,
             TextAlignmentOptions.TopLeft,
             14f,
-            20f,
+            19f,
             FontStyles.Normal);
 
         ownedText = EnsureBottomHalfLabel(

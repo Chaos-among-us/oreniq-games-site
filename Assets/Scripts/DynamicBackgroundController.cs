@@ -344,13 +344,14 @@ public class DynamicBackgroundController : MonoBehaviour
         return new[]
         {
             CreateTheme(
-                "Cloud Sea",
-                new Color(0.42f, 0.7f, 0.96f, 1f),
-                new Color(0.9f, 0.96f, 1f, 1f),
+                "Moss Vault",
+                new Color(0.08f, 0.13f, 0.115f, 1f),
+                new Color(0.025f, 0.045f, 0.04f, 1f),
                 new[]
                 {
-                    CreateSpawn(BackgroundShape.Cloud, false, -270, 0.38f, 0.72f, 1.8f, 3.4f, 0.9f, 1.7f, 0.35f, 0.62f, 0.15f, 0.55f, 0.2f, 0.6f, -8f, 8f, -4f, 4f, 0.16f, 0.28f, new Color(1f, 1f, 1f, 1f), new Color(0.84f, 0.93f, 1f, 1f)),
-                    CreateSpawn(BackgroundShape.Mist, false, -290, 0.9f, 1.4f, 2.8f, 4.8f, 1.5f, 2.6f, 0.18f, 0.34f, 0.1f, 0.35f, 0.12f, 0.35f, -5f, 5f, -2f, 2f, 0.07f, 0.14f, new Color(1f, 1f, 1f, 1f), new Color(0.74f, 0.89f, 1f, 1f))
+                    CreateSpawn(BackgroundShape.Mist, false, -300, 0.72f, 1.15f, 2.6f, 4.4f, 1.4f, 2.4f, 0.18f, 0.34f, 0.08f, 0.3f, 0.12f, 0.35f, -5f, 5f, -2f, 2f, 0.06f, 0.12f, new Color(0.58f, 0.78f, 0.68f, 1f), new Color(0.36f, 0.58f, 0.52f, 1f)),
+                    CreateSpawn(BackgroundShape.Diamond, false, -245, 0.26f, 0.52f, 0.12f, 0.28f, 0.12f, 0.3f, 0.38f, 0.72f, 0.02f, 0.12f, 0.18f, 0.5f, -35f, 35f, -8f, 8f, 0.18f, 0.32f, new Color(0.86f, 0.98f, 0.56f, 1f), new Color(0.36f, 0.92f, 0.84f, 1f)),
+                    CreateSpawn(BackgroundShape.Shard, true, -255, 0.38f, 0.7f, 1.0f, 2.0f, 2.2f, 4.4f, 0.45f, 0.86f, 0.05f, 0.22f, 0.12f, 0.34f, -24f, 24f, -4f, 4f, 0.1f, 0.19f, new Color(0.11f, 0.2f, 0.18f, 1f), new Color(0.18f, 0.28f, 0.2f, 1f))
                 }),
             CreateTheme(
                 "Ember Cave",

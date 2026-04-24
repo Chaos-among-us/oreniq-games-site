@@ -1,6 +1,6 @@
 {
-  "uploadUrl": "",
-  "submissionButtonLabel": "Send QA Package",
+  "uploadUrl": "http://10.0.0.7:8787/qa-upload",
+  "submissionButtonLabel": "Send QA Data",
   "testerBuildUrl": "",
   "testerSurveyUrl": ""
 }

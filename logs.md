@@ -1338,4 +1338,163 @@ Use this exact format for new entries:
     - the roadmap footer now shows share progress alongside other mastery cues
   - Temporary screenshot captures used for this QA pass were deleted after review.
 - Next best action:
-  - Use short recorded gameplay clips, not only still screenshots, for the next tuning pass so run pacing, readability, and “one more try” feel can be judged more honestly before deeper launch and monetization work.
+  - Use short recorded gameplay clips, not only still screenshots, for the next tuning pass so run pacing, readability, and "one more try" feel can be judged more honestly before deeper launch and monetization work.
+
+### 2026-04-24 - Play internal-test readiness and phone QA handoff
+- Goal:
+  - Resume from the verified Play Console milestone, reconnect the phone wirelessly, identify the fastest internal-test path, and make the QA handoff less manual.
+- What changed:
+  - Added `Tools/Android/Build Play Internal Test AAB` and `AndroidBuildUtility.BuildPlayInternalTestAabBatchmode`.
+  - The new Play AAB path creates `Builds/Android/EndlessDodge1-internal-test.aab`, uses the existing shared signing resolver, forces a release-style app bundle build, and refuses to use `androiddebugkey` / `shared-debug.keystore` for Play uploads.
+  - Added `scripts/pull-qa-artifacts.ps1` so a connected USB or wireless ADB phone can export QA reports, exported QA ZIPs, and optionally gameplay videos into `Builds/PhoneQaArtifacts/<timestamp>/`.
+  - Updated `docs/QA_TESTER_PIPELINE.md` with the new QA artifact pull commands.
+  - Added `docs/PLAY_INTERNAL_TESTING_QUICKSTART.md` with the current click-by-click Play Console, upload-key, internal tester, billing tester, and optional Publishing API credential path.
+- Phone handoff:
+  - Wireless ADB reconnected to `10.0.0.62:46829`.
+  - The installed package is `com.oreniq.endlessdodge`, version `1.0`, versionCode `1`, targetSdk `36`, debug build, last updated on-device at `2026-04-23 19:10:51`.
+  - The phone has two app-local QA videos, two QA reports, and one exported QA ZIP in `Download/EndlessDodgeQA`.
+  - Pulled a report/package-only copy to `Builds/PhoneQaArtifacts/20260424-120136/`.
+  - Report summaries:
+    - `qa-20260423-215216`: score `62`, level `2`, coins `19`, collision `Fair`, difficulty `Balanced`, reward feel `Good`, replay pull `Maybe`.
+    - `qa-20260423-223651`: score `62`, level `2`, coins `18`, collision `Fair`, difficulty `Too Easy`, reward feel `Flat`, replay pull `Maybe`.
+- Current release blocker:
+  - The shared signing config is still the `shared-debug.keystore` QA bridge. This is good for multi-PC phone installs, but it must be replaced with a real Play upload keystore before building the uploadable AAB.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity batch preflight for `AndroidBuildUtility.BuildPlayInternalTestAabBatchmode` intentionally stopped with the debug-bridge signing error and did not create an AAB.
+  - `powershell -ExecutionPolicy Bypass -File scripts\pull-qa-artifacts.ps1 -SkipVideos` succeeded against the wireless phone.
+- Next best action:
+  - In Play Console, create/confirm the app, enable Play App Signing, create the real upload keystore locally, replace the shared debug-bridge signing config outside Git, build the Play internal-test AAB, upload it to Internal testing, add testers, and publish the internal test release.
+
+### 2026-04-24 - QA tester polish and survey expansion
+- Goal:
+  - Finish the temporary QA test build experience before Play internal testing by making tester setup, screen-record consent, post-run survey capture, and artifact handoff clearer on the real phone.
+- What changed:
+  - Added a required temporary tester-name field to QA mode. QA recording now waits until the tester name is saved, and the main menu QA button reports `QA Needs Name` when setup is incomplete.
+  - Rewrote the QA tutorial/disclaimer panel to explain that this is a temporary tester build, that gameplay/menu/survey video may be recorded after Android screen-capture consent, that microphone audio is not captured, and that the tester should submit the survey package after a run.
+  - Expanded the post-run QA survey with shop-price, shop-reward, ad-offer, danger-multiplier, feature-clarity, and freeform tester-notes fields, while preserving collision, difficulty, reward-feel, and replay-pull questions.
+  - Updated QA report/package metadata, exported text reports, multipart upload fields, and local package names so tester identity and the new survey answers travel with each QA package.
+  - Resized and restyled the QA overlay and post-run survey so they read more professionally on the Samsung test phone, and hid run-upgrade buttons while the revive prompt or QA survey is active.
+  - Updated `docs/QA_TESTER_PIPELINE.md`, added `docs/QA_TEMPORARY_REMOVAL_CHECKLIST.md`, and expanded `docs/PLAY_INTERNAL_TESTING_QUICKSTART.md` with privacy/app-content checkpoints for QA recording builds.
+- Phone QA:
+  - Installed the updated debug QA build on `10.0.0.62:46829`.
+  - Verified the main menu now blocks QA recording until a tester name is entered.
+  - Verified the Android screen-recording consent path, the expanded QA survey, and package-save/send controls on-device.
+  - Temporary before/after screenshots and ad-hoc recordings were used for review and then deleted.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity Android debug build succeeded and produced `Builds/Android/EndlessDodge1-debug.apk`.
+- Current release blocker:
+  - Play upload is still blocked until the shared debug-bridge signing config is replaced with a real Play upload keystore. The Play AAB build path intentionally refuses to upload-sign with `androiddebugkey` or `shared-debug.keystore`.
+
+### 2026-04-24 - Studio UI polish pass for QA build
+- Goal:
+  - Respond to the on-device quality review by moving the temporary QA build away from flat/debug-looking UI and toward a cohesive, studio-grade mobile presentation.
+- What changed:
+  - Added `Assets/Scripts/StudioUiTheme.cs` as a shared runtime UI theme for rounded panels, button chrome, input fields, shadows, outlines, and the cave/amber/teal color system.
+  - Reworked the main menu into a cleaner dashboard:
+    - compact title and player snapshot
+    - strong primary Play CTA
+    - paired Shop / Inventory actions
+    - cleaner roadmap, reward, challenge, and mission modules
+    - QA chip kept visually separate as temporary tester tooling
+  - Restyled shop cards, offer cards, section headers, and the back button so the shop reads as part of the same cave-camp interface instead of a long debug list.
+  - Restyled inventory cards and selected states so loadout choices feel calmer and more consistent with the new menu theme.
+  - Applied the shared panel/button/input styling to QA setup, QA capture, post-run survey, mission, and mastery overlays.
+- Phone QA:
+  - Built and installed the updated debug APK on the wireless Samsung phone.
+  - Reviewed before/after phone screenshots for the main menu, shop, inventory, mastery overlay, and QA setup overlay.
+  - Corrected a bad first-pass scaling issue where main-menu card text wrapped into tiny columns on-device.
+  - Restored the debug phone profile after an accidental shop tap during ADB navigation: `TotalCoins` back to `4718`, `Upgrade_CoinMagnet` back to `5`, and `Qa_TesterName` blank.
+  - Removed temporary review screenshots and remote scratch captures after the pass.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded.
+  - Unity Android debug build succeeded and produced `Builds/Android/EndlessDodge1-debug.apk`.
+  - Final installed package on phone: `com.oreniq.endlessdodge`, `versionName=1.0`, `versionCode=1`, `lastUpdateTime=2026-04-24 15:05:04`.
+
+### 2026-04-24 - Gameplay presentation and hitbox polish
+- Goal:
+  - Extend the studio polish pass into the actual gameplay loop, while keeping player and obstacle collision fair after visual changes.
+- What changed:
+  - Reworked the live run HUD into themed score, coin, loadout, pause, menu, and run-upgrade controls using the shared `StudioUiTheme` styling.
+  - Rebuilt the player as a brighter lumen-runner sprite with animated wings, a soft glow, and an explicit body-only `CapsuleCollider2D` so glow and wings do not expand the hitbox.
+  - Restyled obstacle sprites with smoother filtering, stronger bevels/highlights, and no double-dark tinting.
+  - Updated obstacle collision profiles for rock, ledge, stalactite, crystal, and zigzag hazards so the active polygon/capsule matches the new silhouettes.
+  - Rebuilt coins with a sharper ember-gold sprite, soft glow, controlled trigger radius, and subtle runtime animation.
+  - Darkened and softened the gameplay cave staging so the playfield reads less flat and the hazards/player stand out better.
+- Phone QA:
+  - Captured temporary before screenshots and recordings of the old gameplay presentation on the wireless Samsung phone.
+  - Installed and reviewed the updated debug build on `10.0.0.62:46829`.
+  - Caught and fixed a first-pass player mask bug that rendered the player glow as a square on-device.
+  - Verified the corrected after screenshot/video on-device and restored `TotalCoins` to the pre-pass value of `5278` after verification runs collected test coins.
+  - Temporary before/after screenshots, recordings, crash-buffer file, and local playerprefs scratch file were deleted after review.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity Android debug build succeeded and produced `Builds/Android/EndlessDodge1-debug.apk`.
+  - Final installed package on phone: `com.oreniq.endlessdodge`, `versionName=1.0`, `versionCode=1`, `lastUpdateTime=2026-04-24 16:00:52`.
+  - Android crash buffer was empty after the after-pass gameplay recording.
+
+### 2026-04-24 - QA visibility, consent timing, and one-tap upload handoff
+- Goal:
+  - Fix the three late QA blockers before switching computers: hard-to-see stone hazards, too-brief recording notice, and Android share-sheet handoff instead of automatic QA upload.
+- What changed:
+  - Increased hazard readability in `Assets/Scripts/Obstacle.cs`:
+    - added a non-colliding `HazardReadabilityGlow` sprite behind hazards
+    - brightened stone rocks, long ledges, and stalactites
+    - especially boosted long stalactites/ledges with stronger rim highlights and glow
+    - did not change the active collision profiles in this pass, so the hitboxes from the prior gameplay polish remain intact
+  - Changed the QA recording flow in `Assets/Scripts/GameManager.cs`:
+    - gameplay now pauses behind a persistent `Before Recording Starts` consent panel
+    - testers must tap `I Agree - Open Android Prompt`
+    - the panel now warns that Android may default to `Share one app` and tells testers to switch to `Share full screen`
+  - Added direct QA upload plumbing:
+    - `Assets/Resources/QaSubmissionConfig.json` now points at `http://10.0.0.7:8787/qa-upload`
+    - `scripts/qa-upload-collector.mjs` receives multipart QA packages and saves them into `Builds/QaCollectorInbox`
+    - `scripts/start-qa-collector.ps1` starts the local repo collector
+    - Android `INTERNET`, cleartext traffic, and Unity insecure HTTP settings were enabled for this temporary LAN QA build
+  - Tightened the post-run QA survey:
+    - when an upload URL is configured, the survey shows one primary `Send QA Data` button
+    - the Android share sheet is bypassed
+    - local save/delete fallback controls are hidden in upload-configured builds
+    - success copy now says only `QA package sent successfully.`
+  - Fixed a QA setup modal usability bug in `Assets/Scripts/MainMenu.cs` by making decorative overlay/text layers non-intercepting, so buttons receive taps reliably.
+- Phone QA:
+  - Verified the persistent in-game recording notice on the wireless Samsung phone.
+  - Verified the Android screen-capture prompt appears only after the tester taps the in-game agreement.
+  - Verified canceling Android recording permission lets the run continue without leaving a live capture session.
+  - Verified brighter rocks and long stalactites in live gameplay screenshots.
+  - First direct upload attempt failed on-device with `InvalidOperationException: Insecure connection not allowed`.
+  - Fixed the temporary QA build by changing Unity `ProjectSettings.asset` `insecureHttpOption` to `2`, then rebuilt.
+  - Verified one real phone submission uploaded successfully through `Send QA Data`; collector saved it locally at:
+    - `Builds/QaCollectorInbox/20260424-171732-Anthony-qa-20260424-231500/`
+  - Phone app state was changed by verification runs and was not restored before the time-box ended:
+    - last observed coins: `5600`
+    - last observed run counter: `31/35`
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `C:\Users\antho\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe --check scripts\qa-upload-collector.mjs` succeeded.
+  - Unity Android debug build succeeded and produced `Builds/Android/EndlessDodge1-debug.apk`.
+  - Latest successful Unity build log:
+    - `Builds/Android/build-qa-visibility-upload-6.log`
+  - Important: build `6` includes the final success-message wording fix, but it was not installed on the phone before stopping. The last phone install was `lastUpdateTime=2026-04-24 17:12:55`, one build earlier.
+- Current outstanding tasks for the next PC:
+  - Pull/checkout this repo state, open Unity `6000.4.0f1`, and rebuild/install the latest debug APK, or install `Builds/Android/EndlessDodge1-debug.apk` if it was copied over.
+  - Update `Assets/Resources/QaSubmissionConfig.json` to the new PC's LAN IP before building if the collector will run from that PC.
+  - Start the collector on the new PC with:
+    - `powershell -ExecutionPolicy Bypass -File scripts\start-qa-collector.ps1`
+  - Confirm the phone can reach the collector:
+    - `adb shell curl -s --max-time 5 http://<NEW_PC_IP>:8787/`
+  - Re-test one `Send QA Data` upload after rebuilding with the new IP.
+  - For remote Play testers, replace the LAN `http://10.0.0.7:8787/qa-upload` bridge with a hosted HTTPS endpoint; the current local collector only works when the tester phone and repo computer are on the same network.
+  - Before production release, remove or revert the temporary QA/data-capture pieces:
+    - QA mode and survey/upload UI
+    - `usesCleartextTraffic`
+    - Unity `insecureHttpOption: 2`
+    - local collector config
+    - any Play privacy/Data safety answers that were only true for the temporary QA build
+  - Play internal test upload is still blocked until the shared debug-bridge signing config is replaced by a real Play upload keystore.

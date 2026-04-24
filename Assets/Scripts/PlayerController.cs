@@ -45,7 +45,6 @@ public class PlayerController : MonoBehaviour
         spriteRenderer = GetComponent<SpriteRenderer>();
         originalScale = transform.localScale;
         playerBody = GetComponent<Rigidbody2D>();
-        playerCollider = GetComponent<Collider2D>();
         mainCamera = Camera.main;
 
         configuredMinX = minX;
@@ -55,6 +54,9 @@ public class PlayerController : MonoBehaviour
 
         if (GetComponent<CavePlayerVisuals>() == null)
             gameObject.AddComponent<CavePlayerVisuals>();
+
+        CavePlayerVisuals.ApplyCollisionProfile(gameObject);
+        playerCollider = CavePlayerVisuals.GetActiveCollider(gameObject);
     }
 
     void Start()
@@ -199,6 +201,7 @@ public class PlayerController : MonoBehaviour
     public void SetSizeMultiplier(float multiplier)
     {
         transform.localScale = originalScale * multiplier;
+        playerCollider = CavePlayerVisuals.GetActiveCollider(gameObject);
         RefreshMovementBounds();
         ClampInsideBoundsImmediate();
     }
@@ -210,7 +213,10 @@ public class PlayerController : MonoBehaviour
 
     public Bounds GetBounds()
     {
-        if (playerCollider != null)
+        if (playerCollider == null || !playerCollider.enabled)
+            playerCollider = CavePlayerVisuals.GetActiveCollider(gameObject);
+
+        if (playerCollider != null && playerCollider.enabled)
             return playerCollider.bounds;
 
         if (spriteRenderer != null)
@@ -322,7 +328,10 @@ public class PlayerController : MonoBehaviour
 
     Vector2 GetPlayerHalfExtents()
     {
-        if (playerCollider != null)
+        if (playerCollider == null || !playerCollider.enabled)
+            playerCollider = CavePlayerVisuals.GetActiveCollider(gameObject);
+
+        if (playerCollider != null && playerCollider.enabled)
             return playerCollider.bounds.extents;
 
         if (spriteRenderer != null)
@@ -454,8 +463,10 @@ public class CavePlayerVisuals : MonoBehaviour
 {
     private static Sprite wingsOpenSprite;
     private static Sprite wingsClosedSprite;
+    private static Sprite glowSprite;
 
     private SpriteRenderer spriteRenderer;
+    private SpriteRenderer glowRenderer;
     private float animationSeed;
     private bool showingOpenWings = true;
 
@@ -463,6 +474,8 @@ public class CavePlayerVisuals : MonoBehaviour
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
         animationSeed = Random.Range(0f, 10f);
+        EnsureGlowRenderer();
+        ApplyCollisionProfile(gameObject);
         ApplySprite(forceOpen: true);
         spriteRenderer.sortingOrder = 12;
     }
@@ -477,6 +490,14 @@ public class CavePlayerVisuals : MonoBehaviour
 
         float glowPulse = 0.84f + (Mathf.Sin(Time.time * 3.4f + animationSeed) * 0.08f);
         spriteRenderer.color = new Color(glowPulse, glowPulse, glowPulse, 1f);
+
+        if (glowRenderer != null)
+        {
+            float auraPulse = 0.72f + (Mathf.Sin(Time.time * 2.8f + animationSeed) * 0.1f);
+            glowRenderer.enabled = spriteRenderer.enabled;
+            glowRenderer.color = new Color(0.42f, 0.92f, 1f, 0.28f + auraPulse * 0.08f);
+            glowRenderer.transform.localScale = Vector3.one * (1.08f + auraPulse * 0.08f);
+        }
     }
 
     private void ApplySprite(bool forceOpen)
@@ -486,10 +507,71 @@ public class CavePlayerVisuals : MonoBehaviour
         spriteRenderer.color = Color.white;
     }
 
+    private void EnsureGlowRenderer()
+    {
+        Transform existing = transform.Find("PlayerCoreGlow");
+        GameObject glowObject = existing != null ? existing.gameObject : new GameObject("PlayerCoreGlow");
+
+        if (existing == null)
+            glowObject.transform.SetParent(transform, false);
+
+        glowRenderer = glowObject.GetComponent<SpriteRenderer>();
+
+        if (glowRenderer == null)
+            glowRenderer = glowObject.AddComponent<SpriteRenderer>();
+
+        glowRenderer.sprite = GetGlowSprite();
+        glowRenderer.sortingOrder = 11;
+        glowRenderer.enabled = true;
+    }
+
+    public static Collider2D GetActiveCollider(GameObject target)
+    {
+        if (target == null)
+            return null;
+
+        Collider2D[] colliders = target.GetComponents<Collider2D>();
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] != null && colliders[i].enabled)
+                return colliders[i];
+        }
+
+        return target.GetComponent<Collider2D>();
+    }
+
+    public static void ApplyCollisionProfile(GameObject target)
+    {
+        if (target == null)
+            return;
+
+        Collider2D[] colliders = target.GetComponents<Collider2D>();
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] == null)
+                continue;
+
+            colliders[i].enabled = colliders[i] is CapsuleCollider2D;
+        }
+
+        CapsuleCollider2D capsule = target.GetComponent<CapsuleCollider2D>();
+
+        if (capsule == null)
+            capsule = target.AddComponent<CapsuleCollider2D>();
+
+        capsule.enabled = true;
+        capsule.isTrigger = true;
+        capsule.direction = CapsuleDirection2D.Vertical;
+        capsule.offset = new Vector2(0f, -0.02f);
+        capsule.size = new Vector2(0.5f, 0.58f);
+    }
+
     private static Sprite GetWingsOpenSprite()
     {
         if (wingsOpenSprite == null)
-            wingsOpenSprite = BuildGlowBugSprite("GlowBugOpen", wingsOpen: true);
+            wingsOpenSprite = BuildPlayerSprite("LumenRunnerOpen", wingsOpen: true);
 
         return wingsOpenSprite;
     }
@@ -497,19 +579,27 @@ public class CavePlayerVisuals : MonoBehaviour
     private static Sprite GetWingsClosedSprite()
     {
         if (wingsClosedSprite == null)
-            wingsClosedSprite = BuildGlowBugSprite("GlowBugClosed", wingsOpen: false);
+            wingsClosedSprite = BuildPlayerSprite("LumenRunnerClosed", wingsOpen: false);
 
         return wingsClosedSprite;
     }
 
-    private static Sprite BuildGlowBugSprite(string name, bool wingsOpen)
+    private static Sprite GetGlowSprite()
     {
-        const int size = 128;
+        if (glowSprite == null)
+            glowSprite = BuildGlowSprite();
+
+        return glowSprite;
+    }
+
+    private static Sprite BuildPlayerSprite(string name, bool wingsOpen)
+    {
+        const int size = 160;
         Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
         texture.filterMode = FilterMode.Bilinear;
         texture.wrapMode = TextureWrapMode.Clamp;
         Color[] pixels = new Color[size * size];
-        Vector2 center = new Vector2(size * 0.5f, size * 0.48f);
+        Vector2 center = new Vector2(size * 0.5f, size * 0.5f);
 
         for (int y = 0; y < size; y++)
         {
@@ -517,32 +607,59 @@ public class CavePlayerVisuals : MonoBehaviour
             {
                 Vector2 point = new Vector2(x, y);
                 Vector2 normalized = (point - center) / size;
-                float bodyDistance = normalized.magnitude;
-                float wingSpread = wingsOpen ? 0.28f : 0.16f;
-                float wingHeight = wingsOpen ? 0.16f : 0.1f;
-
-                bool leftWing = Mathf.Pow((normalized.x + wingSpread) / 0.16f, 2f) + Mathf.Pow((normalized.y + 0.02f) / wingHeight, 2f) < 1f;
-                bool rightWing = Mathf.Pow((normalized.x - wingSpread) / 0.16f, 2f) + Mathf.Pow((normalized.y + 0.02f) / wingHeight, 2f) < 1f;
-                bool body = bodyDistance < 0.14f;
-                bool glow = bodyDistance < 0.24f;
+                float bodyMask = EllipseMask(normalized, Vector2.zero, 0.11f, 0.18f);
+                float coreMask = EllipseMask(normalized, new Vector2(0f, -0.012f), 0.064f, 0.12f);
+                float headMask = EllipseMask(normalized, new Vector2(0f, 0.14f), 0.074f, 0.064f);
+                float lowerGlow = EllipseMask(normalized, new Vector2(0f, -0.05f), 0.18f, 0.23f);
+                float wingSpread = wingsOpen ? 0.27f : 0.18f;
+                float wingHeight = wingsOpen ? 0.135f : 0.09f;
+                float leftWing = EllipseMask(normalized, new Vector2(-wingSpread, 0.016f), 0.19f, wingHeight);
+                float rightWing = EllipseMask(normalized, new Vector2(wingSpread, 0.016f), 0.19f, wingHeight);
+                float leftVein = LineMask(normalized, new Vector2(-0.05f, 0.08f), new Vector2(-wingSpread - 0.09f, 0.055f), 0.012f);
+                float rightVein = LineMask(normalized, new Vector2(0.05f, 0.08f), new Vector2(wingSpread + 0.09f, 0.055f), 0.012f);
+                float antennaLeft = LineMask(normalized, new Vector2(-0.035f, 0.18f), new Vector2(-0.11f, 0.255f), 0.008f);
+                float antennaRight = LineMask(normalized, new Vector2(0.035f, 0.18f), new Vector2(0.11f, 0.255f), 0.008f);
                 Color color = Color.clear;
+                float wingMask = Mathf.Max(leftWing, rightWing);
 
-                if (leftWing || rightWing)
-                    color = new Color(0.78f, 0.96f, 1f, wingsOpen ? 0.62f : 0.42f);
-
-                if (glow)
+                if (wingMask > 0f)
                 {
-                    float glowBlend = Mathf.InverseLerp(0.24f, 0.03f, bodyDistance);
-                    Color glowColor = Color.Lerp(new Color(0.28f, 0.82f, 1f, 0.28f), new Color(1f, 0.94f, 0.45f, 0.9f), glowBlend);
-                    color = Color.Lerp(color, glowColor, glowColor.a);
+                    float wingAlpha = wingMask * (wingsOpen ? 0.68f : 0.46f);
+                    Color wingColor = Color.Lerp(new Color(0.42f, 0.92f, 1f, wingAlpha), new Color(0.94f, 1f, 1f, wingAlpha), wingMask * 0.55f);
+                    color = Blend(color, wingColor);
                 }
 
-                if (body)
+                float veinMask = Mathf.Max(leftVein, rightVein);
+
+                if (veinMask > 0f)
+                    color = Blend(color, new Color(0.93f, 1f, 1f, 0.28f * veinMask));
+
+                if (lowerGlow > 0f)
                 {
-                    float bodyBlend = Mathf.InverseLerp(0.14f, 0.01f, bodyDistance);
-                    Color bodyColor = Color.Lerp(new Color(0.42f, 0.28f, 0.08f, 1f), new Color(1f, 0.92f, 0.48f, 1f), bodyBlend);
-                    color = Color.Lerp(color, bodyColor, 0.9f);
-                    color.a = 1f;
+                    Color glowColor = Color.Lerp(new Color(0.18f, 0.8f, 1f, 0.1f), new Color(1f, 0.88f, 0.3f, 0.72f), lowerGlow);
+                    glowColor.a *= lowerGlow;
+                    color = Blend(color, glowColor);
+                }
+
+                if (bodyMask > 0f || headMask > 0f)
+                {
+                    float mask = Mathf.Max(bodyMask, headMask);
+                    Color shell = Color.Lerp(new Color(0.13f, 0.11f, 0.08f, 1f), new Color(0.58f, 0.38f, 0.12f, 1f), mask);
+                    color = Blend(color, shell);
+                }
+
+                if (coreMask > 0f)
+                    color = Blend(color, new Color(1f, 0.88f, 0.28f, coreMask));
+
+                float antennaMask = Mathf.Max(antennaLeft, antennaRight);
+
+                if (antennaMask > 0f)
+                    color = Blend(color, new Color(0.75f, 0.95f, 1f, antennaMask * 0.82f));
+
+                if (color.a > 0f)
+                {
+                    float topLight = Mathf.Clamp01((normalized.y + 0.25f) / 0.48f);
+                    color = Color.Lerp(color, Color.white, topLight * Mathf.Max(coreMask, wingMask) * 0.12f);
                 }
 
                 pixels[y * size + x] = color;
@@ -554,5 +671,66 @@ public class CavePlayerVisuals : MonoBehaviour
         Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
         sprite.name = name;
         return sprite;
+    }
+
+    private static Sprite BuildGlowSprite()
+    {
+        const int size = 128;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float distance = Vector2.Distance(new Vector2(x, y), center) / (size * 0.5f);
+                float alpha = Mathf.Pow(Mathf.Clamp01(1f - distance), 2.4f) * 0.68f;
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+
+        texture.Apply();
+        Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
+        sprite.name = "PlayerCoreGlow";
+        return sprite;
+    }
+
+    private static float EllipseMask(Vector2 point, Vector2 center, float halfWidth, float halfHeight)
+    {
+        float dx = (point.x - center.x) / Mathf.Max(0.001f, halfWidth);
+        float dy = (point.y - center.y) / Mathf.Max(0.001f, halfHeight);
+        float distance = Mathf.Sqrt((dx * dx) + (dy * dy));
+        return 1f - Smooth01(0.82f, 1f, distance);
+    }
+
+    private static float LineMask(Vector2 point, Vector2 start, Vector2 end, float width)
+    {
+        Vector2 line = end - start;
+        float lengthSq = Mathf.Max(0.0001f, line.sqrMagnitude);
+        float t = Mathf.Clamp01(Vector2.Dot(point - start, line) / lengthSq);
+        float distance = Vector2.Distance(point, start + line * t);
+        return 1f - Smooth01(width * 0.35f, width, distance);
+    }
+
+    private static float Smooth01(float from, float to, float value)
+    {
+        return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(from, to, value));
+    }
+
+    private static Color Blend(Color baseColor, Color overlay)
+    {
+        if (overlay.a <= 0f)
+            return baseColor;
+
+        float outputAlpha = overlay.a + baseColor.a * (1f - overlay.a);
+
+        if (outputAlpha <= 0f)
+            return Color.clear;
+
+        Color output = (overlay * overlay.a + baseColor * baseColor.a * (1f - overlay.a)) / outputAlpha;
+        output.a = outputAlpha;
+        return output;
     }
 }

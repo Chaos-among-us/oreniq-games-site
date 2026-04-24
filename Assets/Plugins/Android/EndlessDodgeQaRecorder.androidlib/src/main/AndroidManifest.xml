@@ -4,8 +4,9 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
-    <application>
+    <application android:usesCleartextTraffic="true">
         <activity
             android:name="com.oreniq.endlessdodge.qa.QaRecorderPermissionActivity"
             android:excludeFromRecents="true"

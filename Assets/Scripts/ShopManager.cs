@@ -23,18 +23,18 @@ public class ShopManager : MonoBehaviour
     public string titleObjectName = "ShopTitle";
     public string backButtonObjectName = "BackButton";
 
-    public float sidePadding = 18f;
-    public float topPadding = 192f;
-    public float bottomPadding = 84f;
-    public float rowSpacing = 12f;
-    public float offerItemHeight = 228f;
-    public float itemHeight = 236f;
-    public float sectionHeaderHeight = 42f;
-    public float sectionSpacing = 12f;
-    public float sectionGap = 20f;
-    public float cardHorizontalInset = 22f;
-    public float cardMaxWidth = 720f;
-    public float headerHorizontalInset = 24f;
+    public float sidePadding = 20f;
+    public float topPadding = 154f;
+    public float bottomPadding = 92f;
+    public float rowSpacing = 14f;
+    public float offerItemHeight = 214f;
+    public float itemHeight = 214f;
+    public float sectionHeaderHeight = 34f;
+    public float sectionSpacing = 10f;
+    public float sectionGap = 18f;
+    public float cardHorizontalInset = 20f;
+    public float cardMaxWidth = 780f;
+    public float headerHorizontalInset = 18f;
 
     private int totalCoins;
     private TMP_FontAsset runtimeFont;
@@ -342,7 +342,7 @@ public class ShopManager : MonoBehaviour
             viewportRect = viewportObject.GetComponent<RectTransform>();
 
             Image viewportImage = viewportObject.GetComponent<Image>();
-            viewportImage.color = new Color(0.04f, 0.07f, 0.09f, 0.56f);
+            StudioUiTheme.ApplyPanel(viewportImage, StudioPanelStyle.Scrim, 0.42f);
         }
 
         if (viewportRect.GetComponent<RectMask2D>() == null)
@@ -351,7 +351,7 @@ public class ShopManager : MonoBehaviour
         Image existingViewportImage = viewportRect.GetComponent<Image>();
 
         if (existingViewportImage != null)
-            existingViewportImage.color = new Color(0.04f, 0.07f, 0.09f, 0.56f);
+            StudioUiTheme.ApplyPanel(existingViewportImage, StudioPanelStyle.Scrim, 0.42f);
 
         Transform existingContent = viewportRect.Find(ContentObjectName);
 
@@ -446,8 +446,8 @@ public class ShopManager : MonoBehaviour
             shopTitleRect.anchorMin = new Vector2(0.5f, 1f);
             shopTitleRect.anchorMax = new Vector2(0.5f, 1f);
             shopTitleRect.pivot = new Vector2(0.5f, 1f);
-            shopTitleRect.sizeDelta = new Vector2(contentWidth, 52f);
-            shopTitleRect.anchoredPosition = new Vector2(0f, -48f);
+            shopTitleRect.sizeDelta = new Vector2(contentWidth, 46f);
+            shopTitleRect.anchoredPosition = new Vector2(0f, -34f);
         }
 
         if (shopTitleText != null)
@@ -455,9 +455,10 @@ public class ShopManager : MonoBehaviour
             shopTitleText.text = "Supply Cache";
             shopTitleText.alignment = TextAlignmentOptions.Center;
             shopTitleText.enableAutoSizing = true;
-            shopTitleText.fontSizeMin = 20;
-            shopTitleText.fontSizeMax = 30;
-            shopTitleText.color = new Color(0.97f, 0.95f, 0.83f, 1f);
+            shopTitleText.fontSizeMin = 24;
+            shopTitleText.fontSizeMax = 38;
+            shopTitleText.fontStyle = FontStyles.Bold;
+            shopTitleText.color = StudioUiTheme.Text;
         }
 
         if (totalCoinsText != null)
@@ -466,13 +467,13 @@ public class ShopManager : MonoBehaviour
             coinsRect.anchorMin = new Vector2(0.5f, 1f);
             coinsRect.anchorMax = new Vector2(0.5f, 1f);
             coinsRect.pivot = new Vector2(0.5f, 1f);
-            coinsRect.sizeDelta = new Vector2(contentWidth, 32f);
-            coinsRect.anchoredPosition = new Vector2(0f, -92f);
+            coinsRect.sizeDelta = new Vector2(contentWidth, 28f);
+            coinsRect.anchoredPosition = new Vector2(0f, -78f);
             totalCoinsText.alignment = TextAlignmentOptions.Center;
             totalCoinsText.enableAutoSizing = true;
-            totalCoinsText.fontSizeMin = 16;
-            totalCoinsText.fontSizeMax = 24;
-            totalCoinsText.color = new Color(0.84f, 0.91f, 0.95f, 1f);
+            totalCoinsText.fontSizeMin = 15;
+            totalCoinsText.fontSizeMax = 22;
+            totalCoinsText.color = StudioUiTheme.Gold;
         }
 
         if (feedbackText != null)
@@ -481,11 +482,11 @@ public class ShopManager : MonoBehaviour
             feedbackRect.anchorMin = new Vector2(0.5f, 1f);
             feedbackRect.anchorMax = new Vector2(0.5f, 1f);
             feedbackRect.pivot = new Vector2(0.5f, 1f);
-            feedbackRect.sizeDelta = new Vector2(contentWidth, 34f);
-            feedbackRect.anchoredPosition = new Vector2(0f, -130f);
-            feedbackText.fontSizeMin = 16;
-            feedbackText.fontSizeMax = 22;
-            feedbackText.color = new Color(0.84f, 0.9f, 0.95f, 1f);
+            feedbackRect.sizeDelta = new Vector2(contentWidth, 28f);
+            feedbackRect.anchoredPosition = new Vector2(0f, -108f);
+            feedbackText.fontSizeMin = 13;
+            feedbackText.fontSizeMax = 19;
+            feedbackText.color = StudioUiTheme.MutedText;
         }
 
         if (backButtonRect != null)
@@ -493,7 +494,7 @@ public class ShopManager : MonoBehaviour
             backButtonRect.anchorMin = new Vector2(0.5f, 0f);
             backButtonRect.anchorMax = new Vector2(0.5f, 0f);
             backButtonRect.pivot = new Vector2(0.5f, 0f);
-            backButtonRect.sizeDelta = new Vector2(220f, 56f);
+            backButtonRect.sizeDelta = new Vector2(230f, 56f);
             backButtonRect.anchoredPosition = new Vector2(0f, 16f);
         }
 
@@ -501,9 +502,9 @@ public class ShopManager : MonoBehaviour
         {
             backButtonText.text = "Back to Camp";
             backButtonText.enableAutoSizing = true;
-            backButtonText.fontSizeMin = 18;
-            backButtonText.fontSizeMax = 28;
-            backButtonText.color = new Color(0.95f, 0.98f, 0.99f, 1f);
+            backButtonText.fontSizeMin = 16;
+            backButtonText.fontSizeMax = 24;
+            backButtonText.color = StudioUiTheme.Text;
         }
 
         if (backButtonRect != null)
@@ -511,7 +512,7 @@ public class ShopManager : MonoBehaviour
             Image backButtonImage = backButtonRect.GetComponent<Image>();
 
             if (backButtonImage != null)
-                backButtonImage.color = Color.Lerp(theme.WallColor, theme.AccentColor, 0.42f);
+                StudioUiTheme.ApplyButton(backButtonRect.GetComponent<Button>(), StudioButtonStyle.Quiet, backButtonText);
         }
 
         if (viewportRect != null)
@@ -635,7 +636,7 @@ public class ShopManager : MonoBehaviour
         buttonRect.sizeDelta = new Vector2(0f, itemHeight);
 
         Image buttonImage = buttonObject.GetComponent<Image>();
-        buttonImage.color = new Color(0.11f, 0.14f, 0.18f, 0.98f);
+        StudioUiTheme.ApplyPanel(buttonImage, StudioPanelStyle.Surface);
 
         ShopUpgradeButtonUI buttonUI = buttonObject.GetComponent<ShopUpgradeButtonUI>();
         buttonUI.Initialize(this, type, buttonImage, buttonObject.GetComponent<Button>(), runtimeFont);
@@ -702,7 +703,7 @@ public class ShopManager : MonoBehaviour
         offerRect.sizeDelta = new Vector2(0f, offerItemHeight);
 
         Image offerImage = offerObject.GetComponent<Image>();
-        offerImage.color = new Color(0.11f, 0.14f, 0.18f, 0.98f);
+        StudioUiTheme.ApplyPanel(offerImage, StudioPanelStyle.Elevated);
 
         ShopOfferCardUI offerCard = offerObject.GetComponent<ShopOfferCardUI>();
         offerCard.Initialize(this, offerId, offerImage, offerObject.GetComponent<Button>(), runtimeFont);
@@ -1122,10 +1123,10 @@ public class ShopUpgradeButtonUI : MonoBehaviour
     private Image accentBarImage;
     private Button button;
 
-    private readonly Color affordableColor = new Color(0.11f, 0.15f, 0.2f, 0.98f);
-    private readonly Color expensiveColor = new Color(0.08f, 0.11f, 0.15f, 0.94f);
-    private readonly Color titleColor = new Color(0.96f, 0.98f, 0.99f, 1f);
-    private readonly Color bodyColor = new Color(0.82f, 0.89f, 0.95f, 1f);
+    private readonly Color affordableColor = StudioUiTheme.Surface;
+    private readonly Color expensiveColor = new Color(0.085f, 0.105f, 0.095f, 0.92f);
+    private readonly Color titleColor = StudioUiTheme.Text;
+    private readonly Color bodyColor = StudioUiTheme.MutedText;
 
     public void Initialize(
         ShopManager manager,
@@ -1204,6 +1205,7 @@ public class ShopUpgradeButtonUI : MonoBehaviour
         barRect.anchoredPosition = Vector2.zero;
 
         Image barImage = barObject.GetComponent<Image>();
+        StudioUiTheme.ApplyPanel(barImage, StudioPanelStyle.Muted, 0.92f);
 
         Transform labelTransform = barObject.transform.Find("Label");
         GameObject labelObject;
@@ -1233,7 +1235,7 @@ public class ShopUpgradeButtonUI : MonoBehaviour
         label.enableAutoSizing = true;
         label.fontSizeMin = 16f;
         label.fontSizeMax = 22f;
-        label.color = new Color(0.1f, 0.12f, 0.14f, 1f);
+        label.color = new Color(0.075f, 0.085f, 0.075f, 1f);
         label.fontStyle = FontStyles.Bold;
 
         if (runtimeFont != null && label.font == null)
@@ -1298,21 +1300,7 @@ public class ShopUpgradeButtonUI : MonoBehaviour
         if (backgroundImage == null)
             return;
 
-        Outline outline = backgroundImage.GetComponent<Outline>();
-
-        if (outline == null)
-            outline = backgroundImage.gameObject.AddComponent<Outline>();
-
-        outline.effectColor = new Color(0.78f, 0.66f, 0.34f, 0.16f);
-        outline.effectDistance = new Vector2(2f, -2f);
-
-        Shadow shadow = backgroundImage.GetComponent<Shadow>();
-
-        if (shadow == null)
-            shadow = backgroundImage.gameObject.AddComponent<Shadow>();
-
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.28f);
-        shadow.effectDistance = new Vector2(0f, -6f);
+        StudioUiTheme.ApplyPanel(backgroundImage, StudioPanelStyle.Surface);
     }
 
     Color GetAccentColor()
@@ -1406,12 +1394,12 @@ public class ShopOfferCardUI : MonoBehaviour
     private Image accentBarImage;
     private Button button;
 
-    private readonly Color starterAvailableColor = new Color(0.24f, 0.18f, 0.11f, 0.98f);
-    private readonly Color coinPackAvailableColor = new Color(0.1f, 0.17f, 0.2f, 0.98f);
-    private readonly Color ownedColor = new Color(0.12f, 0.22f, 0.16f, 0.98f);
-    private readonly Color unavailableColor = new Color(0.08f, 0.11f, 0.14f, 0.92f);
-    private readonly Color titleColor = new Color(0.97f, 0.98f, 0.99f, 1f);
-    private readonly Color bodyColor = new Color(0.82f, 0.89f, 0.95f, 1f);
+    private readonly Color starterAvailableColor = new Color(0.28f, 0.22f, 0.13f, 0.98f);
+    private readonly Color coinPackAvailableColor = StudioUiTheme.Surface;
+    private readonly Color ownedColor = new Color(0.13f, 0.23f, 0.16f, 0.98f);
+    private readonly Color unavailableColor = new Color(0.085f, 0.105f, 0.095f, 0.92f);
+    private readonly Color titleColor = StudioUiTheme.Text;
+    private readonly Color bodyColor = StudioUiTheme.MutedText;
 
     public void Initialize(
         ShopManager manager,
@@ -1490,6 +1478,7 @@ public class ShopOfferCardUI : MonoBehaviour
         barRect.anchoredPosition = Vector2.zero;
 
         Image barImage = barObject.GetComponent<Image>();
+        StudioUiTheme.ApplyPanel(barImage, StudioPanelStyle.Muted, 0.92f);
 
         Transform labelTransform = barObject.transform.Find("Label");
         GameObject labelObject;
@@ -1519,7 +1508,7 @@ public class ShopOfferCardUI : MonoBehaviour
         label.enableAutoSizing = true;
         label.fontSizeMin = 15f;
         label.fontSizeMax = 22f;
-        label.color = new Color(0.08f, 0.11f, 0.14f, 1f);
+        label.color = new Color(0.075f, 0.085f, 0.075f, 1f);
         label.fontStyle = FontStyles.Bold;
 
         if (runtimeFont != null && label.font == null)
@@ -1584,21 +1573,7 @@ public class ShopOfferCardUI : MonoBehaviour
         if (backgroundImage == null)
             return;
 
-        Outline outline = backgroundImage.GetComponent<Outline>();
-
-        if (outline == null)
-            outline = backgroundImage.gameObject.AddComponent<Outline>();
-
-        outline.effectColor = new Color(0.78f, 0.66f, 0.34f, 0.16f);
-        outline.effectDistance = new Vector2(2f, -2f);
-
-        Shadow shadow = backgroundImage.GetComponent<Shadow>();
-
-        if (shadow == null)
-            shadow = backgroundImage.gameObject.AddComponent<Shadow>();
-
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.28f);
-        shadow.effectDistance = new Vector2(0f, -6f);
+        StudioUiTheme.ApplyPanel(backgroundImage, StudioPanelStyle.Elevated);
     }
 
     Color GetAccentColor(MonetizationOfferSnapshot snapshot)
