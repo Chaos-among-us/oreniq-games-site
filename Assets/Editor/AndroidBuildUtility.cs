@@ -11,11 +11,13 @@ using UnityEngine;
 public static class AndroidBuildUtility
 {
     private const string OutputDirectoryRelativePath = "Builds/Android";
-    private const string DebugApkFileName = "EndlessDodge1-debug.apk";
-    private const string PlayInternalTestAabFileName = "EndlessDodge1-internal-test.aab";
-    private const string SecondaryDebugApkFileName = "EndlessDodge1-secondary-debug.apk";
+    private const string ProductionApplicationIdentifier = "com.oreniq.endlessdodge";
+    private const string ProductionProductName = "Cavern Veerfall";
+    private const string DebugApkFileName = "CavernVeerfall-debug.apk";
+    private const string PlayInternalTestAabFileName = "CavernVeerfall-internal-test.aab";
+    private const string SecondaryDebugApkFileName = "CavernVeerfall-test-debug.apk";
     private const string SecondaryApplicationIdentifier = "com.oreniq.endlessdodge.secondary";
-    private const string SecondaryProductName = "Endless Dodge Test";
+    private const string SecondaryProductName = "Cavern Veerfall Test";
     private const string GeneratedAndroidProjectRelativePath = "Library/Bee/Android/Prj";
     private static readonly NamedBuildTarget AndroidNamedBuildTarget = NamedBuildTarget.Android;
 
@@ -93,8 +95,8 @@ public static class AndroidBuildUtility
         return BuildDebugVariant(
             interactive,
             DebugApkFileName,
-            PlayerSettings.GetApplicationIdentifier(AndroidNamedBuildTarget),
-            PlayerSettings.productName,
+            ProductionApplicationIdentifier,
+            ProductionProductName,
             "debug",
             out outputPath);
     }
@@ -135,7 +137,10 @@ public static class AndroidBuildUtility
         bool previousAllowDebugging = EditorUserBuildSettings.allowDebugging;
         ScriptingImplementation previousScriptingBackend = PlayerSettings.GetScriptingBackend(AndroidNamedBuildTarget);
         AndroidArchitecture previousTargetArchitectures = PlayerSettings.Android.targetArchitectures;
+        AndroidApplicationEntry previousApplicationEntry = PlayerSettings.Android.applicationEntry;
         int previousArchitectureValue = GetArchitectureValue(previousTargetArchitectures);
+        string previousApplicationIdentifier = PlayerSettings.GetApplicationIdentifier(AndroidNamedBuildTarget);
+        string previousProductName = PlayerSettings.productName;
         AndroidSigningResolutionStatus signingResolutionStatus = AndroidSigningConfigResolver.Resolve(
             out ResolvedAndroidReleaseSigningConfig resolvedSigningConfig,
             out string signingResolutionMessage);
@@ -161,6 +166,9 @@ public static class AndroidBuildUtility
             EditorUserBuildSettings.connectProfiler = false;
             EditorUserBuildSettings.allowDebugging = false;
             ConfigureSupportedReleaseBuildSettings(previousScriptingBackend, previousTargetArchitectures);
+            ConfigureGameActivityApplicationEntry("Play internal test AAB");
+            PlayerSettings.SetApplicationIdentifier(AndroidNamedBuildTarget, ProductionApplicationIdentifier);
+            PlayerSettings.productName = ProductionProductName;
             ApplySigning(resolvedSigningConfig);
 
             UnityEngine.Debug.Log(
@@ -218,6 +226,9 @@ public static class AndroidBuildUtility
             PlayerSettings.SetScriptingBackend(AndroidNamedBuildTarget, previousScriptingBackend);
             PlayerSettings.SetArchitecture(AndroidNamedBuildTarget, previousArchitectureValue);
             PlayerSettings.Android.targetArchitectures = previousTargetArchitectures;
+            PlayerSettings.Android.applicationEntry = previousApplicationEntry;
+            PlayerSettings.SetApplicationIdentifier(AndroidNamedBuildTarget, previousApplicationIdentifier);
+            PlayerSettings.productName = previousProductName;
             AssetDatabase.SaveAssets();
         }
     }
@@ -248,8 +259,12 @@ public static class AndroidBuildUtility
         string previousAliasName = PlayerSettings.Android.keyaliasName;
         string previousAliasPass = PlayerSettings.Android.keyaliasPass;
         bool previousBuildAppBundle = EditorUserBuildSettings.buildAppBundle;
+        bool previousDevelopment = EditorUserBuildSettings.development;
+        bool previousConnectProfiler = EditorUserBuildSettings.connectProfiler;
+        bool previousAllowDebugging = EditorUserBuildSettings.allowDebugging;
         ScriptingImplementation previousScriptingBackend = PlayerSettings.GetScriptingBackend(AndroidNamedBuildTarget);
         AndroidArchitecture previousTargetArchitectures = PlayerSettings.Android.targetArchitectures;
+        AndroidApplicationEntry previousApplicationEntry = PlayerSettings.Android.applicationEntry;
         int previousArchitectureValue = GetArchitectureValue(previousTargetArchitectures);
         string previousApplicationIdentifier = PlayerSettings.GetApplicationIdentifier(AndroidNamedBuildTarget);
         string previousProductName = PlayerSettings.productName;
@@ -263,7 +278,11 @@ public static class AndroidBuildUtility
                 return Fail("Unity could not switch the active build target to Android.", interactive);
 
             EditorUserBuildSettings.buildAppBundle = false;
+            EditorUserBuildSettings.development = true;
+            EditorUserBuildSettings.connectProfiler = false;
+            EditorUserBuildSettings.allowDebugging = true;
             ConfigureSupportedDebugBuildSettings(previousScriptingBackend, previousTargetArchitectures);
+            ConfigureGameActivityApplicationEntry(buildLabel);
             PlayerSettings.SetApplicationIdentifier(AndroidNamedBuildTarget, applicationIdentifier);
             PlayerSettings.productName = productName;
 
@@ -336,9 +355,13 @@ public static class AndroidBuildUtility
             PlayerSettings.Android.keyaliasName = previousAliasName;
             PlayerSettings.Android.keyaliasPass = previousAliasPass;
             EditorUserBuildSettings.buildAppBundle = previousBuildAppBundle;
+            EditorUserBuildSettings.development = previousDevelopment;
+            EditorUserBuildSettings.connectProfiler = previousConnectProfiler;
+            EditorUserBuildSettings.allowDebugging = previousAllowDebugging;
             PlayerSettings.SetScriptingBackend(AndroidNamedBuildTarget, previousScriptingBackend);
             PlayerSettings.SetArchitecture(AndroidNamedBuildTarget, previousArchitectureValue);
             PlayerSettings.Android.targetArchitectures = previousTargetArchitectures;
+            PlayerSettings.Android.applicationEntry = previousApplicationEntry;
             PlayerSettings.SetApplicationIdentifier(AndroidNamedBuildTarget, previousApplicationIdentifier);
             PlayerSettings.productName = previousProductName;
             AssetDatabase.SaveAssets();
@@ -383,6 +406,15 @@ public static class AndroidBuildUtility
         UnityEngine.Debug.Log(
             "Using ARM64 as the Android release-bundle architecture. " +
             "Previous architecture setting was: " + previousTargetArchitectures + ".");
+    }
+
+    private static void ConfigureGameActivityApplicationEntry(string buildLabel)
+    {
+        PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.GameActivity;
+        UnityEngine.Debug.Log(
+            "Using GameActivity as the Android application entry point for the " +
+            buildLabel +
+            " build.");
     }
 
     private static int GetArchitectureValue(AndroidArchitecture architecture)

@@ -167,7 +167,7 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
     - whether the post-run progression summary stays readable on stronger runs with level-ups or milestone rewards
     - whether the tighter HUD labels are readable enough during longer sessions
   - The menu profile strip is intentionally using the existing scene baseline instead of adding more generated UI; if we want deeper menu progression surfaces later, do that as a deliberate scene-owned Unity pass.
-  - Store assets, screenshots, privacy policy, and Play Console setup are still pending.
+  - Store assets, screenshots, final Play Console declarations, and the remaining legal placeholders are still pending; the public website/legal page structure now has real support contact details, but effective dates, governing law / dispute venue, and final publishing still remain.
   - Local Android signing data is intentionally machine-local and must not be committed:
     - `UserSettings/Android/oreniq-release.keystore`
     - `UserSettings/Android/release-signing.json`
@@ -189,7 +189,7 @@ Read `logs.md` first, then `ROADMAP.md`, then `RELEASE_SPRINT.md`. Treat `logs.m
    - real rewarded ads instead of simulated rewarded flow
    - real IAP / starter-pack store configuration
    - release AAB generation and Play Console submission prep
-   - privacy / data safety / store asset completion
+   - publish the updated website, then finish privacy / data safety / store asset completion
 3. Keep additional feature scope narrow from here. Only add more gameplay/UI work if it directly fixes a phone-tested issue or clearly improves tomorrow's launch-readiness.
 4. Before submission, retest these exact real-package items on phone with sound on:
    - biome-change hitch
@@ -1498,3 +1498,666 @@ Use this exact format for new entries:
     - local collector config
     - any Play privacy/Data safety answers that were only true for the temporary QA build
   - Play internal test upload is still blocked until the shared debug-bridge signing config is replaced by a real Play upload keystore.
+
+### 2026-04-25 - QA replay fix and launch legal pack
+- Goal:
+  - Answer the live QA data destination question, restore a visible replay path after the QA survey, and prepare the legal/compliance docs needed before launch.
+- What changed:
+  - Confirmed the current QA upload target is:
+    - `http://192.168.88.8:8787/qa-upload`
+  - Confirmed the temporary local collector stores submissions under:
+    - `Builds/QaCollectorInbox/<timestamp>-<tester>-<run-id>/`
+  - Updated `Assets/Scripts/GameManager.cs` so the QA survey now creates its own visible `Play Again` button wired to `RestartGame()`.
+  - Updated `Assets/Scripts/GameManager.cs` so the old scene `restartButton` is hidden while the QA survey overlay is active, avoiding the covered-button problem.
+  - Added launch legal docs:
+    - `docs/legal/LEGAL_LAUNCH_PACK.md`
+    - `docs/legal/PRIVACY_POLICY_DRAFT.md`
+    - `docs/legal/TERMS_OF_SERVICE_DRAFT.md`
+    - `docs/legal/GOOGLE_PLAY_DATA_SAFETY_WORKSHEET.md`
+  - Updated `docs/RELEASE_COMPLIANCE_CHECKLIST.md` to point at the new legal drafts.
+  - Updated `docs/QA_TESTER_PIPELINE.md` so the checked-in QA upload destination matches the current laptop collector instead of the older stale IP.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - No phone install was performed in this pass.
+- Next best action:
+  - Rebuild/install the next Android QA build to verify the new in-survey `Play Again` button on-device.
+  - Replace the legal placeholders with the final business/contact details.
+  - Decide whether the production build keeps or removes the temporary QA recording/upload stack before filing Play Data safety answers.
+
+### 2026-04-25 - QA replay build installed to phone
+- Goal:
+  - Get the post-survey replay fix onto the real wireless QA phone.
+- What changed:
+  - Triggered a fresh Android batch build for `AndroidBuildUtility.BuildDebugApkBatchmode`.
+  - The first shell-launched batchmode call attached to the already-open Unity editor instead of producing an immediate new APK, but the running editor completed the queued Android build successfully.
+  - Reconnected wireless ADB to:
+    - `192.168.88.5:43705`
+  - Installed:
+    - `Builds/Android/EndlessDodge1-debug.apk`
+  - Relaunched:
+    - `com.oreniq.endlessdodge`
+- Verification:
+  - Unity batch log reported:
+    - `Android debug APK created at: C:\Users\antho\Documents\UnityProjects\Block-dodger1\Builds\Android\EndlessDodge1-debug.apk`
+  - `adb install -r` returned `Success`.
+  - `adb shell dumpsys package com.oreniq.endlessdodge` reported:
+    - `versionCode=1`
+    - `versionName=1.0`
+    - `lastUpdateTime=2026-04-25 16:41:18`
+  - `adb shell monkey -p com.oreniq.endlessdodge -c android.intent.category.LAUNCHER 1` launched the app successfully.
+- Next best action:
+  - Do one on-device QA run and confirm the new `Play Again` button is visible after the survey.
+  - Decide how the public privacy-policy URL will be hosted so the legal drafts can move from placeholder to publishable.
+
+### 2026-04-25 - audio recovery, legal menu links, hosted QA repo handoff
+- Goal:
+  - Fix the new audio regression around the Android screen-capture prompt, extend music coverage to the non-game scenes, and finish the repo-side legal/remote-QA handoff work.
+- What changed:
+  - Hardened `Assets/Scripts/EndlessDodgeAudioDirector.cs`:
+    - keeps a delayed audio-restore coroutine for the Android permission/focus return path
+    - forces a music resume when the active clip exists but playback stopped
+    - continues using the menu theme outside the `Game` scene
+  - Ensured the audio director exists from every main scene path:
+    - `Assets/Scripts/MainMenu.cs`
+    - `Assets/Scripts/ShopManager.cs`
+    - `Assets/Scripts/InventoryMenu.cs`
+    - `Assets/Scripts/GameManager.cs`
+  - Expanded main-menu legal access:
+    - `Assets/Scripts/MainMenu.cs` now supports both `Privacy` and `Terms` buttons
+    - `Assets/Scripts/AppLegalLinks.cs` / `Assets/Resources/AppLegalConfig.json` remain the source of truth for URLs
+  - Fixed missing Unity asset metadata for the legal config additions:
+    - `Assets/Scripts/AppLegalLinks.cs.meta`
+    - `Assets/Resources/AppLegalConfig.json.meta`
+    - updated `Assembly-CSharp.csproj` so standalone `dotnet build` sees `AppLegalLinks.cs`
+  - Upgraded the hosted QA Worker:
+    - `deploy/cloudflare/qa-github-upload-worker.js` now writes `manifest.json`, `fields.json`, `survey.json`, and `report.txt` into the GitHub repo path for each submission
+    - the large QA ZIP/video still goes to GitHub release assets, linked from the manifest
+  - Updated the hosted QA and launch docs:
+    - `docs/QA_REMOTE_GITHUB_UPLOAD_SETUP.md`
+    - `docs/QA_TESTER_PIPELINE.md`
+    - `docs/LAUNCH_SETUP_CLICK_BY_CLICK.md`
+    - `docs/legal/LEGAL_LAUNCH_PACK.md`
+    - added `docs/.nojekyll` for GitHub Pages publishing
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity Android batch build succeeded and produced:
+    - `Builds/Android/EndlessDodge1-debug.apk`
+  - Successful Unity build log:
+    - `Logs/android-build-2026-04-25-audio-legal.log`
+  - Wireless ADB install succeeded to:
+    - `adb-R3GL201XS5L-MiJf0L._adb-tls-connect._tcp`
+  - Installed package verification:
+    - `versionCode=1`
+    - `versionName=1.0`
+    - `lastUpdateTime=2026-04-25 17:27:23`
+- Notes:
+  - I installed and launched the new build, but I did not have a reliable way to aurally confirm the post-permission music fix from the shell alone; that still needs one quick human check on-device.
+  - The hosted QA flow is now designed so testers can upload while both dev PCs are off, but it is not live until the Cloudflare Worker is deployed and `Assets/Resources/QaSubmissionConfig.json` is pointed at that HTTPS URL.
+
+### 2026-04-25 - Cavern Veerfall rename, package-identity fix, and rebuilt phone install
+- Goal:
+  - Apply the chosen public title `Cavern Veerfall`, keep the real Android package update path intact, and get the stronger Android audio recovery build onto the phone.
+- What changed:
+  - Added a stronger audio recovery path in `Assets/Scripts/EndlessDodgeAudioDirector.cs`:
+    - restarts mobile audio output on focus return
+    - checks whether the DSP timeline is advancing again
+    - falls back to a full Unity audio-system reset and procedural clip rebuild if the audio engine stays stalled
+  - Renamed current public-facing strings from `Endless Dodge` / `EndlessDodge1` to `Cavern Veerfall` across the live game/UI surfaces:
+    - `Assets/Scripts/MainMenu.cs`
+    - `Assets/Scripts/GameManager.cs`
+    - `Assets/Scripts/MobileGrowthActions.cs`
+    - `Assets/Scripts/QaTestingSystem.cs`
+    - Android QA bridge/service copy in:
+      - `Assets/Plugins/Android/EndlessDodgeQaRecorder.androidlib/...`
+  - Updated the public/legal docs and current launch/testing docs to use `Cavern Veerfall`.
+  - Renamed the current Android build outputs to:
+    - `Builds/Android/CavernVeerfall-debug.apk`
+    - `Builds/Android/CavernVeerfall-internal-test.aab`
+    - `Builds/Android/CavernVeerfall-test-debug.apk`
+  - Found and fixed a production-lane build identity bug:
+    - the repo's base `ProjectSettings.asset` had drifted back to `Block-dodger1` / `com.OreniqGames.Blockdodger1`
+    - `Assets/Editor/AndroidBuildUtility.cs` now hard-codes the real production identity for the main Android build path:
+      - app id: `com.oreniq.endlessdodge`
+      - product name: `Cavern Veerfall`
+    - `ProjectSettings/ProjectSettings.asset` was corrected to match that production identity
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded with `0` warnings and `0` errors.
+  - Unity Android batch build succeeded and produced:
+    - `Builds/Android/CavernVeerfall-debug.apk`
+  - Final successful Unity build log:
+    - `Logs/android-build-2026-04-25-packagefix-veerfall.log`
+  - `aapt dump badging Builds/Android/CavernVeerfall-debug.apk` confirmed:
+    - package id `com.oreniq.endlessdodge`
+    - application label `Cavern Veerfall`
+  - Wireless ADB install succeeded to the real package lane.
+  - `adb shell dumpsys package com.oreniq.endlessdodge` reported:
+    - `versionCode=1`
+    - `versionName=1.0`
+    - `lastUpdateTime=2026-04-25 18:27:17`
+- Next best action:
+  - On the phone, test the exact regression path again:
+    - start a QA-recorded run
+    - accept the Android screen-capture prompt
+    - confirm music/SFX resume
+    - finish or fail the run, then start a second run and confirm audio is still alive
+  - If audio still dies, pull `adb logcat` immediately after reproduction so the new recovery path can be diagnosed with runtime evidence instead of guesswork.
+
+### 2026-04-25 - phone volume controls restored and development console removed from QA phone build
+- Goal:
+  - Fix the new regression where the phone's hardware volume controls stopped behaving normally while the game was running, and remove the red Unity development console from the installed QA phone build.
+- What changed:
+  - Added `Assets/Scripts/AndroidVolumeControlHelper.cs`.
+    - It binds the Android activity's hardware volume keys to `STREAM_MUSIC` through `setVolumeControlStream(3)`.
+  - Updated `Assets/Scripts/EndlessDodgeAudioDirector.cs` to reapply that Android music-volume binding:
+    - on audio-director startup
+    - on scene loads
+    - on app focus return
+    - during immediate audio recovery
+  - Updated `Assets/Scripts/Services/UnityServicesBootstrap.cs` so Unity Services initialization is skipped when the project is not linked to a Unity cloud project.
+    - This prevents the earlier `UnityProjectNotLinkedException` noise on app startup.
+  - Updated `Assets/Editor/AndroidBuildUtility.cs` so the main phone QA APK path now builds as a non-development Android player:
+    - `EditorUserBuildSettings.development = false`
+    - `EditorUserBuildSettings.allowDebugging = false`
+    - `BuildOptions.None`
+  - Added `Assets/Scripts/AndroidVolumeControlHelper.cs` to `Assembly-CSharp.csproj` so repo-local `dotnet build` verification also sees the new script file before Unity regenerates the project files.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded.
+  - Unity Android batch build succeeded and produced:
+    - `Builds/Android/CavernVeerfall-debug.apk`
+  - Successful Unity build log:
+    - `Logs/android-build-2026-04-25-volume-console-fix.log`
+  - Wireless ADB reconnect succeeded after Unity restarted the ADB server:
+    - `192.168.88.5:43705`
+  - Fresh install to the real package lane succeeded.
+  - `adb shell dumpsys package com.oreniq.endlessdodge` reported:
+    - `versionCode=1`
+    - `versionName=1.0`
+    - `lastUpdateTime=2026-04-25 18:51:17`
+  - Fresh post-install logcat confirmed:
+    - app now launches as `Build type 'Release'`
+    - no `UnityProjectNotLinkedException` appeared during the clean startup capture
+  - Fresh screenshot confirmed the red development console overlay is gone:
+    - `Diagnostics/Screenshots/cavern-veerfall-main-after-fix.png`
+  - Android music-volume verification improved:
+    - before the fix, the app's volume-key events were not moving the music volume group
+    - after the fix, `dumpsys audio` showed the active speaker music volume changing from `0` to `1` after a volume-up event while the app was foregrounded
+- Next best action:
+  - On the phone, physically press the hardware volume buttons once on the main menu and once during a run to confirm they now feel normal.
+  - Re-test the QA screen-capture/audio path:
+    - start a QA-recorded run
+    - accept the Android screen-capture prompt
+    - confirm music/SFX resume
+    - start another run and confirm they stay alive
+  - If either issue still reproduces by hand on-device, pull `adb logcat` immediately after the repro so the next pass can target the exact runtime path.
+
+### 2026-04-25 - emergency rollback to restore phone playability and remove stray package
+- Goal:
+  - Recover from the broken phone state where the latest installed build was non-interactive and an accidental extra app package was present on the launcher.
+- What changed:
+  - Confirmed the phone had three installed packages:
+    - `com.oreniq.endlessdodge`
+    - `com.oreniq.endlessdodge.secondary`
+    - accidental stray `com.OreniqGames.Blockdodger1`
+  - Confirmed the current checked-in `CavernVeerfall-debug.apk` still targets the correct main package:
+    - `com.oreniq.endlessdodge`
+  - Reverted the phone itself to the last known-good main debug APK artifact:
+    - `Builds/Android/EndlessDodge1-debug.apk`
+  - Uninstalled the accidental stray package from the phone:
+    - `com.OreniqGames.Blockdodger1`
+  - Left the intentional secondary test package in place:
+    - `com.oreniq.endlessdodge.secondary`
+- Verification:
+  - `adb install -r Builds/Android/EndlessDodge1-debug.apk` returned `Success`.
+  - `adb uninstall com.OreniqGames.Blockdodger1` returned `Success`.
+  - Post-rollback package list now shows only:
+    - `com.oreniq.endlessdodge`
+    - `com.oreniq.endlessdodge.secondary`
+  - `adb shell dumpsys package com.oreniq.endlessdodge` reported:
+    - `lastUpdateTime=2026-04-25 19:18:37`
+  - Direct ADB play-button tap changed the screen from the main menu into gameplay, confirming the restored build is interactive again.
+  - Rollback screenshots:
+    - `Diagnostics/Screenshots/rollback-main.png`
+    - `Diagnostics/Screenshots/rollback-after-play.png`
+  - On the restored build, `dumpsys audio` showed the speaker music volume moving from `5` to `6` on a volume-up key event and back to `5` on volume-down.
+- Notes:
+  - The phone is currently restored to the older `Endless Dodge`-labeled working build, not the latest `Cavern Veerfall` rename build.
+  - The repo still contains the newer code changes, but the latest rebuilt APK was not left on the phone because that specific install state was not acceptable.
+- Next best action:
+  - Manually confirm on the phone that:
+    - the main app buttons respond again
+    - the hardware volume buttons feel normal
+  - After the phone state is confirmed stable, rebuild a fresh main APK from the current repo without reintroducing the non-interactive install regression before attempting the rename build again.
+
+### 2026-04-25 - targeted QA permission audio recovery attempt, then phone restored to rollback build
+- Goal:
+  - Fix the remaining bug on the working phone lane where music stops after accepting Android's screen-capture permission prompt for QA recording.
+- What changed:
+  - Updated `Assets/Scripts/EndlessDodgeAudioDirector.cs` with an explicit `RecoverAudioAfterQaPermissionFlow()` entry point.
+    - This starts a dedicated delayed recovery coroutine after the Android permission activity returns instead of relying only on normal app-focus callbacks.
+  - Updated `Assets/Scripts/QaTestingSystem.cs` so QA native events now trigger that recovery path when:
+    - recording starts
+    - permission is denied
+    - the native recorder returns an error
+  - Rebuilt the main debug APK from the current repo:
+    - `Builds/Android/CavernVeerfall-debug.apk`
+  - Installed that APK to the real package lane:
+    - `com.oreniq.endlessdodge`
+  - After install, confirmed the launcher title updated to `Cavern Veerfall`, but repeated ADB taps on:
+    - `Play`
+    - `Exit`
+    had no visible effect on the menu screen in that rebuilt package.
+  - Restored the phone back to the known-good rollback APK to avoid leaving an unverified build installed:
+    - `Builds/Android/EndlessDodge1-debug.apk`
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded after rerunning sequentially to avoid a temp-file restore race.
+  - Unity batch Android build succeeded and wrote:
+    - `Builds/Android/CavernVeerfall-debug.apk`
+  - Successful build log:
+    - `Logs/android-build-2026-04-25-qa-audio-return-fix.log`
+  - `aapt dump badging Builds/Android/CavernVeerfall-debug.apk` confirmed:
+    - package id `com.oreniq.endlessdodge`
+    - application label `Cavern Veerfall`
+  - The temporary install of that rebuilt package reported:
+    - `lastUpdateTime=2026-04-25 19:31:32`
+  - After restoring the working rollback APK, the phone again reported:
+    - `lastUpdateTime=2026-04-25 19:35:32`
+  - Updated screenshots captured during this pass:
+    - rebuilt title-screen install: `Diagnostics/Screenshots/qa-audio-return-main-after-install.png`
+    - rollback restored again: `Diagnostics/Screenshots/rollback-restored-after-audio-attempt.png`
+- Notes:
+  - The phone was not left on the new rebuilt `Cavern Veerfall` package because it did not pass the interaction sanity check.
+  - Important nuance:
+    - later in the same session, the same ADB menu-tap automation also failed to move the restored rollback build off the title screen
+    - that means ADB touch injection is not currently a reliable pass/fail signal for menu interactivity on this phone session
+    - so the rebuilt package's interactivity is still unconfirmed by hand, not definitively proven broken
+  - The targeted audio-recovery code remains in the repo for the next debugging pass, but it is not yet verified on-device.
+- Next best action:
+  - Investigate why the current repo build still becomes non-interactive while the rollback artifact remains functional.
+  - Only after that interaction regression is resolved, re-test the QA permission flow to confirm whether the new delayed audio recovery actually fixes the post-prompt music drop.
+
+### 2026-04-25 - secondary diagnostic build prepared for QA audio prompt investigation
+- Goal:
+  - Capture a clean, high-signal trace of the screen-capture permission flow without risking the working main app on the phone.
+- What changed:
+  - Added targeted diagnostic logging to:
+    - `Assets/Scripts/EndlessDodgeAudioDirector.cs`
+    - `Assets/Scripts/QaTestingSystem.cs`
+    - `Assets/Plugins/Android/EndlessDodgeQaRecorder.androidlib/src/main/java/com/oreniq/endlessdodge/qa/QaRecorderBridge.java`
+    - `Assets/Plugins/Android/EndlessDodgeQaRecorder.androidlib/src/main/java/com/oreniq/endlessdodge/qa/QaRecorderPermissionActivity.java`
+    - `Assets/Plugins/Android/EndlessDodgeQaRecorder.androidlib/src/main/java/com/oreniq/endlessdodge/qa/QaRecordingService.java`
+  - The new trace markers use:
+    - Unity prefix: `[QA-AUDIO]`
+    - Android logcat tag: `QaAudioTrace`
+  - Built a diagnostic secondary APK instead of replacing the main app:
+    - `Builds/Android/CavernVeerfall-test-debug.apk`
+  - The existing secondary package had an incompatible signer, so it was intentionally removed and replaced with the new diagnostic secondary app.
+  - Left the main package lane alone:
+    - `com.oreniq.endlessdodge`
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded when rerun sequentially after the normal parallel temp-file race.
+  - Unity batch secondary build succeeded:
+    - `Logs/android-secondary-qa-audio-diagnostic-2026-04-25.log`
+    - `Logs/android-secondary-qa-audio-diagnostic-2026-04-25-r2.log`
+  - `aapt dump badging Builds/Android/CavernVeerfall-test-debug.apk` confirmed:
+    - package id `com.oreniq.endlessdodge.secondary`
+    - application label `Cavern Veerfall Test`
+  - Phone install sequence:
+    - `adb uninstall com.oreniq.endlessdodge.secondary` returned `Success`
+    - `adb install Builds/Android/CavernVeerfall-test-debug.apk` returned `Success`
+  - Updated secondary package timestamp:
+    - `lastUpdateTime=2026-04-25 19:53:59`
+  - The diagnostic secondary app was launched and logcat was cleared immediately afterward to prepare for a clean repro trace.
+- Notes:
+  - The working main app is still preserved separately on the phone.
+  - The next useful data point must come from one real manual repro on the phone because only a human can confirm whether the music audibly returns after the permission prompt.
+
+### 2026-04-25 - QA prompt recovery path patched into diagnostic secondary build
+- Goal:
+  - Fix the specific post-Android-screen-share-popup regression where QA mode leaves audio dead and the app feels non-interactive afterward.
+- What changed:
+  - Updated `Assets/Scripts/QaTestingSystem.cs` so native QA events now do three things together when the permission prompt resolves:
+    - notify the active `GameManager`
+    - trigger UI/input recovery
+    - trigger audio recovery
+  - Updated `Assets/Scripts/GameManager.cs` with `HandleQaPermissionPromptResolved()` so the game scene:
+    - clears `qaCaptureNoticePending`
+    - refreshes the QA overlay immediately
+    - recalculates overlay-driven `Time.timeScale`
+    - logs `[QA-UI] Prompt resolved ...` for the next repro
+  - Folded the input recovery helper into `Assets/Scripts/UiInputDebugProbe.cs` so both the generated Unity project and the device diagnostic build compile from the same tracked file.
+  - The input recovery helper now retries after the Android prompt return and re-activates the EventSystem input modules.
+  - Rebuilt and reinstalled the secondary diagnostic app only:
+    - `Builds/Android/CavernVeerfall-test-debug.apk`
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded.
+  - Unity batch secondary build succeeded:
+    - `Logs/android-secondary-ui-recovery-2026-04-25.log`
+  - Secondary package reinstall succeeded:
+    - `adb install -r Builds/Android/CavernVeerfall-test-debug.apk`
+  - Current secondary package timestamp:
+    - `lastUpdateTime=2026-04-25 20:33:44`
+  - Logcat was cleared after launch so the next repro has a clean trace.
+- Notes:
+  - The main working app `com.oreniq.endlessdodge` was not touched during this pass.
+  - The next required step is one real repro in `Cavern Veerfall Test`, then pull `[QA-UI]`, `[UI-INPUT]`, and `[QA-AUDIO]` together from the same session.
+
+### 2026-04-25 - current repo builds traced to Android entry-point mismatch
+- Discovery:
+  - The current repo-built diagnostic APK was launching:
+    - `com.unity3d.player.UnityPlayerActivity`
+  - The older rollback APK that still behaves correctly on the phone launches:
+    - `com.unity3d.player.UnityPlayerGameActivity`
+  - This difference was confirmed by comparing both APK manifests with `aapt dump badging` / `aapt dump xmltree`.
+- Why this matters:
+  - Unity documents the Android application entry point as the layer that controls lifecycle, input events, and related Android interaction behavior.
+  - That makes this a strong candidate explanation for why current repo builds can render normally but behave differently from the older stable phone build.
+- What changed:
+  - Updated `Assets/Editor/AndroidBuildUtility.cs` so Android builds explicitly force:
+    - `PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.GameActivity`
+  - The build utility now restores the previous editor setting after the build completes, just like it already did for package name, product name, scripting backend, and architecture.
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded when rerun sequentially.
+  - Rebuilt secondary diagnostic APK:
+    - `Logs/android-secondary-gameactivity-2026-04-25.log`
+    - `Builds/Android/CavernVeerfall-test-debug.apk`
+  - The rebuilt secondary APK now reports:
+    - launchable activity `com.unity3d.player.UnityPlayerGameActivity`
+  - Reinstalled on phone:
+    - `lastUpdateTime=2026-04-25 20:51:18`
+- Notes:
+  - ADB-injected taps still did not provide a trustworthy interaction result on this phone session, so the next decisive check must still come from one real manual tap on-device.
+
+### 2026-04-25 - InputSystem UI references repaired, but touch is still not reaching Unity in the diagnostic lane
+- Discovery:
+  - All playable scenes (`MainMenu`, `Game`, `Shop`, `Inventory`) were serialized against stale `InputActionReference` IDs inside `Assets/InputSystem_Actions.inputactions`.
+  - The scene YAML originally pointed to old `UI/*` local IDs like:
+    - `m_MoveAction: 8784545083839296357`
+    - `m_PointAction: 1654692200621890270`
+  - Unity batch inspection of the current asset proved the live `UI/*` reference IDs are different, for example:
+    - `UI/Navigate -> 3710738434707379630`
+    - `UI/Point -> 1054132383583890850`
+    - `UI/Click -> 8056856818456041789`
+  - This explains why freshly built APKs could show a normal menu but still behave as if the UI module had dead bindings.
+- What changed:
+  - Added `Assets/Editor/InputSystemUiReferenceRepairUtility.cs`.
+  - Used the utility to load the real `InputActionReference` sub-assets from `Assets/InputSystem_Actions.inputactions` and rewrite the `InputSystemUIInputModule` bindings in:
+    - `Assets/Scenes/MainMenu.unity`
+    - `Assets/Scenes/Game.unity`
+    - `Assets/Scenes/Shop.unity`
+    - `Assets/Scenes/Inventory.unity`
+  - The scene YAML now contains the live `UI/*` local IDs from the asset.
+  - Expanded `Assets/Scripts/UiInputDebugProbe.cs` to log:
+    - device visibility
+    - `Touchscreen.current`
+    - legacy touch support/count
+    - `InputSystemUIInputModule` action bindings
+    - startup module-activation attempts
+  - Rebuilt the secondary diagnostic APK again:
+    - `Logs/android-secondary-inputdiag-v2-2026-04-25.log`
+    - `Builds/Android/CavernVeerfall-test-debug.apk`
+- Verification:
+  - `dotnet build Assembly-CSharp.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded.
+  - `dotnet build Assembly-CSharp-Editor.csproj -nologo /m:1 /p:UseSharedCompilation=false` succeeded.
+  - Unity batch reference-ID log:
+    - `Logs/inputsystem-ui-reference-ids-2026-04-25.log`
+  - Unity batch repair pass:
+    - `Logs/inputsystem-ui-reference-repair-2026-04-25.log`
+  - Unity batch rebuilt the secondary APK successfully:
+    - `Logs/android-secondary-inputdiag-v2-2026-04-25.log`
+- Current blocker:
+  - Even after the scene references were repaired, the last installed secondary diagnostic build still logged:
+    - `[UI-INPUT] Probe booted | scene=MainMenu | eventSystem=EventSystem,enabled=True,module=<none>,modules=InputSystemUIInputModule(enabled=True,active=True)`
+  - ADB-triggered taps still produced no `[UI-INPUT] Touch began ...` entries.
+  - The main phone app remains the older working rollback build and was intentionally not replaced during this pass.
+- Next best step:
+  - Install the newest `Builds/Android/CavernVeerfall-test-debug.apk`.
+  - Pull the new richer `[UI-INPUT]` startup trace from that build.
+  - Use that trace to decide whether the remaining issue is:
+    - no touchscreen device visible to Unity
+    - a non-activating `InputSystemUIInputModule`
+    - or a deeper Android/input-handling regression in current repo builds.
+
+### 2026-04-26 - fresh secondary startup trace points at missing Input System devices, and activeInputHandler was restored
+- Goal:
+  - Continue the secondary-lane input regression pass without touching the restored main phone app, and use a fresh startup trace to decide whether the remaining dead-button issue is the UI module or device discovery.
+- What changed:
+  - Reconnected the Samsung phone over wireless ADB and verified both installed lanes were still present:
+    - main rollback lane: `com.oreniq.endlessdodge`
+    - secondary test lane: `com.oreniq.endlessdodge.secondary`
+  - Installed the already-built secondary diagnostic APK once and captured a fresh clean startup trace from the phone after forcing a cold launch.
+  - The new trace proved the scene reference repair worked:
+    - `[UI-INPUT] Probe booted ... module=<none>,modules=InputSystemUIInputModule(enabled=True,active=True)`
+    - `[UI-INPUT] Startup activate begin startup-1 ... module=InputSystemUIInputModule`
+    - `[UI-INPUT] Startup activate end startup-2 ... module=InputSystemUIInputModule`
+  - The same trace also narrowed the remaining blocker much further:
+    - `[UI-INPUT] Probe booted ... devices=touchscreen=<none>,legacyTouchSupported=True,legacyTouchCount=0,devices=<none>`
+    - so the current repo build is not just failing to activate the UI module anymore; Unity is starting with no Input System devices visible at all.
+  - Reviewed the current dirty diff for `ProjectSettings/ProjectSettings.asset` and found a likely config regression:
+    - committed baseline: `activeInputHandler: 2`
+    - current dirty state before this fix: `activeInputHandler: -1`
+  - Restored `activeInputHandler` back to `2` in `ProjectSettings/ProjectSettings.asset`.
+  - Rebuilt the secondary diagnostic APK successfully after restoring that setting:
+    - log: `Logs/android-secondary-inputhandler-fix-2026-04-26.log`
+    - artifact: `Builds/Android/CavernVeerfall-test-debug.apk`
+- Decisions / reversions:
+  - Left the main rollback app untouched on the phone.
+  - Did not change any other unrelated dirty `ProjectSettings.asset` fields during this pass; only restored `activeInputHandler`.
+- Verification:
+  - Before the config fix, fresh device startup trace from `com.oreniq.endlessdodge.secondary` showed:
+    - `touchscreen=<none>`
+    - `devices=<none>`
+    - `InputSystemUIInputModule` successfully becoming the current module by startup recovery step `startup-1`
+  - `git diff -- ProjectSettings/ProjectSettings.asset` confirmed the exact regression line:
+    - `-  activeInputHandler: 2`
+    - `+  activeInputHandler: -1`
+  - Unity batch rebuild after restoring the setting succeeded:
+    - `Build Finished, Result: Success.`
+    - `Android secondary debug APK created at: C:\Users\antho\Documents\UnityProjects\Block-dodger1\Builds\Android\CavernVeerfall-test-debug.apk`
+- Next best action:
+  - Reconnect wireless ADB to the phone's current live `Wireless debugging` connect address, because the old `192.168.88.5:43705` endpoint stopped responding after the rebuild and mDNS discovery did not immediately repopulate.
+  - Reinstall the rebuilt `Builds/Android/CavernVeerfall-test-debug.apk` to `com.oreniq.endlessdodge.secondary`.
+  - Re-run the same clean startup trace and check whether restoring `activeInputHandler: 2` brings back:
+    - `Touchscreen.current`
+    - a non-empty `InputSystem.devices` list
+    - and actual `[UI-INPUT] Touch began ...` lines during manual physical taps
+  - If devices are still missing after that rebuild, the next pass should instrument device-add/remove callbacks and compare the generated Android player config against the rollback artifact, because the failure will have moved beyond the stale scene references and the obvious input-handler regression.
+
+### 2026-04-26 - secondary lane regained real touch input after activeInputHandler fix
+- Goal:
+  - Verify whether restoring `activeInputHandler: 2` actually fixes the dead-button regression in the rebuilt secondary diagnostic lane.
+- What changed:
+  - Reconnected to the phone over wireless ADB after the device advertised a new mDNS endpoint:
+    - `192.168.88.5:33313`
+  - Reinstalled the rebuilt secondary APK:
+    - `Builds/Android/CavernVeerfall-test-debug.apk`
+    - package: `com.oreniq.endlessdodge.secondary`
+  - Launched the rebuilt secondary app from a clean logcat and captured a fresh startup trace.
+  - The rebuilt startup trace confirmed the active-input-handler fix restored full Android input-device enumeration:
+    - `touchscreen=sec_e-pen#12`
+    - `Touchscreen:sec_touchscreen#5`
+    - plus the expected keyboard/mouse/pen/sensor device list
+  - The rebuilt trace also confirmed the UI input module still activates correctly:
+    - `Startup activate ... module=InputSystemUIInputModule`
+  - Sent controlled ADB tap probes after launch and confirmed Unity now receives real touch events again in `MainMenu`:
+    - `[UI-INPUT] Touch began #1 ...`
+    - `[UI-INPUT] Touch began #9 ...`
+  - The raycast results prove the taps are reaching live UI content again instead of dying before the EventSystem:
+    - `DailyRewardBody(GraphicRaycaster) > DailyRewardPanel(GraphicRaycaster)`
+    - `ChallengeSummaryTitle(GraphicRaycaster) > DailyChallengeSummaryPanel(GraphicRaycaster)`
+- Decisions / reversions:
+  - Kept the main rollback app `com.oreniq.endlessdodge` untouched.
+  - Left the secondary diagnostic logging in place, since it is still useful for the next QA-permission audio repro.
+- Verification:
+  - Secondary reinstall succeeded.
+  - `adb shell dumpsys package com.oreniq.endlessdodge.secondary` reported:
+    - `lastUpdateTime=2026-04-26 00:43:15`
+  - Fresh rebuilt startup trace showed:
+    - `devices=touchscreen=sec_e-pen#12 ... Touchscreen:sec_touchscreen#5 ...`
+    - `module=InputSystemUIInputModule`
+  - Fresh post-launch tap trace showed:
+    - `[UI-INPUT] Touch began ... raycasts=DailyRewardBody(GraphicRaycaster) > DailyRewardPanel(GraphicRaycaster)`
+    - `[UI-INPUT] Touch began ... raycasts=ChallengeSummaryTitle(GraphicRaycaster) > DailyChallengeSummaryPanel(GraphicRaycaster)`
+- Next best action:
+  - Manually tap the secondary build on the phone to confirm the practical user-facing result:
+    - `Play`
+    - `Shop`
+    - `Inventory`
+    - any visible summary cards or overlays
+  - If those manual taps now behave normally, treat the dead-button regression in current repo builds as fixed by the combination of:
+    - scene `InputActionReference` repair
+    - `activeInputHandler: 2` restoration
+  - Then move directly back to the original secondary-lane objective:
+    - reproduce the QA screen-share permission flow
+    - accept the Android capture prompt
+    - pull `[QA-AUDIO]`, `[QA-UI]`, and `[UI-INPUT]` together from the same session to isolate the audio-loss bug without risking the main rollback app.
+
+### 2026-04-26 - QA screen-share consent no longer leaves secondary-lane audio dead
+- Goal:
+  - Fix the remaining QA-mode regression where accepting Android's screen-share permission popup kills in-game audio and it never returns.
+- What changed:
+  - Updated `Assets/Scripts/EndlessDodgeAudioDirector.cs` so QA permission recovery is no longer considered successful just because DSP time starts moving again.
+  - The recovery path now requires the active music source to actually resume playback.
+  - Added stronger restart escalation for the current gameplay loop:
+    - first try the normal immediate recovery
+    - then force a loop restart on a fresh music source if needed
+    - then fall back to a full `AudioSettings.Reset(...)` rebuild if playback is still stalled
+  - Stopped the generic focus-recovery coroutine when the QA-specific permission recovery begins, so the two paths no longer fight each other after Android returns from the capture prompt.
+  - Tightened the retry loops so they exit immediately once the post-reset audio state is already healthy, instead of running an extra retry that briefly re-touches the music after it has come back.
+  - Rebuilt and reinstalled the secondary test lane only:
+    - `Builds/Android/CavernVeerfall-test-debug.apk`
+    - package: `com.oreniq.endlessdodge.secondary`
+- Verification:
+  - Unity batch secondary builds succeeded during the recovery iterations:
+    - `Logs/android-secondary-qa-audio-restart-2026-04-26.log`
+    - `Logs/android-secondary-qa-audio-racefix-2026-04-26.log`
+    - `Logs/android-secondary-qa-audio-final-2026-04-26.log`
+  - Final clean secondary-only device repro was saved to:
+    - `Logs/android-secondary-qa-audio-final-device-2026-04-26.log`
+    - `Logs/android-secondary-qa-audio-final-dumpsys-2026-04-26.log`
+  - Final Android consent flow was driven end-to-end on the phone without touching the main rollback lane:
+    - `Play` from `MainMenu`
+    - in-game `I Agree - Open Android Prompt`
+    - Samsung dialog switched from `Share one app` to `Share entire screen`
+    - consent accepted
+  - Final Unity trace after returning from Android now shows the music source actually coming back instead of staying stopped:
+    - `[QA-AUDIO] ForceAudioSystemReset complete ... active=AmbientLoop_Level1,playing=True,volume=0.76`
+    - `[QA-AUDIO] RestoreAudioAfterQaPermission recovered after reset attempt=0 ... active=AmbientLoop_Level1,playing=True,volume=0.76`
+  - The final trace no longer shows the earlier bad follow-up pattern:
+    - there is no extra `RestoreAudioAfterFocus attempt=1 ...` after QA recovery begins
+    - there is no extra `RestoreAudioAfterQaPermission attempt=1 ...` after the reset has already restored playback
+  - Final Android audio-system snapshot also shows the secondary app back in an active playback state:
+    - `AudioPlaybackConfiguration ... package:com.oreniq.endlessdodge.secondary ... type:AAudio ... state:started`
+  - Final post-consent gameplay screenshot confirms the run is live again after approval:
+    - `Diagnostics/Screenshots/secondary-final-post-consent.png`
+- Decisions / reversions:
+  - Kept the main rollback build `com.oreniq.endlessdodge` untouched throughout this pass.
+  - Continued using the secondary lane for every install, repro, and log pull.
+- Notes:
+  - `adb shell dumpsys package com.oreniq.endlessdodge.secondary` sometimes lagged behind the real reinstall timestamp on this Samsung build, so the trusted verification source for the final pass is the clean post-rebuild log trace plus the live `dumpsys audio` playback state.
+
+### 2026-04-26 - launch website drafted and the primary debug lane rebuilt on the real package
+- Goal:
+  - Prepare the public-facing launch/legal website for Cavern Veerfall and future Oreniq Games releases, and confirm the primary build lane now picks up the shared naming/audio fixes without replacing the phone's main working install.
+- What changed:
+  - Replaced the old single-card `docs` legal placeholder with a reusable studio site structure:
+    - `docs/index.html`
+    - `docs/games/cavern-veerfall.html`
+    - `docs/support.html`
+    - `docs/privacy-policy.html`
+    - `docs/terms-of-service.html`
+    - `docs/legal-site.css`
+  - Kept the in-app legal URL paths stable by leaving the app-facing privacy/terms pages at the same root paths:
+    - `privacy-policy.html`
+    - `terms-of-service.html`
+  - Followed up with a branding pass so the public-facing site now reads clearly as the `Oreniq Games` studio site first, with Cavern Veerfall as the featured release and the support/legal placeholders ready for a future `Oreniq Games` Gmail address.
+  - Wrote launch-ready public copy for:
+    - a studio homepage
+    - a Cavern Veerfall game page
+    - a reusable support page
+    - a broader privacy-policy draft that now matches the known Unity Analytics / Authentication / IAP footprint and explicitly separates optional pre-release QA diagnostics
+    - a broader terms-of-service draft for current and future Oreniq Games titles
+  - Expanded `docs/RELEASE_COMPLIANCE_CHECKLIST.md` with the Google Play requirements re-checked on `2026-04-26`, including:
+    - privacy policy in Play Console and in-app
+    - Data safety required for all published app packages
+    - App content declarations
+    - required support email
+    - developer account verification details
+    - current target API guidance (`Android 14` / `API 34` or higher for updates)
+  - Built a fresh primary debug APK for the real package using the shared signing config:
+    - artifact: `Builds/Android/CavernVeerfall-debug.apk`
+    - build log: `Logs/android-primary-debug-2026-04-26.log`
+- Verification:
+  - Unity batch build finished successfully:
+    - `Build Finished, Result: Success.`
+    - `Android debug APK created at: C:\Users\antho\Documents\UnityProjects\Block-dodger1\Builds\Android\CavernVeerfall-debug.apk`
+  - The rebuilt primary debug APK timestamp updated to:
+    - `2026-04-26 17:10:57`
+  - The batch build used the shared signing config:
+    - `C:\Users\antho\OneDrive\Documents\EndlessDodge1\NetworkSigning\Android\release-signing.json`
+- Decisions / reversions:
+  - Did not install or replace the main working phone app `com.oreniq.endlessdodge` during this pass.
+  - Left `Assets/Resources/AppLegalConfig.json` URLs unchanged because the app can keep using the existing root privacy/terms paths.
+- Remaining launch blockers:
+  - Replace the public placeholders before publishing:
+    - support email
+    - privacy contact email
+    - support form or website URL if different
+    - mailing/business address
+    - governing law / dispute venue
+    - effective dates
+  - Complete the actual Play Console entries using the production package:
+    - Data safety
+    - App content declarations
+    - content rating
+    - store listing text and assets
+- Next best action:
+  - Decide the real public support and legal-contact details to publish, replace the placeholders in the new site, then publish the `docs` site and use those URLs in Play Console and the production app.
+
+### 2026-04-26 - public support and mailing details wired into launch/legal docs
+- Goal:
+  - Replace the public contact placeholders with the chosen Oreniq Games email/address and mirror them into the app-facing legal config plus the launch handoff docs.
+- What changed:
+  - Updated the public website/legal pages:
+    - `docs/index.html`
+    - `docs/support.html`
+    - `docs/privacy-policy.html`
+    - `docs/terms-of-service.html`
+  - Wired the chosen public contact details into the live support/legal pages:
+    - support email: `oreniqgames@gmail.com`
+    - privacy contact email: `oreniqgames@gmail.com`
+    - mailing address: `822 South 480 West, Ogden, UT 84404`
+    - support website URL: `https://chaos-among-us.github.io/Block-dodger1/support.html`
+  - Updated the app-side legal config:
+    - `Assets/Resources/AppLegalConfig.json`
+    - `supportEmail` now points to `oreniqgames@gmail.com`
+  - Updated the launch/legal prep docs so the same contact baseline is recorded in the repo:
+    - `docs/legal/PRIVACY_POLICY_DRAFT.md`
+    - `docs/legal/TERMS_OF_SERVICE_DRAFT.md`
+    - `docs/legal/LEGAL_LAUNCH_PACK.md`
+    - `docs/RELEASE_COMPLIANCE_CHECKLIST.md`
+  - Updated the top-level blocker/focus notes in this handoff so public contact details are no longer tracked as missing.
+- Verification:
+  - Confirmed the old public contact placeholders were removed from the live support/privacy/terms pages and from the draft legal-contact sections.
+  - Left the remaining publish-time placeholders intentionally unresolved:
+    - effective dates
+    - governing law
+    - dispute venue
+    - final legal-entity string if it should differ from `Oreniq Games`
+- Notes:
+  - `Assets/Resources/AppLegalConfig.json` now carries the chosen support email, but the current app does not yet expose a user-facing support email action that reads it; the visible impact today is on the public site/docs rather than the installed phone build.
+- Next best action:
+  - Publish the `docs` site, then use the live privacy/support URLs plus `oreniqgames@gmail.com` in Play Console.
+  - On the primary desktop, finish the remaining legal values and launch-console tasks:
+    - effective dates
+    - governing law / dispute venue
+    - Data safety
+    - App content
+    - store listing assets

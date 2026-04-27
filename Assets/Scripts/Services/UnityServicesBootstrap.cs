@@ -52,6 +52,12 @@ public class UnityServicesBootstrap : MonoBehaviour
     {
         try
         {
+            if (!HasLinkedCloudProjectId())
+            {
+                LastError = "Unity project is not linked to a cloud project yet.";
+                return;
+            }
+
             Type unityServicesType = FindType("Unity.Services.Core.UnityServices");
 
             if (unityServicesType == null)
@@ -97,6 +103,11 @@ public class UnityServicesBootstrap : MonoBehaviour
             LastError = exception.Message;
             Debug.LogWarning("Unity Services bootstrap failed: " + exception);
         }
+    }
+
+    static bool HasLinkedCloudProjectId()
+    {
+        return !string.IsNullOrWhiteSpace(Application.cloudProjectId);
     }
 
     static async Task TryAnonymousSignInAsync()

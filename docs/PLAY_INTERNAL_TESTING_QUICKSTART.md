@@ -15,7 +15,8 @@ Official references:
 ## Current Project Facts
 - App package: `com.oreniq.endlessdodge`
 - Unity version: `6000.4.0f1`
-- Play upload artifact: `Builds/Android/EndlessDodge1-internal-test.aab`
+- Public game title: `Cavern Veerfall`
+- Play upload artifact: `Builds/Android/CavernVeerfall-internal-test.aab`
 - Current local blocker: shared signing is still the `shared-debug.keystore` QA bridge. Replace it before building a Play upload.
 - QA build note: current tester flow collects tester names, screen recordings, survey answers, and optional notes. Treat this as user data even for testing.
 
@@ -62,7 +63,7 @@ In Unity:
 2. Wait for scripts to finish compiling.
 3. Click **Tools > Android > Build Play Internal Test AAB**.
 4. Confirm the output exists:
-   - `Builds/Android/EndlessDodge1-internal-test.aab`
+   - `Builds/Android/CavernVeerfall-internal-test.aab`
 
 Batchmode option:
 
@@ -77,7 +78,7 @@ Batchmode option:
 4. Click **Create new release**.
 5. In the app signing or app integrity section, accept Play App Signing if prompted.
 6. Choose the Google-generated app signing key unless you have a specific reason to bring your own app signing key.
-7. Upload `Builds/Android/EndlessDodge1-internal-test.aab`.
+7. Upload `Builds/Android/CavernVeerfall-internal-test.aab`.
 8. Let Play Console inspect the bundle.
 9. Enter release notes, for example:
 
@@ -110,7 +111,7 @@ Before inviting testers outside the immediate dev team:
 1. Go to **Testing > Internal testing**.
 2. Open the **Testers** tab.
 3. Click **Create email list** if no list exists.
-4. Name it, for example `Endless Dodge QA`.
+4. Name it, for example `Cavern Veerfall QA`.
 5. Add tester Google Account emails, separated by commas, or upload a CSV.
 6. Click **Save changes**.
 7. Select the tester list for the internal test.

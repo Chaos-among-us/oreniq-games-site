@@ -13,7 +13,7 @@ public static class MobileGrowthActions
 
     public static bool ShareText(string chooserTitle, string subject, string body)
     {
-        string resolvedSubject = string.IsNullOrWhiteSpace(subject) ? "Endless Dodge" : subject.Trim();
+        string resolvedSubject = string.IsNullOrWhiteSpace(subject) ? "Cavern Veerfall" : subject.Trim();
         string resolvedBody = string.IsNullOrWhiteSpace(body) ? GetProductionStoreUrl() : body.Trim();
 
 #if UNITY_ANDROID && !UNITY_EDITOR

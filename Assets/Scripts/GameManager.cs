@@ -98,6 +98,8 @@ public class GameManager : MonoBehaviour
     private Button qaFeatureButton;
     private TextMeshProUGUI qaFeatureButtonText;
     private TMP_InputField qaTesterNotesInput;
+    private Button qaPlayAgainButton;
+    private TextMeshProUGUI qaPlayAgainButtonText;
     private Button qaSavePackageButton;
     private TextMeshProUGUI qaSavePackageButtonText;
     private Button qaSharePackageButton;
@@ -2102,6 +2104,18 @@ public class GameManager : MonoBehaviour
             "Optional notes: danger multiplier, shop prices, ads, confusing moments...",
             true);
 
+        qaPlayAgainButton = CreateRuntimeButton(
+            panelRect,
+            "QaPlayAgainButton",
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(520f, 48f),
+            new Vector2(0f, 138f),
+            "Play Again",
+            new Color(0.55f, 0.39f, 0.18f, 1f),
+            out qaPlayAgainButtonText);
+
         qaSavePackageButton = CreateRuntimeButton(
             panelRect,
             "QaSavePackageButton",
@@ -2198,6 +2212,12 @@ public class GameManager : MonoBehaviour
             qaTesterNotesInput.onEndEdit.AddListener(_ => QaTestingSystem.SetTesterNotes(qaTesterNotesInput.text));
         }
 
+        if (qaPlayAgainButton != null)
+        {
+            qaPlayAgainButton.onClick.RemoveAllListeners();
+            qaPlayAgainButton.onClick.AddListener(RestartGame);
+        }
+
         if (qaSavePackageButton != null)
         {
             qaSavePackageButton.onClick.RemoveAllListeners();
@@ -2225,6 +2245,7 @@ public class GameManager : MonoBehaviour
         ConfigureQaSurveyQuestionText(qaAdButtonText);
         ConfigureQaSurveyQuestionText(qaDangerButtonText);
         ConfigureQaSurveyQuestionText(qaFeatureButtonText);
+        ConfigureQaSurveyActionText(qaPlayAgainButtonText, 18f, 28f);
         ConfigureQaSurveyActionText(qaSavePackageButtonText, 16f, 24f);
         ConfigureQaSurveyActionText(qaSharePackageButtonText, 22f, 32f);
         ConfigureQaSurveyActionText(qaDeletePackageButtonText, 16f, 24f);
@@ -3042,7 +3063,7 @@ public class GameManager : MonoBehaviour
                   "Do not enter private information while recording is active.\nMicrophone audio is not captured.\n\n" +
                   "Tap below when ready. If Android shows Share one app, switch it to Share full screen, then approve."
                 : "Android is showing or preparing its screen-capture prompt for this run.\n" +
-                  "Choose EndlessDodge1 if Android offers that option, or share the full screen only for this QA run.\n\n" +
+                  "Choose Cavern Veerfall if Android offers that option, or share the full screen only for this QA run.\n\n" +
                   QaTestingSystem.GetLiveCaptureStatus();
         }
 
@@ -3067,6 +3088,9 @@ public class GameManager : MonoBehaviour
 
         bool showSurvey = QaTestingSystem.IsQaModeEnabled() && gameEnded && !qaPracticeRunActive;
         qaSurveyPanel.SetActive(showSurvey);
+
+        if (restartButton != null)
+            restartButton.SetActive(gameEnded && !showSurvey);
 
         if (!showSurvey)
             return;
@@ -3103,6 +3127,12 @@ public class GameManager : MonoBehaviour
 
         if (qaTesterNotesInput != null && !qaTesterNotesInput.isFocused)
             qaTesterNotesInput.SetTextWithoutNotify(QaTestingSystem.GetTesterNotes());
+
+        if (qaPlayAgainButton != null)
+        {
+            qaPlayAgainButton.gameObject.SetActive(true);
+            qaPlayAgainButton.interactable = gameEnded;
+        }
 
         bool uploadConfigured = QaTestingSystem.HasUploadTargetConfigured();
 
@@ -3227,6 +3257,20 @@ public class GameManager : MonoBehaviour
         RefreshQaFeedbackUi();
     }
 
+    public void HandleQaPermissionPromptResolved()
+    {
+        qaCaptureNoticePending = false;
+        RefreshQaFeedbackUi();
+        UpdateOverlayTimeScale();
+        Debug.Log(
+            "[QA-UI] Prompt resolved | overlay=" +
+            IsQaCaptureOverlayVisible() +
+            " | awaitingConsent=" +
+            QaTestingSystem.IsAwaitingConsent() +
+            " | timeScale=" +
+            Time.timeScale.ToString("0.00"));
+    }
+
     public void DeleteQaPackage()
     {
         QaTestingSystem.DeleteLastPackage();
@@ -3296,12 +3340,12 @@ public class GameManager : MonoBehaviour
     string BuildShareSubject()
     {
         if (isDailyChallengeRun)
-            return "Can you beat today's Endless Dodge cave route?";
+            return "Can you beat today's Cavern Veerfall cave route?";
 
         if (newBestScore)
-            return "I just set a new Endless Dodge cave record";
+            return "I just set a new Cavern Veerfall cave record";
 
-        return "Can you beat my Endless Dodge cave run?";
+        return "Can you beat my Cavern Veerfall cave run?";
     }
 
     string BuildShareBody()
@@ -3313,22 +3357,22 @@ public class GameManager : MonoBehaviour
         if (isDailyChallengeRun)
         {
             return
-                "I just finished today's \"" + activeDailyChallenge.title + "\" route in Endless Dodge.\n" +
+                "I just finished today's \"" + activeDailyChallenge.title + "\" route in Cavern Veerfall.\n" +
                 "Score " + lastFinishedScore + " | Coins +" + GetDisplayedRunCoinGain() + dangerSuffix + "\n" +
                 profileSnapshot.RankTitle + " Lv " + profileSnapshot.Level + "\n" +
-                "Download Endless Dodge and take the same cave challenge.\n" +
+                "Download Cavern Veerfall and take the same cave challenge.\n" +
                 storeUrl;
         }
 
         string openingLine = newBestScore
-            ? "New cave record in Endless Dodge."
-            : "Just finished another deep run in Endless Dodge.";
+            ? "New cave record in Cavern Veerfall."
+            : "Just finished another deep run in Cavern Veerfall.";
 
         return
             openingLine + "\n" +
             "Score " + lastFinishedScore + " | Depth " + lastFinishedLevel + " | Coins +" + GetDisplayedRunCoinGain() + dangerSuffix + "\n" +
             profileSnapshot.RankTitle + " Lv " + profileSnapshot.Level + "\n" +
-            "Download Endless Dodge and see if you can beat it.\n" +
+            "Download Cavern Veerfall and see if you can beat it.\n" +
             storeUrl;
     }
 
@@ -3767,15 +3811,7 @@ public class GameManager : MonoBehaviour
         }
 
         if (audioDirector == null)
-        {
-            audioDirector = FindAnyObjectByType<EndlessDodgeAudioDirector>();
-
-            if (audioDirector == null)
-            {
-                GameObject audioRoot = new GameObject("EndlessDodgeAudioDirector");
-                audioDirector = audioRoot.AddComponent<EndlessDodgeAudioDirector>();
-            }
-        }
+            audioDirector = EndlessDodgeAudioDirector.EnsureExists();
 
         if (playfieldBorderController == null)
         {

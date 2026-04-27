@@ -9,8 +9,8 @@ using UnityEngine;
 public static class AndroidBuildAutomation
 {
     private const string OutputDirectoryRelativePath = "Builds/Android";
-    private const string OutputFileName = "EndlessDodge-dev.apk";
-    private const string PhoneOutputFileName = "EndlessDodge-phone.apk";
+    private const string OutputFileName = "CavernVeerfall-dev.apk";
+    private const string PhoneOutputFileName = "CavernVeerfall-phone.apk";
     private const string LocalSigningConfigRelativePath = "UserSettings/Android/release-signing.json";
 
     [MenuItem("Tools/Android/Build Development APK")]

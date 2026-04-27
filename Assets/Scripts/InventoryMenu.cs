@@ -44,6 +44,7 @@ public class InventoryMenu : MonoBehaviour
 
     void Awake()
     {
+        EndlessDodgeAudioDirector.EnsureExists();
         ApplyRuntimeLayoutDefaults();
         NormalizeLegacyPanelLayout();
 

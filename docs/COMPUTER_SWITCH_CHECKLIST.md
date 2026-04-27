@@ -21,7 +21,7 @@
 7. If continuing the current QA Play-test pass, start with the newest handoff entry:
    - `logs.md` section `2026-04-24 - QA visibility, consent timing, and one-tap upload handoff`
    - `Builds/Android/build-qa-visibility-upload-6.log`
-   - `Builds/Android/EndlessDodge1-debug.apk` if the build artifact was copied over
+   - `Builds/Android/CavernVeerfall-debug.apk` if the build artifact was copied over
 8. First phone retest should be:
    - install/rebuild the final debug APK from the new PC
    - update `Assets/Resources/QaSubmissionConfig.json` to the new PC LAN IP

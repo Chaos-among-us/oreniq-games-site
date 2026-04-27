@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.Environment;
 import android.provider.BaseColumns;
 import android.provider.MediaStore;
+import android.util.Log;
 
 import org.json.JSONObject;
 
@@ -28,6 +29,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 public final class QaRecorderBridge {
+    private static final String TAG = "QaAudioTrace";
     private static final String DEFAULT_RECEIVER_OBJECT = "QaTestingSystemRuntime";
     private static final String DEFAULT_RECEIVER_METHOD = "OnNativeQaEvent";
 
@@ -40,10 +42,12 @@ public final class QaRecorderBridge {
     public static void requestCaptureConsent(String runId, String receiverObject, String receiverMethod) {
         receiverObjectName = isBlank(receiverObject) ? DEFAULT_RECEIVER_OBJECT : receiverObject;
         receiverMethodName = isBlank(receiverMethod) ? DEFAULT_RECEIVER_METHOD : receiverMethod;
+        Log.d(TAG, "requestCaptureConsent runId=" + runId + " receiver=" + receiverObjectName + "/" + receiverMethodName);
 
         Activity activity = getCurrentActivity();
 
         if (activity == null) {
+            Log.w(TAG, "requestCaptureConsent missing current activity");
             sendEvent("error", runId, null, "Unity activity was unavailable for QA capture.");
             return;
         }
@@ -126,7 +130,7 @@ public final class QaRecorderBridge {
 
         Intent chooserIntent = Intent.createChooser(
             shareIntent,
-            isBlank(chooserTitle) ? "Share QA package" : chooserTitle);
+            isBlank(chooserTitle) ? "Share Cavern Veerfall QA package" : chooserTitle);
         activity.startActivity(chooserIntent);
         return true;
     }
@@ -150,7 +154,7 @@ public final class QaRecorderBridge {
             return "";
         }
 
-        String fileName = sanitizeFileName(isBlank(baseName) ? "endless-dodge-qa-" + System.currentTimeMillis() : baseName) + ".zip";
+        String fileName = sanitizeFileName(isBlank(baseName) ? "cavern-veerfall-qa-" + System.currentTimeMillis() : baseName) + ".zip";
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -319,6 +323,7 @@ public final class QaRecorderBridge {
 
     static void sendEvent(String status, String runId, String path, String message) {
         try {
+            Log.d(TAG, "sendEvent status=" + status + " runId=" + runId + " path=" + path + " message=" + message);
             JSONObject payload = new JSONObject();
             payload.put("status", status == null ? "" : status);
             payload.put("runId", runId == null ? "" : runId);
@@ -469,11 +474,11 @@ public final class QaRecorderBridge {
 
     private static File getLegacyExportDirectory() {
         File downloadsDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        return new File(downloadsDirectory, "EndlessDodgeQA");
+        return new File(downloadsDirectory, "CavernVeerfallQA");
     }
 
     private static String getExportRelativePath() {
-        return Environment.DIRECTORY_DOWNLOADS + "/EndlessDodgeQA/";
+        return Environment.DIRECTORY_DOWNLOADS + "/CavernVeerfallQA/";
     }
 
     private static String sanitizeFileName(String value) {

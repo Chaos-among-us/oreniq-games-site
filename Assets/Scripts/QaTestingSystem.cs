@@ -9,6 +9,7 @@ using UnityEngine.Networking;
 
 public static class QaTestingSystem
 {
+    private const string QaAudioTracePrefix = "[QA-AUDIO]";
 #pragma warning disable 0649
     [Serializable]
     private sealed class QaNativeEvent
@@ -266,11 +267,11 @@ public static class QaTestingSystem
             "1. Enter your tester name so every package is traceable.\n" +
             "2. Run Practice Tutorial once if you have not played before.\n" +
             "3. Enable QA Recording, then start a normal run.\n" +
-            "4. Android will ask for screen-capture consent before each recorded run. On newer Android versions, choose EndlessDodge1 or share the full screen if Android asks what to share.\n" +
+            "4. Android will ask for screen-capture consent before each recorded run. On newer Android versions, choose Cavern Veerfall or share the full screen if Android asks what to share.\n" +
             "5. After the run, answer the quick survey and tap " + handoffAction + ".\n\n" +
             "Captured: gameplay, in-game menus, and the post-run QA survey.\n" +
             "Not captured: microphone audio. Recording stops when the run ends or the app leaves the foreground.\n" +
-            "Bundles can be saved to Files > Downloads > EndlessDodgeQA for easy handoff." +
+            "Bundles can be saved to Files > Downloads > CavernVeerfallQA for easy handoff." +
             optionalDownloadLine;
     }
 
@@ -686,7 +687,7 @@ public static class QaTestingSystem
             return SubmitCurrentRun();
 
         lastReportPath = WriteCurrentRunReport();
-        string subject = "Endless Dodge QA run";
+        string subject = "Cavern Veerfall QA run";
         string body = BuildShareBody();
 
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -729,7 +730,7 @@ public static class QaTestingSystem
 
         if (lastExportUri.Length > 0)
         {
-            liveStatusMessage = "The QA bundle is already saved in Files > Downloads > EndlessDodgeQA.";
+            liveStatusMessage = "The QA bundle is already saved in Files > Downloads > CavernVeerfallQA.";
             return true;
         }
 
@@ -744,12 +745,12 @@ public static class QaTestingSystem
                     "exportCapturePackageToDownloads",
                     lastCapturePath ?? string.Empty,
                     lastReportPath ?? string.Empty,
-                    currentRunSummary != null ? currentRunSummary.runId : "endless-dodge-qa");
+                    currentRunSummary != null ? currentRunSummary.runId : "cavern-veerfall-qa");
 
                 if (!string.IsNullOrEmpty(exportUri))
                 {
                     lastExportUri = exportUri;
-                    liveStatusMessage = "Saved the QA bundle to Files > Downloads > EndlessDodgeQA.";
+                    liveStatusMessage = "Saved the QA bundle to Files > Downloads > CavernVeerfallQA.";
                     return true;
                 }
             }
@@ -972,12 +973,26 @@ public static class QaTestingSystem
             lastCapturePath = nativeEvent.path;
         }
 
+        Debug.Log(
+            QaAudioTracePrefix +
+            " Native QA event status=" +
+            SafeValue(nativeEvent.status) +
+            " runId=" +
+            SafeValue(nativeEvent.runId) +
+            " message=" +
+            SafeValue(nativeEvent.message) +
+            " path=" +
+            SafeValue(nativeEvent.path));
+
         switch (nativeEvent.status)
         {
             case "recording_started":
                 captureState = QaCaptureState.Recording;
                 currentRunSummary.recordingStatus = "recording";
                 liveStatusMessage = "QA capture is live for this run.";
+                NotifyGameSceneQaPromptResolved();
+                UiInputRecoveryHelper.RecoverAfterQaPermissionFlow();
+                EndlessDodgeAudioDirector.RecoverAudioAfterQaPermissionFlow();
                 break;
             case "recording_stopped":
                 captureState = QaCaptureState.Ready;
@@ -992,6 +1007,9 @@ public static class QaTestingSystem
                 liveStatusMessage = string.IsNullOrWhiteSpace(nativeEvent.message)
                     ? "Screen capture was denied for this run."
                     : nativeEvent.message;
+                NotifyGameSceneQaPromptResolved();
+                UiInputRecoveryHelper.RecoverAfterQaPermissionFlow();
+                EndlessDodgeAudioDirector.RecoverAudioAfterQaPermissionFlow();
                 break;
             case "error":
                 captureState = QaCaptureState.Failed;
@@ -999,14 +1017,27 @@ public static class QaTestingSystem
                 liveStatusMessage = string.IsNullOrWhiteSpace(nativeEvent.message)
                     ? "QA capture failed for this run."
                     : nativeEvent.message;
+                NotifyGameSceneQaPromptResolved();
+                UiInputRecoveryHelper.RecoverAfterQaPermissionFlow();
+                EndlessDodgeAudioDirector.RecoverAudioAfterQaPermissionFlow();
                 break;
         }
+    }
+
+    private static void NotifyGameSceneQaPromptResolved()
+    {
+        GameManager activeGameManager = GameManager.instance;
+
+        if (activeGameManager == null)
+            return;
+
+        activeGameManager.HandleQaPermissionPromptResolved();
     }
 
     private static string BuildShareBody()
     {
         StringBuilder builder = new StringBuilder();
-        builder.AppendLine("Endless Dodge QA package attached.");
+        builder.AppendLine("Cavern Veerfall QA package attached.");
         builder.AppendLine("Tester: " + SafeValue(GetTesterName()));
         builder.AppendLine("Score " + currentRunSummary.finalScore + " | Level " + currentRunSummary.levelReached + " | Coins +" + currentRunSummary.coinsEarned);
         builder.AppendLine("Collision: " + FairnessOptions[currentSurvey.fairnessIndex]);
@@ -1114,7 +1145,7 @@ public static class QaTestingSystem
             }
 
             submissionState = QaSubmissionState.Failed;
-            submissionStatusMessage = "Send failed. Make sure the QA collector is running, then try again.";
+            submissionStatusMessage = "Send failed. Check the QA upload link and try again.";
             liveStatusMessage = submissionStatusMessage;
             Debug.LogWarning(
                 "QA submission upload failed: " +
@@ -1143,7 +1174,7 @@ public static class QaTestingSystem
     private static string BuildDetailedReportText()
     {
         StringBuilder builder = new StringBuilder();
-        builder.AppendLine("Endless Dodge QA Report");
+        builder.AppendLine("Cavern Veerfall QA Report");
         builder.AppendLine("======================");
         builder.AppendLine("Tester: " + SafeValue(currentRunSummary != null ? currentRunSummary.testerName : GetTesterName()));
         builder.AppendLine("Run ID: " + SafeValue(currentRunSummary != null ? currentRunSummary.runId : string.Empty));

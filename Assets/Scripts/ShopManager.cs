@@ -78,6 +78,7 @@ public class ShopManager : MonoBehaviour
 
     void Awake()
     {
+        EndlessDodgeAudioDirector.EnsureExists();
         FindStaticReferences();
         NormalizeLegacyRootLayout();
         runtimeFont = GetRuntimeFont();

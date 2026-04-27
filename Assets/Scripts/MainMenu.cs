@@ -81,6 +81,10 @@ public class MainMenu : MonoBehaviour
     private TextMeshProUGUI closeMasteryButtonText;
     private Button qaModeButton;
     private TextMeshProUGUI qaModeButtonText;
+    private Button privacyPolicyButton;
+    private TextMeshProUGUI privacyPolicyButtonText;
+    private Button termsOfServiceButton;
+    private TextMeshProUGUI termsOfServiceButtonText;
     private GameObject qaOverlayRoot;
     private GameObject qaOverlayPanel;
     private TextMeshProUGUI qaOverlayTitleText;
@@ -104,6 +108,8 @@ public class MainMenu : MonoBehaviour
     private const string MasteryRoadmapButtonObjectName = "MasteryRoadmapButton";
     private const string MasteryOverlayRootObjectName = "MasteryOverlayRoot";
     private const string QaModeButtonObjectName = "QaModeButton";
+    private const string PrivacyPolicyButtonObjectName = "PrivacyPolicyButton";
+    private const string TermsOfServiceButtonObjectName = "TermsOfServiceButton";
     private const string QaOverlayRootObjectName = "QaOverlayRoot";
 
     void Start()
@@ -117,6 +123,7 @@ public class MainMenu : MonoBehaviour
         DailyRewardSystem.GetPreviewReward();
         DailyMissionSystem.EnsureInitializedForToday();
         DailyChallengeSystem.EnsureInitializedForToday();
+        EndlessDodgeAudioDirector.EnsureExists();
 
         runtimeFont = ResolveRuntimeFont();
         menuRootRect = GetMenuRoot();
@@ -130,6 +137,8 @@ public class MainMenu : MonoBehaviour
         EnsureProfileStatsLabel();
         EnsureMasteryRoadmapButton();
         EnsureQaModeButton();
+        EnsurePrivacyPolicyButton();
+        EnsureTermsOfServiceButton();
 
         if (createDailyRewardPanelAtRuntime)
             EnsureDailyRewardPanel();
@@ -250,6 +259,26 @@ public class MainMenu : MonoBehaviour
         SetMissionOverlayVisible(false);
         SetMasteryOverlayVisible(false);
         SetQaOverlayVisible(true);
+    }
+
+    public void OpenPrivacyPolicy()
+    {
+        string privacyPolicyUrl = AppLegalLinks.GetPrivacyPolicyUrl();
+
+        if (string.IsNullOrWhiteSpace(privacyPolicyUrl))
+            return;
+
+        Application.OpenURL(privacyPolicyUrl);
+    }
+
+    public void OpenTermsOfService()
+    {
+        string termsOfServiceUrl = AppLegalLinks.GetTermsOfServiceUrl();
+
+        if (string.IsNullOrWhiteSpace(termsOfServiceUrl))
+            return;
+
+        Application.OpenURL(termsOfServiceUrl);
     }
 
     public void CloseQaOverlay()
@@ -472,6 +501,72 @@ public class MainMenu : MonoBehaviour
         {
             qaModeButton.onClick.RemoveAllListeners();
             qaModeButton.onClick.AddListener(OpenQaOverlay);
+        }
+    }
+
+    void EnsurePrivacyPolicyButton()
+    {
+        if (menuRootRect == null)
+            return;
+
+        Transform existing = menuRootRect.Find(PrivacyPolicyButtonObjectName);
+
+        if (existing != null)
+        {
+            privacyPolicyButton = existing.GetComponent<Button>();
+            privacyPolicyButtonText = existing.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+        else
+        {
+            privacyPolicyButton = CreatePanelButton(
+                menuRootRect,
+                PrivacyPolicyButtonObjectName,
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(184f, 54f),
+                new Vector2(-102f, 18f),
+                "Privacy",
+                out privacyPolicyButtonText);
+        }
+
+        if (privacyPolicyButton != null)
+        {
+            privacyPolicyButton.onClick.RemoveAllListeners();
+            privacyPolicyButton.onClick.AddListener(OpenPrivacyPolicy);
+        }
+    }
+
+    void EnsureTermsOfServiceButton()
+    {
+        if (menuRootRect == null)
+            return;
+
+        Transform existing = menuRootRect.Find(TermsOfServiceButtonObjectName);
+
+        if (existing != null)
+        {
+            termsOfServiceButton = existing.GetComponent<Button>();
+            termsOfServiceButtonText = existing.GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+        else
+        {
+            termsOfServiceButton = CreatePanelButton(
+                menuRootRect,
+                TermsOfServiceButtonObjectName,
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(184f, 54f),
+                new Vector2(102f, 18f),
+                "Terms",
+                out termsOfServiceButtonText);
+        }
+
+        if (termsOfServiceButton != null)
+        {
+            termsOfServiceButton.onClick.RemoveAllListeners();
+            termsOfServiceButton.onClick.AddListener(OpenTermsOfService);
         }
     }
 
@@ -1703,11 +1798,59 @@ public class MainMenu : MonoBehaviour
         RefreshProfileStats();
         RefreshMasteryRoadmapButton();
         RefreshQaMenu();
+        RefreshLegalButtons();
         RefreshDailyRewardPanel();
         RefreshDailyChallengePanel();
         RefreshMissionSummaryPanel();
         RefreshDailyMissionPanel();
         RefreshMasteryOverlay();
+    }
+
+    void RefreshLegalButtons()
+    {
+        bool hasPrivacyPolicyUrl = AppLegalLinks.HasPrivacyPolicyUrl();
+        bool hasTermsOfServiceUrl = AppLegalLinks.HasTermsOfServiceUrl();
+
+        if (privacyPolicyButton != null)
+        {
+            privacyPolicyButton.gameObject.SetActive(hasPrivacyPolicyUrl);
+            privacyPolicyButton.interactable = hasPrivacyPolicyUrl;
+        }
+
+        if (privacyPolicyButtonText != null)
+            privacyPolicyButtonText.text = "Privacy";
+
+        if (termsOfServiceButton != null)
+        {
+            termsOfServiceButton.gameObject.SetActive(hasTermsOfServiceUrl);
+            termsOfServiceButton.interactable = hasTermsOfServiceUrl;
+        }
+
+        if (termsOfServiceButtonText != null)
+            termsOfServiceButtonText.text = "Terms";
+
+        UpdateLegalButtonLayout(hasPrivacyPolicyUrl, hasTermsOfServiceUrl);
+    }
+
+    void UpdateLegalButtonLayout(bool hasPrivacyPolicyUrl, bool hasTermsOfServiceUrl)
+    {
+        if (privacyPolicyButton != null)
+            ConfigureLegalButtonRect(privacyPolicyButton.GetComponent<RectTransform>(), hasPrivacyPolicyUrl && hasTermsOfServiceUrl ? -102f : 0f);
+
+        if (termsOfServiceButton != null)
+            ConfigureLegalButtonRect(termsOfServiceButton.GetComponent<RectTransform>(), hasPrivacyPolicyUrl && hasTermsOfServiceUrl ? 102f : 0f);
+    }
+
+    void ConfigureLegalButtonRect(RectTransform buttonRect, float xPosition)
+    {
+        if (buttonRect == null)
+            return;
+
+        buttonRect.anchorMin = new Vector2(0.5f, 0f);
+        buttonRect.anchorMax = new Vector2(0.5f, 0f);
+        buttonRect.pivot = new Vector2(0.5f, 0f);
+        buttonRect.sizeDelta = new Vector2(184f, 54f);
+        buttonRect.anchoredPosition = new Vector2(xPosition, 18f);
     }
 
     void RefreshQaMenu()
@@ -2276,7 +2419,7 @@ public class MainMenu : MonoBehaviour
             titleText.fontSizeMax = 56f;
             titleText.alignment = TextAlignmentOptions.Center;
             titleText.lineSpacing = 0f;
-            titleText.text = "ENDLESS DODGE";
+            titleText.text = "CAVERN VEERFALL";
             titleText.fontStyle = FontStyles.Bold;
             titleText.color = StudioUiTheme.Text;
         }

@@ -1,9 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class EndlessDodgeAudioDirector : MonoBehaviour
 {
+    private const string AudioTracePrefix = "[QA-AUDIO]";
     private static readonly int[] MajorScaleSemitones = { 0, 2, 4, 5, 7, 9, 11 };
     private static readonly int[][] BiomeChordProgressions =
     {
@@ -28,26 +30,66 @@ public class EndlessDodgeAudioDirector : MonoBehaviour
     private RuntimeCaveTheme currentTheme;
     private Coroutine musicFadeRoutine;
     private Coroutine biomeWarmupRoutine;
+    private Coroutine audioRestoreRoutine;
+    private Coroutine qaPromptAudioRecoveryRoutine;
     private int sfxVoiceIndex;
+    private bool initialMusicPrepared;
 
     private const int SampleRate = 22050;
     private const float AmbientLoopLength = 32f;
     private const float BaseMusicVolume = 0.76f;
     private const float PeakMusicVolume = 0.86f;
+    private const float MenuMusicVolume = 0.66f;
+
+    public static EndlessDodgeAudioDirector Instance { get; private set; }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void EnsureExistsOnBoot()
+    {
+        EnsureExists();
+    }
+
+    public static EndlessDodgeAudioDirector EnsureExists()
+    {
+        if (Instance != null)
+            return Instance;
+
+        EndlessDodgeAudioDirector existing = FindAnyObjectByType<EndlessDodgeAudioDirector>();
+
+        if (existing != null)
+            return existing;
+
+        GameObject audioRoot = new GameObject("EndlessDodgeAudioDirector");
+        return audioRoot.AddComponent<EndlessDodgeAudioDirector>();
+    }
 
     void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+        AndroidVolumeControlHelper.BindHardwareVolumeKeysToMusic();
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        SceneManager.sceneLoaded += HandleSceneLoaded;
         gameManager = GameManager.instance;
         EnsureAudioSources();
-        BuildSfxLibrary();
+
+        if (sfxLibrary.Count == 0)
+            BuildSfxLibrary();
+
+        LogAudioState("Awake completed");
     }
 
     void Start()
     {
-        RuntimeCaveTheme initialTheme = CaveThemeLibrary.GetThemeForLevel(GetCurrentLevel());
-        WarmBiomeImmediate(initialTheme.BiomeIndex);
-        QueueRemainingBiomeWarmups(initialTheme.BiomeIndex);
-        ApplyTheme(initialTheme, immediate: true);
+        AndroidVolumeControlHelper.BindHardwareVolumeKeysToMusic();
+        RefreshSceneAudio(immediate: true);
+        LogAudioState("Start refreshed scene audio");
     }
 
     void Update()
@@ -55,12 +97,47 @@ public class EndlessDodgeAudioDirector : MonoBehaviour
         if (gameManager == null)
             gameManager = GameManager.instance;
 
-        RuntimeCaveTheme theme = CaveThemeLibrary.GetThemeForLevel(GetCurrentLevel());
-
-        if (theme.BiomeIndex != lastAppliedBiomeIndex)
-            ApplyTheme(theme, immediate: false);
-
+        RefreshSceneAudio(immediate: false);
         UpdateMusicMix();
+    }
+
+    void OnApplicationPause(bool paused)
+    {
+        LogAudioState("OnApplicationPause paused=" + paused);
+        HandleApplicationFocusChanged(!paused);
+    }
+
+    void OnApplicationFocus(bool hasFocus)
+    {
+        LogAudioState("OnApplicationFocus hasFocus=" + hasFocus);
+        HandleApplicationFocusChanged(hasFocus);
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            if (audioRestoreRoutine != null)
+                StopCoroutine(audioRestoreRoutine);
+
+            if (qaPromptAudioRecoveryRoutine != null)
+                StopCoroutine(qaPromptAudioRecoveryRoutine);
+
+            LogAudioState("OnDestroy");
+            SceneManager.sceneLoaded -= HandleSceneLoaded;
+            Instance = null;
+        }
+    }
+
+    public static void RecoverAudioAfterQaPermissionFlow()
+    {
+        EndlessDodgeAudioDirector director = EnsureExists();
+
+        if (director != null)
+        {
+            director.LogAudioState("RecoverAudioAfterQaPermissionFlow requested");
+            director.BeginQaPromptAudioRecovery();
+        }
     }
 
     public void PlayCoinPickup()
@@ -305,6 +382,7 @@ public class EndlessDodgeAudioDirector : MonoBehaviour
         if (!sfxLibrary.TryGetValue(key, out AudioClip clip) || clip == null || sfxVoices.Count == 0)
             return;
 
+        EnsureMobileAudioOutputStarted();
         AudioSource voice = sfxVoices[sfxVoiceIndex];
         sfxVoiceIndex = (sfxVoiceIndex + 1) % sfxVoices.Count;
 
@@ -439,6 +517,389 @@ public class EndlessDodgeAudioDirector : MonoBehaviour
                 AddSynthNote(data, GetScaleFrequency(rootFrequency, noteDegree, 0), amplitude * sectionEnergy * velocity, stepStart, noteDuration, 0.008f, 0.08f, 0.0008f, 0.3f, 0.06f, 0f);
             }
         }
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        gameManager = GameManager.instance;
+        AndroidVolumeControlHelper.BindHardwareVolumeKeysToMusic();
+        RefreshSceneAudio(immediate: true);
+        LogAudioState("HandleSceneLoaded scene=" + scene.name + " mode=" + mode);
+    }
+
+    private void HandleApplicationFocusChanged(bool hasFocus)
+    {
+        LogAudioState("HandleApplicationFocusChanged hasFocus=" + hasFocus);
+
+        if (!hasFocus)
+        {
+            if (audioRestoreRoutine != null)
+            {
+                StopCoroutine(audioRestoreRoutine);
+                audioRestoreRoutine = null;
+            }
+
+            return;
+        }
+
+        if (audioRestoreRoutine != null)
+            StopCoroutine(audioRestoreRoutine);
+
+        AndroidVolumeControlHelper.BindHardwareVolumeKeysToMusic();
+        audioRestoreRoutine = StartCoroutine(RestoreAudioAfterFocusCoroutine());
+    }
+
+    private void BeginQaPromptAudioRecovery()
+    {
+        if (audioRestoreRoutine != null)
+        {
+            StopCoroutine(audioRestoreRoutine);
+            audioRestoreRoutine = null;
+        }
+
+        if (qaPromptAudioRecoveryRoutine != null)
+            StopCoroutine(qaPromptAudioRecoveryRoutine);
+
+        LogAudioState("BeginQaPromptAudioRecovery");
+        qaPromptAudioRecoveryRoutine = StartCoroutine(RestoreAudioAfterQaPermissionCoroutine());
+    }
+
+    private void RefreshSceneAudio(bool immediate)
+    {
+        RuntimeCaveTheme theme = ResolveThemeForCurrentScene();
+
+        if (!initialMusicPrepared)
+        {
+            WarmBiomeImmediate(theme.BiomeIndex);
+            QueueRemainingBiomeWarmups(theme.BiomeIndex);
+            ApplyTheme(theme, immediate: true);
+            initialMusicPrepared = true;
+            return;
+        }
+
+        if (theme.BiomeIndex != lastAppliedBiomeIndex)
+        {
+            ApplyTheme(theme, immediate);
+        }
+        else if (!HasActiveMusicClip())
+        {
+            ApplyTheme(theme, immediate: true);
+        }
+        else
+        {
+            ResumeMusicIfNeeded();
+        }
+    }
+
+    private RuntimeCaveTheme ResolveThemeForCurrentScene()
+    {
+        if (IsGameplaySceneActive())
+            return CaveThemeLibrary.GetThemeForLevel(GetCurrentLevel());
+
+        return CaveThemeLibrary.GetMenuTheme();
+    }
+
+    private bool IsGameplaySceneActive()
+    {
+        Scene activeScene = SceneManager.GetActiveScene();
+        return activeScene.IsValid() && string.Equals(activeScene.name, "Game");
+    }
+
+    private bool HasActiveMusicClip()
+    {
+        AudioSource activeSource = GetActiveMusicSource();
+        return activeSource != null && activeSource.clip != null;
+    }
+
+    private void ResumeMusicIfNeeded()
+    {
+        EnsureMobileAudioOutputStarted();
+        AudioSource activeSource = GetActiveMusicSource();
+
+        if (activeSource == null || activeSource.clip == null)
+            return;
+
+        if (!activeSource.isPlaying)
+            activeSource.Play();
+
+        AudioSource inactiveSource = GetInactiveMusicSource();
+
+        if (inactiveSource != null && inactiveSource.clip == null && inactiveSource.isPlaying)
+            inactiveSource.Stop();
+    }
+
+    private bool IsActiveMusicPlaying()
+    {
+        AudioSource activeSource = GetActiveMusicSource();
+        return activeSource != null && activeSource.clip != null && activeSource.isPlaying;
+    }
+
+    private void StopMusicFadeRoutineIfNeeded()
+    {
+        if (musicFadeRoutine == null)
+            return;
+
+        StopCoroutine(musicFadeRoutine);
+        musicFadeRoutine = null;
+    }
+
+    private void RestartMusicOnSource(AudioSource source, AudioClip loop, bool promoteToActive)
+    {
+        if (source == null || loop == null)
+            return;
+
+        StopMusicFadeRoutineIfNeeded();
+        source.Stop();
+        source.clip = loop;
+        source.loop = true;
+        source.pitch = 1f;
+        source.volume = GetTargetMusicVolume();
+        source.timeSamples = 0;
+        source.Play();
+
+        if (promoteToActive)
+            activeMusicSourceIndex = source == musicSourceA ? 0 : 1;
+    }
+
+    private void ForceRestartMusicLoop(string reason)
+    {
+        EnsureMobileAudioOutputStarted();
+        RuntimeCaveTheme theme = ResolveThemeForCurrentScene();
+        currentTheme = theme;
+        lastAppliedBiomeIndex = theme.BiomeIndex;
+        AudioClip loop = GetAmbientLoop(theme);
+        AudioSource activeSource = GetActiveMusicSource();
+        AudioSource inactiveSource = GetInactiveMusicSource();
+
+        if (inactiveSource != null)
+        {
+            inactiveSource.Stop();
+            inactiveSource.volume = 0f;
+        }
+
+        RestartMusicOnSource(activeSource, loop, promoteToActive: false);
+
+        if (IsActiveMusicPlaying())
+        {
+            LogAudioState("ForceRestartMusicLoop current-source reason=" + reason);
+            return;
+        }
+
+        RestartMusicOnSource(inactiveSource, loop, promoteToActive: true);
+        LogAudioState("ForceRestartMusicLoop fallback-source reason=" + reason);
+    }
+
+    private IEnumerator RestoreAudioAfterFocusCoroutine()
+    {
+        yield return null;
+
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            LogAudioState("RestoreAudioAfterFocus attempt=" + attempt + " before recovery");
+            ApplyImmediateAudioRecovery(immediate: true, forceMusicRestart: attempt > 0);
+
+            double previousDspTime = AudioSettings.dspTime;
+            yield return new WaitForSecondsRealtime(0.12f);
+
+            if (HasRecoveredAudio(previousDspTime))
+            {
+                LogAudioState("RestoreAudioAfterFocus success attempt=" + attempt);
+                audioRestoreRoutine = null;
+                yield break;
+            }
+
+            LogAudioState("RestoreAudioAfterFocus stalled attempt=" + attempt + ", resetting audio system");
+            ForceAudioSystemReset();
+            double resetDspTime = AudioSettings.dspTime;
+            yield return new WaitForSecondsRealtime(0.15f);
+
+            if (HasRecoveredAudio(resetDspTime))
+            {
+                LogAudioState("RestoreAudioAfterFocus recovered after reset attempt=" + attempt);
+                audioRestoreRoutine = null;
+                yield break;
+            }
+        }
+
+        ApplyImmediateAudioRecovery(immediate: true);
+        LogAudioState("RestoreAudioAfterFocus final recovery");
+        audioRestoreRoutine = null;
+    }
+
+    private IEnumerator RestoreAudioAfterQaPermissionCoroutine()
+    {
+        float[] retryDelays = { 0.05f, 0.18f, 0.4f, 0.8f };
+
+        for (int attempt = 0; attempt < retryDelays.Length; attempt++)
+        {
+            if (retryDelays[attempt] > 0f)
+                yield return new WaitForSecondsRealtime(retryDelays[attempt]);
+
+            LogAudioState("RestoreAudioAfterQaPermission attempt=" + attempt + " delay=" + retryDelays[attempt]);
+            ApplyImmediateAudioRecovery(immediate: true, forceMusicRestart: true);
+
+            double previousDspTime = AudioSettings.dspTime;
+            yield return new WaitForSecondsRealtime(0.12f);
+
+            if (HasRecoveredAudio(previousDspTime))
+            {
+                LogAudioState("RestoreAudioAfterQaPermission success attempt=" + attempt);
+                qaPromptAudioRecoveryRoutine = null;
+                yield break;
+            }
+
+            LogAudioState("RestoreAudioAfterQaPermission stalled attempt=" + attempt + ", resetting audio system");
+            ForceAudioSystemReset();
+            double resetDspTime = AudioSettings.dspTime;
+            yield return new WaitForSecondsRealtime(0.15f);
+
+            if (HasRecoveredAudio(resetDspTime))
+            {
+                LogAudioState("RestoreAudioAfterQaPermission recovered after reset attempt=" + attempt);
+                qaPromptAudioRecoveryRoutine = null;
+                yield break;
+            }
+        }
+
+        ApplyImmediateAudioRecovery(immediate: true);
+        LogAudioState("RestoreAudioAfterQaPermission final recovery");
+        qaPromptAudioRecoveryRoutine = null;
+    }
+
+    private void ApplyImmediateAudioRecovery(bool immediate, bool forceMusicRestart = false)
+    {
+        AndroidVolumeControlHelper.BindHardwareVolumeKeysToMusic();
+        EnsureMobileAudioOutputStarted();
+        AudioListener.pause = false;
+        AudioListener.volume = 1f;
+        EnsureAudioSources();
+        RefreshSceneAudio(immediate);
+
+        if (forceMusicRestart && !IsActiveMusicPlaying())
+            ForceRestartMusicLoop("ApplyImmediateAudioRecovery");
+        else
+            ResumeMusicIfNeeded();
+
+        LogAudioState("ApplyImmediateAudioRecovery immediate=" + immediate + " forceMusicRestart=" + forceMusicRestart);
+    }
+
+    private bool IsAudioTimelineAdvancing(double previousDspTime)
+    {
+        return AudioSettings.dspTime > previousDspTime + 0.01d;
+    }
+
+    private bool HasRecoveredAudio(double previousDspTime)
+    {
+        return IsAudioTimelineAdvancing(previousDspTime) && IsActiveMusicPlaying();
+    }
+
+    private void ForceAudioSystemReset()
+    {
+        LogAudioState("ForceAudioSystemReset begin");
+
+        if (musicFadeRoutine != null)
+        {
+            StopCoroutine(musicFadeRoutine);
+            musicFadeRoutine = null;
+        }
+
+        if (biomeWarmupRoutine != null)
+        {
+            StopCoroutine(biomeWarmupRoutine);
+            biomeWarmupRoutine = null;
+        }
+
+        pendingBiomeWarmups.Clear();
+        queuedBiomeWarmups.Clear();
+        ambientLoops.Clear();
+        sfxLibrary.Clear();
+        initialMusicPrepared = false;
+
+        if (musicSourceA != null)
+        {
+            musicSourceA.Stop();
+            musicSourceA.clip = null;
+        }
+
+        if (musicSourceB != null)
+        {
+            musicSourceB.Stop();
+            musicSourceB.clip = null;
+        }
+
+        for (int i = 0; i < sfxVoices.Count; i++)
+        {
+            AudioSource voice = sfxVoices[i];
+
+            if (voice == null)
+                continue;
+
+            voice.Stop();
+            voice.clip = null;
+        }
+
+        AudioSettings.Reset(AudioSettings.GetConfiguration());
+        BuildSfxLibrary();
+        ApplyImmediateAudioRecovery(immediate: true);
+        LogAudioState("ForceAudioSystemReset complete");
+    }
+
+    private void EnsureMobileAudioOutputStarted()
+    {
+#if UNITY_ANDROID || UNITY_IOS
+        AudioSettings.Mobile.StartAudioOutput();
+#endif
+    }
+
+    private void LogAudioState(string reason)
+    {
+        Debug.Log(
+            AudioTracePrefix +
+            " " +
+            reason +
+            " | scene=" +
+            GetActiveSceneName() +
+            " | dsp=" +
+            AudioSettings.dspTime.ToString("F3") +
+            " | outputStarted=" +
+            IsMobileAudioOutputStarted() +
+            " | listenerPause=" +
+            AudioListener.pause +
+            " | listenerVolume=" +
+            AudioListener.volume.ToString("F2") +
+            " | active=" +
+            DescribeAudioSource(GetActiveMusicSource()) +
+            " | inactive=" +
+            DescribeAudioSource(GetInactiveMusicSource()));
+    }
+
+    private static string GetActiveSceneName()
+    {
+        Scene activeScene = SceneManager.GetActiveScene();
+        return activeScene.IsValid() ? activeScene.name : "<invalid>";
+    }
+
+    private static string DescribeAudioSource(AudioSource source)
+    {
+        if (source == null)
+            return "<null>";
+
+        string clipName = source.clip != null ? source.clip.name : "<none>";
+        return
+            clipName +
+            ",playing=" +
+            source.isPlaying +
+            ",volume=" +
+            source.volume.ToString("F2");
+    }
+
+    private static bool IsMobileAudioOutputStarted()
+    {
+#if UNITY_ANDROID || UNITY_IOS
+        return AudioSettings.Mobile.audioOutputStarted;
+#else
+        return true;
+#endif
     }
 
     private void AddAccentStabs(float[] data, float rootFrequency, int[] progression, int biomeIndex, float amplitude)
@@ -1154,6 +1615,9 @@ public class EndlessDodgeAudioDirector : MonoBehaviour
 
     private float GetTargetMusicVolume()
     {
+        if (!IsGameplaySceneActive())
+            return MenuMusicVolume;
+
         float build = gameManager != null ? gameManager.GetLevelProgress01() : 0f;
         return Mathf.Lerp(BaseMusicVolume, PeakMusicVolume, Mathf.SmoothStep(0f, 1f, build));
     }

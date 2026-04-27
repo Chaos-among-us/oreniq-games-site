@@ -14,16 +14,26 @@ Use this when you want outside testers to:
   - build a report file
   - save a ZIP bundle locally
   - upload through the one-tap QA data button
-- `Assets/Resources/QaSubmissionConfig.json` is currently pointed at the local repo collector on `http://10.0.0.7:8787/qa-upload`.
+- The current checked-in QA upload target is `http://192.168.88.8:8787/qa-upload` on the current laptop collector.
+- If the collector machine or Wi-Fi IP changes, update `Assets/Resources/QaSubmissionConfig.json` before rebuilding the QA APK.
 
 ## Config File
 Edit:
 - `Assets/Resources/QaSubmissionConfig.json`
 
+Hosted remote option:
+- For non-local testers, use the hosted GitHub-backed Worker flow in:
+  - `docs/QA_REMOTE_GITHUB_UPLOAD_SETUP.md`
+- That path removes the same-Wi-Fi and laptop-powered-on requirement.
+- In the hosted path, the survey/report metadata is committed back into GitHub under:
+  - `Builds/QaCollectorInboxRemote/...`
+- The larger QA ZIP and gameplay recording stay in GitHub release assets linked from `manifest.json`.
+
 Fields:
 - `uploadUrl`
   - endpoint that accepts a multipart POST from the app
   - for the temporary LAN QA bridge, start `scripts/start-qa-collector.ps1` before testers submit
+  - for remote testers, replace the LAN URL with the deployed Cloudflare Worker `/qa-upload` URL
   - when blank, the app falls back to the Android share sheet
 - `submissionButtonLabel`
   - button text shown in the post-run QA survey
@@ -106,6 +116,9 @@ powershell -ExecutionPolicy Bypass -File scripts\pull-qa-artifacts.ps1 -SkipVide
 
 ## Notes
 - The local repo collector is a temporary LAN bridge for QA builds. For remote Play testers who are not on the same network, replace it with a hosted endpoint before relying on one-tap uploads.
+- A ready-to-host GitHub-backed Worker now lives at:
+  - `deploy/cloudflare/qa-github-upload-worker.js`
+- The hosted Worker path is the one that keeps working even if neither dev PC is turned on.
 - Keep the upload URL simple and stable. A direct webhook or lightweight upload worker is easier for testers than email-style workflows.
 - The current code does not require any secret auth token in the repo config. Prefer an endpoint URL that is safe to embed in the tester build.
 - Do not embed a GitHub token in the app to write directly to the repo. If repo-backed storage is desired, use a small serverless endpoint or GitHub Action dispatch proxy that owns the secret outside the app.
