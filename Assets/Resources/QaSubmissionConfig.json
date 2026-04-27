@@ -1,6 +1,0 @@
-{
-  "uploadUrl": "http://192.168.88.8:8787/qa-upload",
-  "submissionButtonLabel": "Send QA Data",
-  "testerBuildUrl": "",
-  "testerSurveyUrl": ""
-}
