@@ -294,6 +294,36 @@ li {
     var(--panel);
 }
 
+.service-hero {
+  background:
+    linear-gradient(145deg, rgba(136, 234, 215, 0.1), transparent 46%),
+    var(--panel-strong);
+}
+
+.price-callout {
+  display: inline-grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  color: #211c14;
+  background: linear-gradient(135deg, #ffe7ad, #ffca7a);
+}
+
+.price-callout span {
+  font-family: "Trebuchet MS", "Gill Sans", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.price-callout strong {
+  font-family: "Trebuchet MS", "Gill Sans", sans-serif;
+  font-size: 2rem;
+  line-height: 1;
+}
+
 .text-link {
   color: var(--aqua);
   font-weight: 700;
