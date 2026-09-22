@@ -13,7 +13,7 @@ const INVITE_URL = 'https://chaos-among-us.github.io/oreniq-games-site/lantern-r
 const configured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('REPLACE_') && firebaseConfig.projectId && !firebaseConfig.projectId.startsWith('REPLACE_');
 let ownInviteUrl=INVITE_URL;
 let app, auth, db, currentUser, profile, selectedUid='', unsubscribeMessages=null, mode='signin', authEpoch=0;
-let participationView={testers:[],dateReports:new Map(),dates:[]};
+let participationView={testers:[],dateReports:new Map(),dates:[]}, ownerLoadPromise=null, ownerLoadSession='', ownerLastLoadedAt=null;
 
 if(new URLSearchParams(location.search).get('join')==='1'){
   $('authHeading').textContent='You’re invited to test Lantern Rovers.';
@@ -26,7 +26,7 @@ if(/^[0-9a-f]{32}$/.test(referralFromLink)) sessionStorage.setItem('lanternRefer
 $('referralCode').value=sessionStorage.getItem('lanternReferral')||'';
 
 function emptyAll(){['auth','enroll','tester','owner','setup','resendVerification','inviteCard'].forEach(hide);}
-function clearPrivate(){ownInviteUrl=INVITE_URL;$('inviteLink').value=ownInviteUrl;for(const key of Object.keys(topicViews))topicViews[key]={items:[],id:'',subject:''};participationView={testers:[],dateReports:new Map(),dates:[]};profile=null;selectedUid='';['messages','ownerMessages','roster','activityRows'].forEach(id=>$(id).replaceChildren());hide('replyForm');}
+function clearPrivate(){ownInviteUrl=INVITE_URL;$('inviteLink').value=ownInviteUrl;for(const key of Object.keys(topicViews))topicViews[key]={items:[],id:'',subject:''};participationView={testers:[],dateReports:new Map(),dates:[]};ownerLastLoadedAt=null;$('refreshOwnerDashboard').disabled=true;$('participationExport').disabled=true;$('ownerRefreshStatus').textContent='';$('ownerRefreshStatus').style.color='';profile=null;selectedUid='';['messages','ownerMessages','roster','activityRows'].forEach(id=>$(id).replaceChildren());hide('replyForm');}
 function sameSession(epoch,uid){return epoch===authEpoch&&auth?.currentUser?.uid===uid;}
 function errorText(e){
   const codes={ 'auth/email-already-in-use':'That email already has an account. Sign in instead.', 'auth/invalid-credential':'Email or password was not recognized.', 'auth/weak-password':'Choose a password with at least 8 characters.', 'auth/too-many-requests':'Too many attempts. Please wait and try again.', 'auth/network-request-failed':'Connection failed. Check your internet and retry.', 'permission-denied':'This action is not allowed by the current account or project rules.' };
@@ -121,8 +121,31 @@ function renderMessages(target,items,uid){const box=$(target);box.innerHTML='';i
 $('messageForm').addEventListener('submit',async e=>{e.preventDefault();if(!profile||profile.status!=='approved')return;const text=$('messageText').value.trim();if(!text)return;try{const id=crypto.randomUUID();await setDoc(doc(db,'testers',currentUser.uid,'messages',id),{role:'tester',text,...topicFields('messages'),createdAt:serverTimestamp(),build:$('build').value.trim().slice(0,64),clientId:id});$('messageText').value='';message('messageNotice','Message sent securely.');}catch(err){message('messageNotice',errorText(err),true);}});
 $('consentToggle').addEventListener('change',async()=>{try{await updateDoc(doc(db,'testers',currentUser.uid),{telemetryConsent:$('consentToggle').checked});profile.telemetryConsent=$('consentToggle').checked;$('activitySummary').textContent=profile.telemetryConsent?'Daily summaries are enabled.':'Daily summaries are off; no activity summary should be sent.';}catch(e){$('consentToggle').checked=!$('consentToggle').checked;message('activitySummary',errorText(e),true);}});
 
+function formatOwnerRefreshTime(date){return date?.toLocaleString()||'';}
+function setOwnerRefreshStatus(text,error=false){const el=$('ownerRefreshStatus');el.textContent=text;el.style.color=error?'#9a4139':'';}
 async function loadOwner(){
-  const epoch=authEpoch,uid=currentUser.uid;
+  const epoch=authEpoch,uid=currentUser.uid,sessionKey=`${epoch}:${uid}`;
+  if(ownerLoadPromise&&ownerLoadSession===sessionKey)return ownerLoadPromise;
+  const run=(async()=>{
+    const refresh=$('refreshOwnerDashboard');refresh.disabled=true;
+    setOwnerRefreshStatus(ownerLastLoadedAt?`Refreshing… Last successful refresh: ${formatOwnerRefreshTime(ownerLastLoadedAt)}`:'Loading dashboard…');
+    try{
+      await loadOwnerData(epoch,uid);
+      if(!sameSession(epoch,uid))return false;
+      ownerLastLoadedAt=new Date();$('participationExport').disabled=false;
+      setOwnerRefreshStatus(`Last successful refresh: ${formatOwnerRefreshTime(ownerLastLoadedAt)}`);
+      return true;
+    }catch(e){
+      if(sameSession(epoch,uid))setOwnerRefreshStatus(`Refresh failed: ${errorText(e)}. ${ownerLastLoadedAt?`Last complete refresh: ${formatOwnerRefreshTime(ownerLastLoadedAt)}; current sections may be incomplete.`:'No successful refresh yet.'}`,true);
+      return false;
+    }finally{
+      if(ownerLoadPromise===run){ownerLoadPromise=null;ownerLoadSession='';}
+      if(sameSession(epoch,uid))refresh.disabled=false;
+    }
+  })();
+  ownerLoadPromise=run;ownerLoadSession=sessionKey;return run;
+}
+async function loadOwnerData(epoch,uid){
   const snap=await getDocs(query(collection(db,'testers'),orderBy('createdAt','desc')));const testers=snap.docs.map(d=>({uid:d.id,...d.data()}));
   if(!sameSession(epoch,uid))return;
   $('pendingCount').textContent=testers.filter(t=>t.status==='pending'&&t.deleting!==true).length;$('approvedCount').textContent=testers.filter(t=>isPlayEligible(t)).length;
@@ -137,6 +160,7 @@ async function loadOwner(){
   participationView={testers,dateReports,dates};renderParticipation(testers,dateReports,dates);
   $('qualifiedCount').textContent=qualifiedTotal;
 }
+$('refreshOwnerDashboard').addEventListener('click',()=>{loadOwner();});
 function renderParticipation(testers,dateReports,dates){
   const root=$('activityRows');root.replaceChildren();
   const grid=document.createElement('div');grid.className='participation-grid';grid.style.setProperty('--day-count',dates.length);
