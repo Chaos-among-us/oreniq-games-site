@@ -17,7 +17,7 @@ if(new URLSearchParams(location.search).get('join')==='1'){
   show('inviteDetails');
 }
 
-function emptyAll(){['auth','enroll','tester','owner','setup','resendVerification'].forEach(hide);}
+function emptyAll(){['auth','enroll','tester','owner','setup','resendVerification','inviteCard'].forEach(hide);}
 function clearPrivate(){for(const key of Object.keys(topicViews))topicViews[key]={items:[],id:'',subject:''};profile=null;selectedUid='';['messages','ownerMessages','roster','activityRows'].forEach(id=>$(id).replaceChildren());hide('replyForm');}
 function sameSession(epoch,uid){return epoch===authEpoch&&auth?.currentUser?.uid===uid;}
 function errorText(e){
@@ -38,7 +38,7 @@ else {
     try{
       const ownerSnap=await getDoc(doc(db,'owners',user.uid));
       if(!sameSession(epoch,user.uid))return;
-      if(ownerSnap.exists()){show('owner');await loadOwner();return;}
+      if(ownerSnap.exists()){show('owner');show('inviteCard');await loadOwner();return;}
       const ref=doc(db,'testers',user.uid), snap=await getDoc(ref);
       if(!sameSession(epoch,user.uid))return;
       const marker=await getDoc(doc(db,'deletedAccounts',user.uid));
@@ -65,8 +65,8 @@ $('enrollForm').addEventListener('submit',async e=>{e.preventDefault();try{const
 async function loadTester(){
   const epoch=authEpoch,uid=currentUser.uid;
   hide('pendingNote');
-  if(profile.deleting===true){hide('testerStatusTools');$('hello').textContent=`Welcome, ${profile.alias}`;$('statusText').textContent='Account deletion is in progress. Retry to finish removing your data and sign-in account.';$('statusBadge').textContent='Deleting';$('messageForm').querySelector('button').disabled=true;$('consentToggle').disabled=true;$('activitySummary').textContent='Activity sharing is stopped.';return;}
-  show('testerStatusTools');
+  if(profile.deleting===true){hide('testerStatusTools');hide('inviteCard');$('hello').textContent=`Welcome, ${profile.alias}`;$('statusText').textContent='Account deletion is in progress. Retry to finish removing your data and sign-in account.';$('statusBadge').textContent='Deleting';$('messageForm').querySelector('button').disabled=true;$('consentToggle').disabled=true;$('activitySummary').textContent='Activity sharing is stopped.';return;}
+  show('testerStatusTools');show('inviteCard');
   $('consentToggle').disabled=false;
   $('hello').textContent=`Welcome, ${profile.alias}`;$('statusText').textContent=profile.status==='approved'?(profile.accessProvisioned===true?'Your application is approved, and the owner marked that they added your email to Play testing. Check Play for availability; this hub cannot confirm access or guarantee installation.':'Your tester application is approved. The owner handles any Google Play access setup separately.'):'Your application is pending owner review.';
   $('statusBadge').textContent=profile.status==='approved'?'Approved':'Pending';$('statusBadge').classList.toggle('ok',profile.status==='approved');if(profile.status==='pending')show('pendingNote');
