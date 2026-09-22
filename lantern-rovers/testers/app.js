@@ -7,8 +7,15 @@ const $ = id => document.getElementById(id);
 const show = id => $(id).classList.remove('hidden');
 const hide = id => $(id).classList.add('hidden');
 const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.style.color=error?'#9a4139':'#356344'; };
+const INVITE_URL = 'https://chaos-among-us.github.io/oreniq-games-site/lantern-rovers/testers/?join=1';
 const configured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('REPLACE_') && firebaseConfig.projectId && !firebaseConfig.projectId.startsWith('REPLACE_');
 let app, auth, db, currentUser, profile, selectedUid='', unsubscribeMessages=null, mode='signin', authEpoch=0;
+
+if(new URLSearchParams(location.search).get('join')==='1'){
+  $('authHeading').textContent='You’re invited to test Lantern Rovers.';
+  $('authIntro').textContent='Apply for the Android test and share feedback if you choose.';
+  show('inviteDetails');
+}
 
 function emptyAll(){['auth','enroll','tester','owner','setup','resendVerification'].forEach(hide);}
 function clearPrivate(){for(const key of Object.keys(topicViews))topicViews[key]={items:[],id:'',subject:''};profile=null;selectedUid='';['messages','ownerMessages','roster','activityRows'].forEach(id=>$(id).replaceChildren());hide('replyForm');}
@@ -48,6 +55,7 @@ else {
 }
 
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.mode;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));$('authSubmit').textContent=mode==='signup'?'Create account':'Sign in';$('password').autocomplete=mode==='signup'?'new-password':'current-password';$('authAdultRow').classList.toggle('hidden',mode!=='signup');$('authSignupNotice').classList.toggle('hidden',mode!=='signup');$('authAdult').required=mode==='signup';message('authMessage','');}));
+if(new URLSearchParams(location.search).get('join')==='1')document.querySelector('[data-mode="signup"]').click();
 $('authForm').addEventListener('submit',async e=>{e.preventDefault();if(!auth)return;const email=$('email').value.trim(),password=$('password').value;try{if(mode==='signup'){if(!$('authAdult').checked){message('authMessage','Connected tester accounts are for adults 18 and older.',true);return;}const cred=await createUserWithEmailAndPassword(auth,email,password);await sendEmailVerification(cred.user);await signOut(auth);message('authMessage','Check your email for a verification link, then return here to sign in.');}else{await signInWithEmailAndPassword(auth,email,password);}}catch(err){message('authMessage',errorText(err),true);}});
 $('reset').addEventListener('click',async()=>{if(!auth)return;const email=$('email').value.trim();if(!email){message('authMessage','Enter your email above first.');return;}try{await sendPasswordResetEmail(auth,email);message('authMessage','If this address has an account, a reset link is on its way.');}catch(e){message('authMessage',errorText(e),true);}});
 $('resendVerification').addEventListener('click',async()=>{if(!currentUser)return;try{await sendEmailVerification(currentUser);message('authMessage','Verification email sent. Check your inbox and spam folder.');}catch(e){message('authMessage',errorText(e),true);}});
@@ -57,9 +65,10 @@ $('enrollForm').addEventListener('submit',async e=>{e.preventDefault();try{const
 async function loadTester(){
   const epoch=authEpoch,uid=currentUser.uid;
   hide('pendingNote');
-  if(profile.deleting===true){$('hello').textContent=`Welcome, ${profile.alias}`;$('statusText').textContent='Account deletion is in progress. Retry to finish removing your data and sign-in account.';$('statusBadge').textContent='Deleting';$('messageForm').querySelector('button').disabled=true;$('consentToggle').disabled=true;$('activitySummary').textContent='Activity sharing is stopped.';return;}
+  if(profile.deleting===true){hide('testerStatusTools');$('hello').textContent=`Welcome, ${profile.alias}`;$('statusText').textContent='Account deletion is in progress. Retry to finish removing your data and sign-in account.';$('statusBadge').textContent='Deleting';$('messageForm').querySelector('button').disabled=true;$('consentToggle').disabled=true;$('activitySummary').textContent='Activity sharing is stopped.';return;}
+  show('testerStatusTools');
   $('consentToggle').disabled=false;
-  $('hello').textContent=`Welcome, ${profile.alias}`;$('statusText').textContent=profile.status==='approved'?'Your tester application is approved.': 'Your application is pending owner review.';
+  $('hello').textContent=`Welcome, ${profile.alias}`;$('statusText').textContent=profile.status==='approved'?(profile.accessProvisioned===true?'Your application is approved, and the owner marked that they added your email to Play testing. Check Play for availability; this hub cannot confirm access or guarantee installation.':'Your tester application is approved. The owner handles any Google Play access setup separately.'):'Your application is pending owner review.';
   $('statusBadge').textContent=profile.status==='approved'?'Approved':'Pending';$('statusBadge').classList.toggle('ok',profile.status==='approved');if(profile.status==='pending')show('pendingNote');
   $('consentToggle').checked=profile.telemetryConsent===true;$('messageText').disabled=profile.status!=='approved';$('messageForm').querySelector('button').disabled=profile.status!=='approved';
   $('messageNotice').textContent=profile.status==='approved'?'Only you and the test owner can read this conversation.':'The inbox becomes available after approval. For application questions, use the support email on the privacy page.';
@@ -69,6 +78,20 @@ async function loadTester(){
   } else {$('messages').innerHTML='<p class="muted small">No conversation yet.</p>';}
   if(profile.telemetryConsent){const days=await getDocs(query(collection(db,'testers',uid,'days'),orderBy('updatedAt','desc'),limit(14)));if(!sameSession(epoch,uid))return;const qualified=days.docs.map(d=>d.data()).filter(qualifies).length;$('activitySummary').textContent+=` ${qualified} qualifying reported day(s) in the most recent ${days.size} summaries.`;}
 }
+async function refreshTesterStatus(){
+  if(!currentUser)return;
+  const epoch=authEpoch,uid=currentUser.uid;
+  $('refreshTesterStatus').disabled=true;message('refreshStatusMessage','Checking for an update…');
+  try{
+    const snap=await getDoc(doc(db,'testers',uid));
+    if(!sameSession(epoch,uid))return;
+    if(!snap.exists()){message('refreshStatusMessage','No active application was found. Sign out and sign in again if this seems wrong.',true);return;}
+    const data=snap.data();profile={...data,deleting:data.deleting===true};
+    await loadTester();message('refreshStatusMessage','Status refreshed just now.');
+  }catch(e){message('refreshStatusMessage',errorText(e),true);}
+  finally{$('refreshTesterStatus').disabled=false;}
+}
+$('refreshTesterStatus').addEventListener('click',refreshTesterStatus);
 function qualifies(d){return d.activeSeconds>=120&&(d.kills>0||d.nodes>0||d.lanterns>0);}
 const topicViews={messages:{items:[],id:'',subject:''},ownerMessages:{items:[],id:'',subject:''}};
 function topicFields(target){const v=topicViews[target];return v.id?{threadId:v.id,subject:v.subject}:{};}
@@ -93,8 +116,11 @@ async function loadOwner(){
   const epoch=authEpoch,uid=currentUser.uid;
   const snap=await getDocs(query(collection(db,'testers'),orderBy('createdAt','desc')));const testers=snap.docs.map(d=>({uid:d.id,...d.data()}));
   if(!sameSession(epoch,uid))return;
-  $('pendingCount').textContent=testers.filter(t=>t.status==='pending').length;$('approvedCount').textContent=testers.filter(t=>t.status==='approved').length;
-  const roster=$('roster');roster.innerHTML='';for(const t of testers){const row=document.createElement('div');row.className='personhead';const b=document.createElement('button');b.className='person'+(selectedUid===t.uid?' selected':'');b.innerHTML=`<strong>${esc(t.alias)}</strong><small>${esc(t.email)} · ${esc(t.status)} · ${t.telemetryConsent?'activity on':'activity off'}</small>`;b.onclick=()=>selectTester(t);const action=document.createElement('button');action.className='secondary';action.textContent=t.status==='approved'?'Revoke':'Approve';action.onclick=async()=>{try{await updateDoc(doc(db,'testers',t.uid),{status:t.status==='approved'?'pending':'approved',accessProvisioned:t.status!=='approved'});await loadOwner();}catch(e){message('globalMessage',errorText(e),true);}};row.append(b,action);roster.append(row);}
+  $('pendingCount').textContent=testers.filter(t=>t.status==='pending'&&t.deleting!==true).length;$('approvedCount').textContent=testers.filter(t=>isPlayEligible(t)).length;
+  const roster=$('roster');roster.innerHTML='';for(const t of testers){const row=document.createElement('div');row.className='personhead';const b=document.createElement('button');b.className='person'+(selectedUid===t.uid?' selected':'');const accessLabel=t.status==='approved'?(t.accessProvisioned===true?'Play access added':'Play access setup still needed'):'';b.innerHTML=`<strong>${esc(t.alias)}</strong><small>${esc(t.email)} · ${esc(t.status)} · ${esc(accessLabel|| (t.telemetryConsent?'activity on':'activity off'))}${t.deleting===true?' · deletion in progress':''}</small>`;b.onclick=()=>selectTester(t);row.append(b);
+    if(t.deleting!==true){const action=document.createElement('button');action.className='secondary';action.textContent=t.status==='approved'?'Revoke':'Approve';action.onclick=async()=>{try{const update={status:t.status==='approved'?'pending':'approved'};if(t.status==='approved')update.accessProvisioned=false;await updateDoc(doc(db,'testers',t.uid),update);await loadOwner();}catch(e){message('globalMessage',errorText(e),true);}};row.append(action);}
+    if(t.status==='approved'&&t.deleting!==true){const access=document.createElement('button');access.className=t.accessProvisioned===true?'link':'secondary';access.textContent=t.accessProvisioned===true?'Reset Play access status':'Confirm Play access added';access.title=t.accessProvisioned===true?'Reset the hub status only; this does not remove Play membership':'Confirm you manually added this email to Play testing';access.onclick=async()=>{const value=t.accessProvisioned!==true;if(value&&!confirm('Confirm only after you have manually added this email to Play testing. This hub status does not grant Play access.'))return;if(!value&&!confirm('Reset the hub status only? This does not remove the tester from Google Play.'))return;try{await updateDoc(doc(db,'testers',t.uid),{accessProvisioned:value});await loadOwner();}catch(e){message('globalMessage',errorText(e),true);}};row.append(access);}
+    roster.append(row);}
   const activityBody=$('activityRows');activityBody.innerHTML='';let qualifiedTotal=0;const now=new Date();const since=new Date(now);since.setUTCDate(since.getUTCDate()-13);const minId=since.toISOString().slice(0,10),maxId=now.toISOString().slice(0,10);
   for(const t of testers){let all=[];if(t.telemetryConsent){const ds=await getDocs(query(collection(db,'testers',t.uid,'days'),orderBy('updatedAt','desc'),limit(30)));if(!sameSession(epoch,uid))return;all=ds.docs.filter(d=>d.id>=minId&&d.id<=maxId).map(d=>d.data());}
     const q=all.filter(qualifies).length;qualifiedTotal+=q;const last=all.map(d=>d.updatedAt?.toDate?.()).filter(Boolean).sort((a,b)=>b-a)[0];const tr=document.createElement('tr');for(const val of [t.alias,`${all.length}/14`,`${q}/14`,last?last.toLocaleString():'No report',t.telemetryConsent?'Opted in':'Off']){const td=document.createElement('td');td.textContent=val;tr.append(td);}activityBody.append(tr);}
@@ -102,9 +128,17 @@ async function loadOwner(){
 }
 async function selectTester(t){const epoch=authEpoch,uid=currentUser.uid;if(selectedUid!==t.uid){topicViews.ownerMessages={items:[],id:'',subject:''};}selectedUid=t.uid;$('threadTitle').textContent=`${t.alias} · ${t.status}`;$('ownerMessages').innerHTML='';show('replyForm');const msgs=await getDocs(query(collection(db,'testers',t.uid,'messages'),orderBy('createdAt')));if(!sameSession(epoch,uid))return;selectTopics('ownerMessages',msgs.docs.map(d=>d.data()));document.querySelectorAll('.person').forEach(el=>el.classList.remove('selected'));}
 $('replyForm').addEventListener('submit',async e=>{e.preventDefault();if(!selectedUid)return;const text=$('replyText').value.trim();if(!text)return;try{const id=crypto.randomUUID();await setDoc(doc(db,'testers',selectedUid,'messages',id),{role:'studio',text,...topicFields('ownerMessages'),createdAt:serverTimestamp(),build:$('replyBuild').value.trim().slice(0,64),clientId:id});$('replyText').value='';await selectTester({uid:selectedUid,alias:$('threadTitle').textContent.split(' · ')[0],status:$('threadTitle').textContent.split(' · ')[1]||''});}catch(err){message('globalMessage',errorText(err),true);}});
-$('playExport').addEventListener('click',async()=>{const snap=await getDocs(collection(db,'testers'));const rows=[['email','status','access_provisioned'],...snap.docs.map(d=>{const x=d.data();return[x.email,x.status,String(x.accessProvisioned)]})];download('tester-play-email-list.csv',rows.map(r=>r.map(csv).join(',')).join('\r\n'));});
+function isPlayEligible(t){return t.status==='approved'&&t.deleting!==true&&Boolean(t.email);}
+function isAwaitingPlayAccess(t){return isPlayEligible(t)&&t.accessProvisioned!==true;}
+async function getOwnerTesters(){const snap=await getDocs(collection(db,'testers'));return snap.docs.map(d=>({uid:d.id,...d.data()}));}
+$('playExport').addEventListener('click',async()=>{try{const testers=await getOwnerTesters();const emails=testers.filter(isPlayEligible).map(t=>t.email);download('tester-play-email-list.csv',emails.join('\r\n'),'text/csv;charset=utf-8');}catch(e){message('globalMessage',errorText(e),true);}});
+async function copyText(text){if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return;}const input=document.createElement('textarea');input.value=text;input.style.position='fixed';input.style.opacity='0';document.body.append(input);input.select();const copied=document.execCommand('copy');input.remove();if(!copied)throw new Error('Clipboard access is unavailable.');}
+async function copyInvite(){await copyText(INVITE_URL);message('inviteMessage','Invite link copied.');}
+$('copyInvite').addEventListener('click',async()=>{try{await copyInvite();}catch(e){message('inviteMessage',errorText(e),true);}});
+$('shareInvite').addEventListener('click',async()=>{try{if(navigator.share)await navigator.share({title:'Lantern Rovers tester application',text:'Apply for the adult Android test. Use your Google Play email; feedback is voluntary.',url:INVITE_URL});else await copyInvite();message('inviteMessage','Invite link ready to share.');}catch(e){if(e.name!=='AbortError')message('inviteMessage',errorText(e),true);}});
+$('copyAwaitingEmails').addEventListener('click',async()=>{try{const testers=await getOwnerTesters();const emails=testers.filter(isAwaitingPlayAccess).map(t=>t.email);if(!emails.length){message('awaitingMessage','No approved testers are waiting for access.');return;}await copyText(emails.join('\n'));message('awaitingMessage',`${emails.length} approved email(s) copied for manual Play setup.`);}catch(e){message('awaitingMessage',errorText(e),true);}});
 function csv(v){return '"'+String(v??'').replaceAll('"','""')+'"';}
-function download(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function download(name,text,type='text/plain;charset=utf-8'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
 $('exportMine').addEventListener('click',async()=>{try{const [m,d]=await Promise.all([getDocs(collection(db,'testers',currentUser.uid,'messages')),getDocs(collection(db,'testers',currentUser.uid,'days'))]);const out={profile:{alias:profile.alias,status:profile.status,telemetryConsent:profile.telemetryConsent},messages:m.docs.map(x=>({id:x.id,...x.data()})),days:d.docs.map(x=>({date:x.id,...x.data()}))};download('my-tester-data.json',JSON.stringify(out,null,2));}catch(e){message('globalMessage',errorText(e),true);}});
 async function deleteCollection(path){while(true){const snap=await getDocs(query(collection(db,path),limit(250)));if(snap.empty)break;const batch=writeBatch(db);snap.docs.forEach(d=>batch.delete(d.ref));await batch.commit();}}
 async function ensureDeletionMarker(uid){

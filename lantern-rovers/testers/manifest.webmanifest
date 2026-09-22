@@ -1,0 +1,19 @@
+{
+  "id": "/oreniq-games-site/lantern-rovers/testers/",
+  "name": "Oreniq Tester Hub",
+  "short_name": "Tester Hub",
+  "description": "Manage Lantern Rovers test applications, feedback and optional activity reports.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f7f2",
+  "theme_color": "#17352d",
+  "icons": [
+    {
+      "src": "./hub-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
