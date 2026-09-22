@@ -1,7 +1,8 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import { connectAuthEmulator, createUserWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, getAuth, EmailAuthProvider, reauthenticateWithCredential, signOut, onAuthStateChanged, deleteUser } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import { connectFirestoreEmulator, getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, orderBy, getDocs, limit, serverTimestamp, writeBatch, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import { connectFirestoreEmulator, getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, orderBy, getDocs, limit, serverTimestamp, writeBatch, runTransaction, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { firebaseConfig, useEmulators } from './firebase-config.js';
+import { referralCode, referralBadge, referralAward } from './referrals.js?v=0118';
 
 const $ = id => document.getElementById(id);
 const show = id => $(id).classList.remove('hidden');
@@ -9,6 +10,7 @@ const hide = id => $(id).classList.add('hidden');
 const message = (id, text, error=false) => { const el=$(id); el.textContent=text; el.style.color=error?'#9a4139':'#356344'; };
 const INVITE_URL = 'https://chaos-among-us.github.io/oreniq-games-site/lantern-rovers/testers/?join=1';
 const configured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('REPLACE_') && firebaseConfig.projectId && !firebaseConfig.projectId.startsWith('REPLACE_');
+let ownInviteUrl=INVITE_URL;
 let app, auth, db, currentUser, profile, selectedUid='', unsubscribeMessages=null, mode='signin', authEpoch=0;
 
 if(new URLSearchParams(location.search).get('join')==='1'){
@@ -17,8 +19,12 @@ if(new URLSearchParams(location.search).get('join')==='1'){
   show('inviteDetails');
 }
 
+const referralFromLink=new URLSearchParams(location.hash.slice(1)).get('ref')||'';
+if(/^[0-9a-f]{32}$/.test(referralFromLink)) sessionStorage.setItem('lanternReferral',referralFromLink);
+$('referralCode').value=sessionStorage.getItem('lanternReferral')||'';
+
 function emptyAll(){['auth','enroll','tester','owner','setup','resendVerification','inviteCard'].forEach(hide);}
-function clearPrivate(){for(const key of Object.keys(topicViews))topicViews[key]={items:[],id:'',subject:''};profile=null;selectedUid='';['messages','ownerMessages','roster','activityRows'].forEach(id=>$(id).replaceChildren());hide('replyForm');}
+function clearPrivate(){ownInviteUrl=INVITE_URL;for(const key of Object.keys(topicViews))topicViews[key]={items:[],id:'',subject:''};profile=null;selectedUid='';['messages','ownerMessages','roster','activityRows'].forEach(id=>$(id).replaceChildren());hide('replyForm');}
 function sameSession(epoch,uid){return epoch===authEpoch&&auth?.currentUser?.uid===uid;}
 function errorText(e){
   const codes={ 'auth/email-already-in-use':'That email already has an account. Sign in instead.', 'auth/invalid-credential':'Email or password was not recognized.', 'auth/weak-password':'Choose a password with at least 8 characters.', 'auth/too-many-requests':'Too many attempts. Please wait and try again.', 'auth/network-request-failed':'Connection failed. Check your internet and retry.', 'permission-denied':'This action is not allowed by the current account or project rules.' };
@@ -60,13 +66,15 @@ $('authForm').addEventListener('submit',async e=>{e.preventDefault();if(!auth)re
 $('reset').addEventListener('click',async()=>{if(!auth)return;const email=$('email').value.trim();if(!email){message('authMessage','Enter your email above first.');return;}try{await sendPasswordResetEmail(auth,email);message('authMessage','If this address has an account, a reset link is on its way.');}catch(e){message('authMessage',errorText(e),true);}});
 $('resendVerification').addEventListener('click',async()=>{if(!currentUser)return;try{await sendEmailVerification(currentUser);message('authMessage','Verification email sent. Check your inbox and spam folder.');}catch(e){message('authMessage',errorText(e),true);}});
 
-$('enrollForm').addEventListener('submit',async e=>{e.preventDefault();try{const uid=currentUser.uid;const alias=$('alias').value.trim();await setDoc(doc(db,'testers',uid),{email:currentUser.email,alias,status:'pending',adultConfirmed:$('adult').checked,telemetryConsent:$('telemetry').checked,privacyVersion:'2026-09-22-v1',createdAt:serverTimestamp(),accessProvisioned:false,deleting:false});profile={alias,status:'pending',telemetryConsent:$('telemetry').checked,deleting:false};emptyAll();show('tester');await loadTester();}catch(err){message('enrollMessage',errorText(err),true);}});
+$('enrollForm').addEventListener('submit',async e=>{e.preventDefault();try{const uid=currentUser.uid;const alias=$('alias').value.trim();await setDoc(doc(db,'testers',uid),{email:currentUser.email,alias,status:'pending',adultConfirmed:$('adult').checked,telemetryConsent:$('telemetry').checked,referredBy:$('referralCode').value.trim().toLowerCase(),referralCredits:0,referralRewarded:false,privacyVersion:'2026-09-22-v2',createdAt:serverTimestamp(),accessProvisioned:false,deleting:false});profile={alias,status:'pending',telemetryConsent:$('telemetry').checked,deleting:false};emptyAll();show('tester');sessionStorage.removeItem('lanternReferral');await loadTester();}catch(err){message('enrollMessage',errorText(err),true);}});
 
 async function loadTester(){
   const epoch=authEpoch,uid=currentUser.uid;
   hide('pendingNote');
   if(profile.deleting===true){hide('testerStatusTools');hide('inviteCard');$('hello').textContent=`Welcome, ${profile.alias}`;$('statusText').textContent='Account deletion is in progress. Retry to finish removing your data and sign-in account.';$('statusBadge').textContent='Deleting';$('messageForm').querySelector('button').disabled=true;$('consentToggle').disabled=true;$('activitySummary').textContent='Activity sharing is stopped.';return;}
   show('testerStatusTools');show('inviteCard');
+  const code=await referralCode(uid);if(!sameSession(epoch,uid))return;ownInviteUrl=profile.status==='approved'?INVITE_URL+'#ref='+code:INVITE_URL;
+  $('referralBadge').textContent=referralBadge(profile.referralCredits)+' · '+(profile.referralCredits||0)+'/3 verified referrals';
   $('consentToggle').disabled=false;
   $('hello').textContent=`Welcome, ${profile.alias}`;$('statusText').textContent=profile.status==='approved'?(profile.accessProvisioned===true?'Your application is approved, and the owner marked that they added your email to Play testing. Check Play for availability; this hub cannot confirm access or guarantee installation.':'Your tester application is approved. The owner handles any Google Play access setup separately.'):'Your application is pending owner review.';
   $('statusBadge').textContent=profile.status==='approved'?'Approved':'Pending';$('statusBadge').classList.toggle('ok',profile.status==='approved');if(profile.status==='pending')show('pendingNote');
@@ -120,6 +128,8 @@ async function loadOwner(){
   const roster=$('roster');roster.innerHTML='';for(const t of testers){const row=document.createElement('div');row.className='personhead';const b=document.createElement('button');b.className='person'+(selectedUid===t.uid?' selected':'');const accessLabel=t.status==='approved'?(t.accessProvisioned===true?'Play access added':'Play access setup still needed'):'';b.innerHTML=`<strong>${esc(t.alias)}</strong><small>${esc(t.email)} · ${esc(t.status)} · ${esc(accessLabel|| (t.telemetryConsent?'activity on':'activity off'))}${t.deleting===true?' · deletion in progress':''}</small>`;b.onclick=()=>selectTester(t);row.append(b);
     if(t.deleting!==true){const action=document.createElement('button');action.className='secondary';action.textContent=t.status==='approved'?'Revoke':'Approve';action.onclick=async()=>{try{const update={status:t.status==='approved'?'pending':'approved'};if(t.status==='approved')update.accessProvisioned=false;await updateDoc(doc(db,'testers',t.uid),update);await loadOwner();}catch(e){message('globalMessage',errorText(e),true);}};row.append(action);}
     if(t.status==='approved'&&t.deleting!==true){const access=document.createElement('button');access.className=t.accessProvisioned===true?'link':'secondary';access.textContent=t.accessProvisioned===true?'Reset Play access status':'Confirm Play access added';access.title=t.accessProvisioned===true?'Reset the hub status only; this does not remove Play membership':'Confirm you manually added this email to Play testing';access.onclick=async()=>{const value=t.accessProvisioned!==true;if(value&&!confirm('Confirm only after you have manually added this email to Play testing. This hub status does not grant Play access.'))return;if(!value&&!confirm('Reset the hub status only? This does not remove the tester from Google Play.'))return;try{await updateDoc(doc(db,'testers',t.uid),{accessProvisioned:value});await loadOwner();}catch(e){message('globalMessage',errorText(e),true);}};row.append(access);}
+    if(t.referredBy){const info=document.createElement('small');info.className='referral-note';info.textContent=t.referralRewarded?'Referral credited':'Invited tester · awaiting verification';row.append(info);
+      if(!t.referralRewarded&&t.status==='approved'&&t.accessProvisioned&&!t.deleting){const reward=document.createElement('button');reward.className='secondary';reward.textContent='Verify referral';reward.onclick=()=>creditReferral(t.uid,testers);row.append(reward);}}
     roster.append(row);}
   const activityBody=$('activityRows');activityBody.innerHTML='';let qualifiedTotal=0;const now=new Date();const since=new Date(now);since.setUTCDate(since.getUTCDate()-13);const minId=since.toISOString().slice(0,10),maxId=now.toISOString().slice(0,10);
   for(const t of testers){let all=[];if(t.telemetryConsent){const ds=await getDocs(query(collection(db,'testers',t.uid,'days'),orderBy('updatedAt','desc'),limit(30)));if(!sameSession(epoch,uid))return;all=ds.docs.filter(d=>d.id>=minId&&d.id<=maxId).map(d=>d.data());}
@@ -128,18 +138,34 @@ async function loadOwner(){
 }
 async function selectTester(t){const epoch=authEpoch,uid=currentUser.uid;if(selectedUid!==t.uid){topicViews.ownerMessages={items:[],id:'',subject:''};}selectedUid=t.uid;$('threadTitle').textContent=`${t.alias} · ${t.status}`;$('ownerMessages').innerHTML='';show('replyForm');const msgs=await getDocs(query(collection(db,'testers',t.uid,'messages'),orderBy('createdAt')));if(!sameSession(epoch,uid))return;selectTopics('ownerMessages',msgs.docs.map(d=>d.data()));document.querySelectorAll('.person').forEach(el=>el.classList.remove('selected'));}
 $('replyForm').addEventListener('submit',async e=>{e.preventDefault();if(!selectedUid)return;const text=$('replyText').value.trim();if(!text)return;try{const id=crypto.randomUUID();await setDoc(doc(db,'testers',selectedUid,'messages',id),{role:'studio',text,...topicFields('ownerMessages'),createdAt:serverTimestamp(),build:$('replyBuild').value.trim().slice(0,64),clientId:id});$('replyText').value='';await selectTester({uid:selectedUid,alias:$('threadTitle').textContent.split(' · ')[0],status:$('threadTitle').textContent.split(' · ')[1]||''});}catch(err){message('globalMessage',errorText(err),true);}});
+async function creditReferral(recruitUid,testers){
+  try{
+    const recruit=testers.find(t=>t.uid===recruitUid);let inviter=null;
+    for(const t of testers){if(await referralCode(t.uid)===recruit.referredBy){inviter=t;break;}}
+    if(!inviter)throw new Error('Inviter not found. No reward was granted.');
+    const code=await referralCode(inviter.uid);referralAward(inviter,recruit,code);
+    if(!confirm('Award '+inviter.alias+' a tester badge? Confirm this is a genuine different person, has Play access and has tried an expedition. You can confirm play through a private conversation; activity sharing is not required. Never require a rating, review, purchase or daily streak.'))return;
+    await runTransaction(db,async tx=>{
+      const ir=doc(db,'testers',inviter.uid),rr=doc(db,'testers',recruitUid);
+      const [i,r,im,rm]=await Promise.all([tx.get(ir),tx.get(rr),tx.get(doc(db,'deletedAccounts',inviter.uid)),tx.get(doc(db,'deletedAccounts',recruitUid))]);
+      if(!i.exists()||!r.exists()||im.exists()||rm.exists())throw new Error('Account unavailable or being deleted.');
+      const award=referralAward({uid:i.id,...i.data()},{uid:r.id,...r.data()},code);
+      tx.update(ir,award);tx.update(rr,{referralRewarded:true});
+    });message('globalMessage','Referral credited once. The inviter’s badge updates when their account refreshes.');await loadOwner();
+  }catch(e){message('globalMessage',errorText(e),true);}
+}
 function isPlayEligible(t){return t.status==='approved'&&t.deleting!==true&&Boolean(t.email);}
 function isAwaitingPlayAccess(t){return isPlayEligible(t)&&t.accessProvisioned!==true;}
 async function getOwnerTesters(){const snap=await getDocs(collection(db,'testers'));return snap.docs.map(d=>({uid:d.id,...d.data()}));}
 $('playExport').addEventListener('click',async()=>{try{const testers=await getOwnerTesters();const emails=testers.filter(isPlayEligible).map(t=>t.email);download('tester-play-email-list.csv',emails.join('\r\n'),'text/csv;charset=utf-8');}catch(e){message('globalMessage',errorText(e),true);}});
 async function copyText(text){if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return;}const input=document.createElement('textarea');input.value=text;input.style.position='fixed';input.style.opacity='0';document.body.append(input);input.select();const copied=document.execCommand('copy');input.remove();if(!copied)throw new Error('Clipboard access is unavailable.');}
-async function copyInvite(){await copyText(INVITE_URL);message('inviteMessage','Invite link copied.');}
+async function copyInvite(){await copyText(ownInviteUrl);message('inviteMessage','Invite link copied.');}
 $('copyInvite').addEventListener('click',async()=>{try{await copyInvite();}catch(e){message('inviteMessage',errorText(e),true);}});
-$('shareInvite').addEventListener('click',async()=>{try{if(navigator.share)await navigator.share({title:'Lantern Rovers tester application',text:'Apply for the adult Android test. Use your Google Play email; feedback is voluntary.',url:INVITE_URL});else await copyInvite();message('inviteMessage','Invite link ready to share.');}catch(e){if(e.name!=='AbortError')message('inviteMessage',errorText(e),true);}});
+$('shareInvite').addEventListener('click',async()=>{try{if(navigator.share)await navigator.share({title:'Lantern Rovers tester application',text:'Apply for the adult Android test. Use your Google Play email; feedback is voluntary. I may earn a cosmetic tester badge after you join through my invitation and the owner verifies your first expedition.',url:ownInviteUrl});else await copyInvite();message('inviteMessage','Invite link ready to share.');}catch(e){if(e.name!=='AbortError')message('inviteMessage',errorText(e),true);}});
 $('copyAwaitingEmails').addEventListener('click',async()=>{try{const testers=await getOwnerTesters();const emails=testers.filter(isAwaitingPlayAccess).map(t=>t.email);if(!emails.length){message('awaitingMessage','No approved testers are waiting for access.');return;}await copyText(emails.join('\n'));message('awaitingMessage',`${emails.length} approved email(s) copied for manual Play setup.`);}catch(e){message('awaitingMessage',errorText(e),true);}});
 function csv(v){return '"'+String(v??'').replaceAll('"','""')+'"';}
 function download(name,text,type='text/plain;charset=utf-8'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
-$('exportMine').addEventListener('click',async()=>{try{const [m,d]=await Promise.all([getDocs(collection(db,'testers',currentUser.uid,'messages')),getDocs(collection(db,'testers',currentUser.uid,'days'))]);const out={profile:{alias:profile.alias,status:profile.status,telemetryConsent:profile.telemetryConsent},messages:m.docs.map(x=>({id:x.id,...x.data()})),days:d.docs.map(x=>({date:x.id,...x.data()}))};download('my-tester-data.json',JSON.stringify(out,null,2));}catch(e){message('globalMessage',errorText(e),true);}});
+$('exportMine').addEventListener('click',async()=>{try{const [m,d]=await Promise.all([getDocs(collection(db,'testers',currentUser.uid,'messages')),getDocs(collection(db,'testers',currentUser.uid,'days'))]);const out={profile:{alias:profile.alias,status:profile.status,telemetryConsent:profile.telemetryConsent,referredBy:profile.referredBy||'',referralCredits:profile.referralCredits||0,referralRewarded:profile.referralRewarded===true},messages:m.docs.map(x=>({id:x.id,...x.data()})),days:d.docs.map(x=>({date:x.id,...x.data()}))};download('my-tester-data.json',JSON.stringify(out,null,2));}catch(e){message('globalMessage',errorText(e),true);}});
 async function deleteCollection(path){while(true){const snap=await getDocs(query(collection(db,path),limit(250)));if(snap.empty)break;const batch=writeBatch(db);snap.docs.forEach(d=>batch.delete(d.ref));await batch.commit();}}
 async function ensureDeletionMarker(uid){
   const marker=doc(db,'deletedAccounts',uid);
