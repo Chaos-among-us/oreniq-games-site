@@ -1,8 +1,9 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import { connectAuthEmulator, createUserWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, getAuth, EmailAuthProvider, reauthenticateWithCredential, signOut, onAuthStateChanged, deleteUser } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import { connectFirestoreEmulator, getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, orderBy, getDocs, limit, serverTimestamp, writeBatch, runTransaction, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import { connectFirestoreEmulator, getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, orderBy, getDocs, limit, serverTimestamp, writeBatch, runTransaction, onSnapshot, where, documentId } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { firebaseConfig, useEmulators } from './firebase-config.js';
 import { referralCode, referralBadge, referralAward } from './referrals.js?v=0118';
+import { utcDateKeys, qualifies, dayStatus, statusLabel, participationCsv } from './participation.js?v=0119';
 
 const $ = id => document.getElementById(id);
 const show = id => $(id).classList.remove('hidden');
@@ -12,6 +13,7 @@ const INVITE_URL = 'https://chaos-among-us.github.io/oreniq-games-site/lantern-r
 const configured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('REPLACE_') && firebaseConfig.projectId && !firebaseConfig.projectId.startsWith('REPLACE_');
 let ownInviteUrl=INVITE_URL;
 let app, auth, db, currentUser, profile, selectedUid='', unsubscribeMessages=null, mode='signin', authEpoch=0;
+let participationView={testers:[],dateReports:new Map(),dates:[]};
 
 if(new URLSearchParams(location.search).get('join')==='1'){
   $('authHeading').textContent='You’re invited to test Lantern Rovers.';
@@ -24,7 +26,7 @@ if(/^[0-9a-f]{32}$/.test(referralFromLink)) sessionStorage.setItem('lanternRefer
 $('referralCode').value=sessionStorage.getItem('lanternReferral')||'';
 
 function emptyAll(){['auth','enroll','tester','owner','setup','resendVerification','inviteCard'].forEach(hide);}
-function clearPrivate(){ownInviteUrl=INVITE_URL;$('inviteLink').value=ownInviteUrl;for(const key of Object.keys(topicViews))topicViews[key]={items:[],id:'',subject:''};profile=null;selectedUid='';['messages','ownerMessages','roster','activityRows'].forEach(id=>$(id).replaceChildren());hide('replyForm');}
+function clearPrivate(){ownInviteUrl=INVITE_URL;$('inviteLink').value=ownInviteUrl;for(const key of Object.keys(topicViews))topicViews[key]={items:[],id:'',subject:''};participationView={testers:[],dateReports:new Map(),dates:[]};profile=null;selectedUid='';['messages','ownerMessages','roster','activityRows'].forEach(id=>$(id).replaceChildren());hide('replyForm');}
 function sameSession(epoch,uid){return epoch===authEpoch&&auth?.currentUser?.uid===uid;}
 function errorText(e){
   const codes={ 'auth/email-already-in-use':'That email already has an account. Sign in instead.', 'auth/invalid-credential':'Email or password was not recognized.', 'auth/weak-password':'Choose a password with at least 8 characters.', 'auth/too-many-requests':'Too many attempts. Please wait and try again.', 'auth/network-request-failed':'Connection failed. Check your internet and retry.', 'permission-denied':'This action is not allowed by the current account or project rules.' };
@@ -100,7 +102,6 @@ async function refreshTesterStatus(){
   finally{$('refreshTesterStatus').disabled=false;}
 }
 $('refreshTesterStatus').addEventListener('click',refreshTesterStatus);
-function qualifies(d){return d.activeSeconds>=120&&(d.kills>0||d.nodes>0||d.lanterns>0);}
 const topicViews={messages:{items:[],id:'',subject:''},ownerMessages:{items:[],id:'',subject:''}};
 function topicFields(target){const v=topicViews[target];return v.id?{threadId:v.id,subject:v.subject}:{};}
 function selectTopics(target,items){
@@ -131,11 +132,28 @@ async function loadOwner(){
     if(t.referredBy){const info=document.createElement('small');info.className='referral-note';info.textContent=t.referralRewarded?'Referral credited':'Invited tester · awaiting verification';row.append(info);
       if(!t.referralRewarded&&t.status==='approved'&&t.accessProvisioned&&!t.deleting){const reward=document.createElement('button');reward.className='secondary';reward.textContent='Verify referral';reward.onclick=()=>creditReferral(t.uid,testers);row.append(reward);}}
     roster.append(row);}
-  const activityBody=$('activityRows');activityBody.innerHTML='';let qualifiedTotal=0;const now=new Date();const since=new Date(now);since.setUTCDate(since.getUTCDate()-13);const minId=since.toISOString().slice(0,10),maxId=now.toISOString().slice(0,10);
-  for(const t of testers){let all=[];if(t.telemetryConsent){const ds=await getDocs(query(collection(db,'testers',t.uid,'days'),orderBy('updatedAt','desc'),limit(30)));if(!sameSession(epoch,uid))return;all=ds.docs.filter(d=>d.id>=minId&&d.id<=maxId).map(d=>d.data());}
-    const q=all.filter(qualifies).length;qualifiedTotal+=q;const last=all.map(d=>d.updatedAt?.toDate?.()).filter(Boolean).sort((a,b)=>b-a)[0];const tr=document.createElement('tr');for(const val of [t.alias,`${all.length}/14`,`${q}/14`,last?last.toLocaleString():'No report',t.telemetryConsent?'Opted in':'Off']){const td=document.createElement('td');td.textContent=val;tr.append(td);}activityBody.append(tr);}
+  const dates=utcDateKeys();const dateReports=new Map();let qualifiedTotal=0;
+  for(const t of testers){const reports={};if(t.telemetryConsent){const ds=await getDocs(query(collection(db,'testers',t.uid,'days'),where(documentId(),'>=',dates[0]),where(documentId(),'<=',dates.at(-1))));if(!sameSession(epoch,uid))return;for(const d of ds.docs)reports[d.id]=d.data();}dateReports.set(t.uid,reports);qualifiedTotal+=dates.filter(date=>dayStatus(reports[date],t.telemetryConsent)==='qualifying').length;}
+  participationView={testers,dateReports,dates};renderParticipation(testers,dateReports,dates);
   $('qualifiedCount').textContent=qualifiedTotal;
 }
+function renderParticipation(testers,dateReports,dates){
+  const root=$('activityRows');root.replaceChildren();
+  const grid=document.createElement('div');grid.className='participation-grid';grid.style.setProperty('--day-count',dates.length);
+  const corner=document.createElement('div');corner.className='participation-head tester-head';corner.textContent='Tester';grid.append(corner);
+  for(const date of dates){const head=document.createElement('div');head.className='participation-head';head.textContent=date.slice(5).replace('-','/');head.title=`${date} UTC`;grid.append(head);}
+  const filter=$('participationFilter').value, search=$('participationSearch').value.trim().toLocaleLowerCase();
+  for(const t of testers){const days=dateReports.get(t.uid)||{};const statuses=dates.map(date=>dayStatus(days[date],t.telemetryConsent));
+    if(search&&!`${t.alias} ${t.email}`.toLocaleLowerCase().includes(search))continue;
+    if(filter!=='all'&&!statuses.includes(filter))continue;
+    const name=document.createElement('div');name.className='participation-name';name.textContent=t.alias;name.title=`${t.alias} · ${t.status} · Sharing ${t.telemetryConsent?'on':'off'}`;grid.append(name);
+    dates.forEach((date,index)=>{const status=statuses[index];const cell=document.createElement('div');cell.className=`day-cell ${status}`;cell.textContent=({qualifying:'✓',activity:'•',unknown:'—','sharing-off':'Off'})[status];cell.title=`${date} UTC · ${statusLabel(status)}`;cell.setAttribute('aria-label',cell.title);grid.append(cell);});
+  }
+  root.append(grid);
+}
+function refreshParticipationView(){if(currentUser&&$('owner').classList.contains('hidden')===false)renderParticipation(participationView.testers,participationView.dateReports,participationView.dates);}
+$('participationFilter').addEventListener('change',refreshParticipationView);$('participationSearch').addEventListener('input',()=>{clearTimeout(window.participationSearchTimer);window.participationSearchTimer=setTimeout(refreshParticipationView,150);});
+$('participationExport').addEventListener('click',()=>{try{const out=participationView.testers.map(t=>({...t,days:participationView.dateReports.get(t.uid)||{}}));download('tester-participation-last-14-days.csv',participationCsv(out,participationView.dates),'text/csv;charset=utf-8');}catch(e){message('globalMessage',errorText(e),true);}});
 async function selectTester(t){const epoch=authEpoch,uid=currentUser.uid;if(selectedUid!==t.uid){topicViews.ownerMessages={items:[],id:'',subject:''};}selectedUid=t.uid;$('threadTitle').textContent=`${t.alias} · ${t.status}`;$('ownerMessages').innerHTML='';show('replyForm');const msgs=await getDocs(query(collection(db,'testers',t.uid,'messages'),orderBy('createdAt')));if(!sameSession(epoch,uid))return;selectTopics('ownerMessages',msgs.docs.map(d=>d.data()));document.querySelectorAll('.person').forEach(el=>el.classList.remove('selected'));}
 $('replyForm').addEventListener('submit',async e=>{e.preventDefault();if(!selectedUid)return;const text=$('replyText').value.trim();if(!text)return;try{const id=crypto.randomUUID();await setDoc(doc(db,'testers',selectedUid,'messages',id),{role:'studio',text,...topicFields('ownerMessages'),createdAt:serverTimestamp(),build:$('replyBuild').value.trim().slice(0,64),clientId:id});$('replyText').value='';await selectTester({uid:selectedUid,alias:$('threadTitle').textContent.split(' · ')[0],status:$('threadTitle').textContent.split(' · ')[1]||''});}catch(err){message('globalMessage',errorText(err),true);}});
 async function creditReferral(recruitUid,testers){
