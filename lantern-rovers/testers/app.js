@@ -4,6 +4,7 @@ import { connectFirestoreEmulator, getFirestore, doc, getDoc, setDoc, updateDoc,
 import { firebaseConfig, useEmulators } from './firebase-config.js';
 import { referralCode, referralBadge, referralAward } from './referrals.js?v=0118';
 import { utcDateKeys, qualifies, dayStatus, statusLabel, participationCsv } from './participation.js?v=0119';
+import { dateInZone, exchangeDates, scheduleSummary, safeExchangeUrl, validateExchange, partnerReport } from './exchanges.js?v=0120';
 
 const $ = id => document.getElementById(id);
 const show = id => $(id).classList.remove('hidden');
@@ -14,6 +15,7 @@ const configured = firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('R
 let ownInviteUrl=INVITE_URL;
 let app, auth, db, currentUser, profile, selectedUid='', unsubscribeMessages=null, mode='signin', authEpoch=0, ownerMessagesRequest=0;
 let participationView={testers:[],dateReports:new Map(),dates:[]}, ownerLoadPromise=null, ownerLoadSession='', ownerLastLoadedAt=null;
+let exchangeView={items:[],days:new Map(),openId:'',editId:'',busy:false},exchangeLoadRequest=0;
 
 if(new URLSearchParams(location.search).get('join')==='1'){
   $('authHeading').textContent='You’re invited to test Lantern Rovers.';
@@ -26,7 +28,7 @@ if(/^[0-9a-f]{32}$/.test(referralFromLink)) sessionStorage.setItem('lanternRefer
 $('referralCode').value=sessionStorage.getItem('lanternReferral')||'';
 
 function emptyAll(){['auth','enroll','tester','owner','setup','resendVerification','inviteCard'].forEach(hide);}
-function clearPrivate(){ownInviteUrl=INVITE_URL;$('inviteLink').value=ownInviteUrl;for(const key of Object.keys(topicViews))topicViews[key]={items:[],id:'',subject:''};participationView={testers:[],dateReports:new Map(),dates:[]};ownerLastLoadedAt=null;$('refreshOwnerDashboard').disabled=true;$('participationExport').disabled=true;$('ownerRefreshStatus').textContent='';$('ownerRefreshStatus').style.color='';profile=null;selectedUid='';ownerMessagesRequest++;$('threadTitle').textContent='Select a tester';$('ownerTopic').replaceChildren();$('replyText').value='';['messages','ownerMessages','roster','activityRows'].forEach(id=>$(id).replaceChildren());hide('replyForm');}
+function clearPrivate(){ownInviteUrl=INVITE_URL;$('inviteLink').value=ownInviteUrl;for(const key of Object.keys(topicViews))topicViews[key]={items:[],id:'',subject:''};participationView={testers:[],dateReports:new Map(),dates:[]};ownerLastLoadedAt=null;$('refreshOwnerDashboard').disabled=true;$('participationExport').disabled=true;$('ownerRefreshStatus').textContent='';$('ownerRefreshStatus').style.color='';profile=null;selectedUid='';ownerMessagesRequest++;$('threadTitle').textContent='Select a tester';$('ownerTopic').replaceChildren();$('replyText').value='';['messages','ownerMessages','roster','activityRows'].forEach(id=>$(id).replaceChildren());hide('replyForm');clearExchangePrivate();}
 function sameSession(epoch,uid){return epoch===authEpoch&&auth?.currentUser?.uid===uid;}
 function errorText(e){
   const codes={ 'auth/email-already-in-use':'That email already has an account. Sign in instead.', 'auth/invalid-credential':'Email or password was not recognized.', 'auth/weak-password':'Choose a password with at least 8 characters.', 'auth/too-many-requests':'Too many attempts. Please wait and try again.', 'auth/network-request-failed':'Connection failed. Check your internet and retry.', 'permission-denied':'This action is not allowed by the current account or project rules.' };
@@ -132,6 +134,8 @@ async function loadOwner(){
     try{
       await loadOwnerData(epoch,uid);
       if(!sameSession(epoch,uid))return false;
+      try{await loadExchanges(epoch,uid);}catch(e){if(sameSession(epoch,uid))exchangeMessage(`Exchange refresh failed: ${errorText(e)}. Retry with Refresh dashboard.`,true);throw e;}
+      if(!sameSession(epoch,uid))return false;
       ownerLastLoadedAt=new Date();$('participationExport').disabled=false;
       setOwnerRefreshStatus(`Last successful refresh: ${formatOwnerRefreshTime(ownerLastLoadedAt)}`);
       return true;
@@ -164,7 +168,7 @@ async function loadOwnerData(epoch,uid){
   participationView={testers,dateReports,dates};renderParticipation(testers,dateReports,dates);
   $('qualifiedCount').textContent=qualifiedTotal;
 }
-$('refreshOwnerDashboard').addEventListener('click',()=>{loadOwner();});
+$('refreshOwnerDashboard').addEventListener('click',()=>{if(!exchangeView.busy)loadOwner();});
 function renderParticipation(testers,dateReports,dates){
   const root=$('activityRows');root.replaceChildren();
   const grid=document.createElement('div');grid.className='participation-grid';grid.style.setProperty('--day-count',dates.length);
@@ -246,4 +250,137 @@ async function deleteMyAccount(){
 }
 $('deleteAccount').addEventListener('click',deleteMyAccount);
 $('deleteSignInOnly').addEventListener('click',deleteMyAccount);
+function exchangeMessage(text,error=false){message('exchangeMessage',text,error);}
+function clearExchangePrivate(){
+  exchangeLoadRequest++;
+  exchangeView={items:[],days:new Map(),openId:'',editId:'',busy:false};
+  $('exchangeList').replaceChildren();$('exchangeForm').reset();hide('exchangeForm');$('exportExchanges').disabled=true;exchangeMessage('');
+  setOwnerTab('overview');
+}
+function setOwnerTab(name){
+  const exchanges=name==='exchanges';
+  $('ownerOverview').classList.toggle('hidden',exchanges);$('ownerExchanges').classList.toggle('hidden',!exchanges);
+  for(const [id,active] of [['overviewTab',!exchanges],['exchangesTab',exchanges]]){$(id).classList.toggle('active',active);$(id).setAttribute('aria-selected',String(active));}
+}
+$('overviewTab').addEventListener('click',()=>setOwnerTab('overview'));
+$('exchangesTab').addEventListener('click',()=>setOwnerTab('exchanges'));
+for(const [id,name,other] of [['overviewTab','overview','exchangesTab'],['exchangesTab','exchanges','overviewTab']])$(id).addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();setOwnerTab(name==='overview'?'exchanges':'overview');$(other).focus();}});
+function exchangePath(uid,id){return doc(db,'owners',uid,'exchanges',id);}
+async function readExchangeDays(epoch,uid,id,entry){
+  const dates=exchangeDates(entry);if(!dates.length)return {};
+  const snap=await getDocs(query(collection(db,'owners',uid,'exchanges',id,'days'),where(documentId(),'>=',dates[0]),where(documentId(),'<=',dates.at(-1))));
+  if(!sameSession(epoch,uid))return null;
+  return Object.fromEntries(snap.docs.map(day=>[day.id,day.data()]));
+}
+async function loadExchanges(epoch=authEpoch,uid=currentUser?.uid){
+  if(!uid||!sameSession(epoch,uid))return;
+  const request=++exchangeLoadRequest;
+  const snap=await getDocs(collection(db,'owners',uid,'exchanges'));
+  if(!sameSession(epoch,uid)||request!==exchangeLoadRequest)return;
+  const items=snap.docs.map(item=>({id:item.id,...item.data()}));
+  const days=new Map();
+  for(const item of items){const found=await readExchangeDays(epoch,uid,item.id,item);if(found===null||request!==exchangeLoadRequest)return;days.set(item.id,found);}
+  if(!sameSession(epoch,uid)||request!==exchangeLoadRequest)return;
+  exchangeView.items=items;exchangeView.days=days;
+  $('exportExchanges').disabled=false;
+  renderExchangeList();
+}
+function exchangeNode(tag,className,text){const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;}
+function exchangeButton(label,kind,handler){const button=exchangeNode('button',kind,label);button.type='button';button.addEventListener('click',handler);return button;}
+function updateExchangeCardSummary(card,item,days){
+  const summary=scheduleSummary(item,days),badge=card.querySelector('.exchange-badges strong'),line=card.querySelector('.exchange-summary');
+  badge.className=summary.due?'exchange-due':'exchange-progress';badge.textContent=`${summary.due?'Due today · ':''}${summary.remaining} day${summary.remaining===1?'':'s'} remaining`;
+  line.textContent=`${summary.completed} of ${summary.total} manual play checkmarks${summary.overdue?` · ${summary.overdue} past day${summary.overdue===1?'':'s'} unchecked`:''}. ${summary.today} is today in this exchange’s saved time zone.`;
+}
+function renderExchangeList(){
+  const root=$('exchangeList');root.replaceChildren();
+  const items=[...exchangeView.items].sort((a,b)=>{const aa=a.status==='archived'?1:0,bb=b.status==='archived'?1:0;return aa-bb||String(a.startDate).localeCompare(String(b.startDate))||String(a.appName).localeCompare(String(b.appName));});
+  if(!items.length){root.append(exchangeNode('p','muted','No test exchanges yet. Add an app to start a private daily checklist.'));return;}
+  for(const item of items){
+    const days=exchangeView.days.get(item.id)||{},summary=scheduleSummary(item,days),card=exchangeNode('article','card exchange-card');
+    const top=exchangeNode('div','exchange-card-top'),heading=exchangeNode('div','');heading.append(exchangeNode('h3','',item.appName||'Untitled app'),exchangeNode('p','small muted',`${item.developer||'Developer not listed'} · ${item.status||'planned'} · ${item.startDate} to ${summary.end} · ${item.timeZone}`));top.append(heading);
+    const badges=exchangeNode('div','exchange-badges');badges.append(exchangeNode('strong',summary.due?'exchange-due':'exchange-progress',`${summary.due?'Due today · ':''}${summary.remaining} day${summary.remaining===1?'':'s'} remaining`));top.append(badges);card.append(top);
+    card.append(exchangeNode('p','small exchange-summary'));
+    updateExchangeCardSummary(card,item,days);
+    if(summary.cleanupDue)card.append(exchangeNode('p','exchange-warning','The 90-day cleanup deadline has arrived. Delete this exchange and its daily records now.'));
+    const report=partnerReport(participationView.testers,participationView.dateReports,item.testerUid,participationView.dates);
+    card.append(exchangeNode('p','small muted',`Lantern partner: ${report} Refreshed with the owner dashboard.`));
+    const actions=exchangeNode('div','exchange-actions');actions.append(exchangeButton(exchangeView.openId===item.id?'Hide checklist':'Open checklist','secondary',()=>{exchangeView.openId=exchangeView.openId===item.id?'':item.id;renderExchangeList();}));actions.append(exchangeButton('Edit','secondary',()=>openExchangeForm(item)));const archive=exchangeButton(item.status==='archived'?'Archived':'Archive','secondary',()=>setExchangeStatus(item,'archived'));archive.disabled=item.status==='archived';actions.append(archive);actions.append(exchangeButton('Delete','danger',()=>deleteExchange(item)));card.append(actions);
+    if(exchangeView.openId===item.id)card.append(renderExchangeDetail(item,days,card));
+    root.append(card);
+  }
+}
+function renderExchangeDetail(item,days,card){
+  const detail=exchangeNode('div','exchange-detail');
+  const links=exchangeNode('div','exchange-links');for(const [label,value] of [['Google Play',item.playUrl],['Group',item.groupUrl],['Reddit / contact',item.contactUrl]]){try{const safe=safeExchangeUrl(value);if(!safe)continue;const a=exchangeNode('a','',label);a.href=safe;a.target='_blank';a.rel='noopener noreferrer';links.append(a);}catch{/* Legacy unsafe links are not rendered. */}}
+  if(links.childElementCount)detail.append(links);
+  if(item.instructions)detail.append(exchangeNode('p','exchange-instructions',item.instructions));
+  detail.append(exchangeNode('p','small muted','Play and feedback checkmarks are your manual record. Save each day separately. Partner activity above is an optional report about Lantern Rovers only.'));
+  const list=exchangeNode('div','exchange-days');
+  for(const date of exchangeDates(item)){
+    const state=days[date]||{},row=exchangeNode('div','exchange-day');
+    const head=exchangeNode('div','exchange-day-head');head.append(exchangeNode('strong','',date));if(date===dateInZone(new Date(),item.timeZone))head.append(exchangeNode('span','exchange-today','Today'));row.append(head);
+    const played=exchangeNode('input');played.type='checkbox';played.checked=state.played===true;const playedLabel=exchangeNode('label','check');playedLabel.append(played,exchangeNode('span','','Played'));row.append(playedLabel);
+    const feedback=exchangeNode('input');feedback.type='checkbox';feedback.checked=state.feedback===true;const feedbackLabel=exchangeNode('label','check');feedbackLabel.append(feedback,exchangeNode('span','','Feedback sent'));row.append(feedbackLabel);
+    const note=exchangeNode('textarea');note.maxLength=1000;note.value=state.note||'';note.placeholder='Private note for this day';note.setAttribute('aria-label',`Note for ${date}`);row.append(note);
+    const save=exchangeButton('Save day','secondary',async()=>{const epoch=authEpoch,uid=currentUser?.uid;if(!uid||exchangeView.busy||ownerLoadPromise)return;const payload={played:played.checked,feedback:feedback.checked,note:note.value.trim()};if(payload.note.length>1000){exchangeMessage('Daily note must be 1000 characters or less.',true);return;}exchangeView.busy=true;played.disabled=feedback.disabled=note.disabled=save.disabled=true;exchangeMessage('Saving day…');try{await setDoc(doc(db,'owners',uid,'exchanges',item.id,'days',date),{...payload,updatedAt:serverTimestamp()});if(!sameSession(epoch,uid))return;days[date]=payload;const live=exchangeView.days.get(item.id);if(live)live[date]=payload;updateExchangeCardSummary(card,item,days);exchangeMessage(`${date} saved.`);}catch(e){if(sameSession(epoch,uid))exchangeMessage(`Day was not saved: ${errorText(e)}. Retry Save day.`,true);}finally{if(sameSession(epoch,uid)){exchangeView.busy=false;played.disabled=feedback.disabled=note.disabled=save.disabled=false;}}});row.append(save);list.append(row);
+  }
+  detail.append(list);return detail;
+}
+function populateExchangeTesters(value=''){
+  const select=$('exchangeTesterUid');select.replaceChildren();const none=exchangeNode('option','','None');none.value='';select.append(none);
+  for(const tester of participationView.testers.filter(t=>t.deleting!==true)){const option=exchangeNode('option','',`${tester.alias||'Tester'} · ${tester.uid.slice(0,8)}`);option.value=tester.uid;select.append(option);}
+  if(value&&!participationView.testers.some(t=>t.uid===value&&t.deleting!==true)){const option=exchangeNode('option','',`Missing or deleting tester · ${value.slice(0,8)}`);option.value=value;select.append(option);}
+  select.value=value;
+}
+function openExchangeForm(item=null){
+  exchangeView.editId=item?.id||'';$('exchangeForm').reset();
+  $('exchangeFormTitle').textContent=item?'Edit exchange':'Add exchange';
+  const zone=item?.timeZone||Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
+  const fields={exchangeAppName:item?.appName||'',exchangeDeveloper:item?.developer||'',exchangePlayUrl:item?.playUrl||'',exchangeGroupUrl:item?.groupUrl||'',exchangeContactUrl:item?.contactUrl||'',exchangeStartDate:item?.startDate||dateInZone(new Date(),zone),exchangeDuration:item?.duration||14,exchangeTimeZone:zone,exchangeStatus:item?.status||'planned',exchangeInstructions:item?.instructions||''};
+  for(const [id,value] of Object.entries(fields))$(id).value=value;
+  populateExchangeTesters(item?.testerUid||'');show('exchangeForm');setOwnerTab('exchanges');$('exchangeForm').scrollIntoView({block:'start',behavior:'smooth'});$('exchangeAppName').focus();
+}
+$('newExchange').addEventListener('click',()=>openExchangeForm());
+$('cancelExchange').addEventListener('click',()=>{hide('exchangeForm');exchangeView.editId='';});
+function exchangeFormValue(){return validateExchange({appName:$('exchangeAppName').value,developer:$('exchangeDeveloper').value,testerUid:$('exchangeTesterUid').value,playUrl:$('exchangePlayUrl').value,groupUrl:$('exchangeGroupUrl').value,contactUrl:$('exchangeContactUrl').value,startDate:$('exchangeStartDate').value,duration:$('exchangeDuration').value,timeZone:$('exchangeTimeZone').value,status:$('exchangeStatus').value,instructions:$('exchangeInstructions').value});}
+$('exchangeForm').addEventListener('submit',async event=>{
+  event.preventDefault();const epoch=authEpoch,uid=currentUser?.uid;if(!uid||exchangeView.busy)return;
+  let payload;try{payload=exchangeFormValue();}catch(e){exchangeMessage(e.message,true);return;}
+  const id=exchangeView.editId||crypto.randomUUID(),existing=exchangeView.items.find(item=>item.id===id);
+  const activeDates=new Set(exchangeDates(payload));
+  const staleDates=existing?Object.keys(exchangeView.days.get(id)||{}).filter(date=>!activeDates.has(date)):[];
+  if(staleDates.length&&!confirm(`Changing this schedule will delete ${staleDates.length} saved daily record(s) outside the new dates. Continue?`))return;
+  exchangeView.busy=true;$('saveExchange').disabled=true;exchangeMessage('Saving exchange…');
+  try{
+    if(existing){const batch=writeBatch(db);batch.update(exchangePath(uid,id),{...payload,updatedAt:serverTimestamp()});for(const date of staleDates)batch.delete(doc(db,'owners',uid,'exchanges',id,'days',date));await batch.commit();}
+    else await setDoc(exchangePath(uid,id),{...payload,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+    if(!sameSession(epoch,uid))return;
+    exchangeView.openId=id;exchangeView.editId='';hide('exchangeForm');
+    await loadExchanges(epoch,uid);if(sameSession(epoch,uid))exchangeMessage('Exchange saved.');
+  }catch(e){if(sameSession(epoch,uid))exchangeMessage(`Exchange could not be saved or refreshed: ${errorText(e)}. Retry or refresh.`,true);}
+  finally{if(sameSession(epoch,uid)){exchangeView.busy=false;$('saveExchange').disabled=false;}}
+});
+async function setExchangeStatus(item,status){
+  const epoch=authEpoch,uid=currentUser?.uid;if(!uid||exchangeView.busy)return;
+  exchangeView.busy=true;exchangeMessage('Updating exchange…');
+  try{await updateDoc(exchangePath(uid,item.id),{status,updatedAt:serverTimestamp()});if(!sameSession(epoch,uid))return;await loadExchanges(epoch,uid);if(sameSession(epoch,uid))exchangeMessage('Exchange archived.');}
+  catch(e){if(sameSession(epoch,uid))exchangeMessage(`Archive failed: ${errorText(e)}. Retry.`,true);}finally{if(sameSession(epoch,uid))exchangeView.busy=false;}
+}
+async function deleteExchange(item){
+  if(!confirm(`Delete ${item.appName} and all its daily checklist records? This cannot be undone. Download your exchanges first if you need a copy.`))return;
+  const epoch=authEpoch,uid=currentUser?.uid;if(!uid||exchangeView.busy)return;
+  exchangeView.busy=true;exchangeMessage('Deleting exchange and daily records…');
+  try{
+    const path=`owners/${uid}/exchanges/${item.id}/days`;
+    while(true){const snap=await getDocs(query(collection(db,path),limit(30)));if(!sameSession(epoch,uid))return;if(snap.empty)break;const batch=writeBatch(db);for(const day of snap.docs)batch.delete(day.ref);await batch.commit();}
+    await deleteDoc(exchangePath(uid,item.id));if(!sameSession(epoch,uid))return;
+    exchangeView.openId='';await loadExchanges(epoch,uid);if(sameSession(epoch,uid))exchangeMessage('Exchange and daily records deleted.');
+  }catch(e){if(sameSession(epoch,uid))exchangeMessage(`Deletion is incomplete: ${errorText(e)}. Retry Delete to finish.`,true);}finally{if(sameSession(epoch,uid))exchangeView.busy=false;}
+}
+$('exportExchanges').addEventListener('click',()=>{
+  if(!currentUser||$('owner').classList.contains('hidden'))return;
+  const out=exchangeView.items.map(item=>({id:item.id,appName:item.appName,developer:item.developer,testerUid:item.testerUid,playUrl:item.playUrl,groupUrl:item.groupUrl,contactUrl:item.contactUrl,instructions:item.instructions,startDate:item.startDate,timeZone:item.timeZone,duration:item.duration,status:item.status,days:Object.fromEntries(Object.entries(exchangeView.days.get(item.id)||{}).map(([date,day])=>[date,{played:day.played===true,feedback:day.feedback===true,note:day.note||''}]))}));
+  download('my-test-exchanges.json',JSON.stringify({exportedAt:new Date().toISOString(),exchanges:out},null,2),'application/json;charset=utf-8');exchangeMessage('Exchange data downloaded.');
+});
 $('identity').addEventListener('click',async()=>{if(currentUser&&confirm('Sign out?'))await signOut(auth);});
