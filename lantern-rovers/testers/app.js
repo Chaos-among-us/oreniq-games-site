@@ -3,7 +3,7 @@ import { connectAuthEmulator, createUserWithEmailAndPassword, sendEmailVerificat
 import { connectFirestoreEmulator, getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, orderBy, getDocs, limit, serverTimestamp, writeBatch, runTransaction, onSnapshot, where, documentId } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { firebaseConfig, useEmulators } from './firebase-config.js';
 import { referralCode, referralBadge, referralAward } from './referrals.js?v=0118';
-import { utcDateKeys, qualifies, dayStatus, statusLabel, participationCsv } from './participation.js?v=0119';
+import { utcDateKeys, qualifies, dayStatus, statusLabel, participationCsv, cohortState, cohortStateLabel, dailyAttention, latestReportReceipt, reportDetail } from './participation.js?v=0142';
 import { dateInZone, exchangeDates, scheduleSummary, safeExchangeUrl, validateExchange, partnerReport } from './exchanges.js?v=0120';
 
 const $ = id => document.getElementById(id);
@@ -88,7 +88,7 @@ $('authForm').addEventListener('submit',async e=>{e.preventDefault();if(!auth)re
 $('reset').addEventListener('click',async()=>{if(!auth)return;const email=$('email').value.trim();if(!email){message('authMessage','Enter your email above first.');return;}try{await sendPasswordResetEmail(auth,email);message('authMessage','If this address has an account, a reset link is on its way.');}catch(e){message('authMessage',errorText(e),true);}});
 $('resendVerification').addEventListener('click',async()=>{if(!currentUser)return;try{await sendEmailVerification(currentUser);message('authMessage','Verification email sent. Check your inbox and spam folder.');}catch(e){message('authMessage',errorText(e),true);}});
 
-$('enrollForm').addEventListener('submit',async e=>{e.preventDefault();try{const uid=currentUser.uid;const alias=$('alias').value.trim();await setDoc(doc(db,'testers',uid),{email:currentUser.email,alias,status:'pending',adultConfirmed:$('adult').checked,telemetryConsent:$('telemetry').checked,referredBy:$('referralCode').value.trim().toLowerCase(),referralCredits:0,referralRewarded:false,privacyVersion:'2026-09-22-v2',createdAt:serverTimestamp(),accessProvisioned:false,deleting:false});profile={alias,status:'pending',telemetryConsent:$('telemetry').checked,deleting:false};emptyAll();show('tester');sessionStorage.removeItem('lanternReferral');await loadTester();}catch(err){message('enrollMessage',errorText(err),true);}});
+$('enrollForm').addEventListener('submit',async e=>{e.preventDefault();try{const uid=currentUser.uid;const alias=$('alias').value.trim();await setDoc(doc(db,'testers',uid),{email:currentUser.email,alias,status:'pending',adultConfirmed:$('adult').checked,telemetryConsent:$('telemetry').checked,referredBy:$('referralCode').value.trim().toLowerCase(),referralCredits:0,referralRewarded:false,privacyVersion:'2026-10-01-v3',createdAt:serverTimestamp(),accessProvisioned:false,deleting:false});profile={alias,status:'pending',telemetryConsent:$('telemetry').checked,deleting:false};emptyAll();show('tester');sessionStorage.removeItem('lanternReferral');await loadTester();}catch(err){message('enrollMessage',errorText(err),true);}});
 
 async function loadTester(){
   if(!currentUser||!profile)return;
@@ -104,7 +104,7 @@ async function loadTester(){
   $('statusBadge').textContent=profile.status==='approved'?'Approved':'Pending';$('statusBadge').classList.toggle('ok',profile.status==='approved');if(profile.status==='pending')show('pendingNote');
   $('consentToggle').checked=profile.telemetryConsent===true;$('messageText').disabled=profile.status!=='approved';$('messageForm').querySelector('button').disabled=profile.status!=='approved';
   $('messageNotice').textContent=profile.status==='approved'?'Only you and the test owner can read this conversation.':'The inbox becomes available after approval. For application questions, use the support email on the privacy page.';
-  $('activitySummary').textContent=profile.telemetryConsent?'Daily summaries are enabled.':'Daily summaries are off; no activity summary should be sent.';
+  $('activitySummary').textContent=profile.telemetryConsent?'Activity sharing is enabled for this account. Game devices apply this choice after successful sync.':'Activity sharing is off for this account. Game devices apply withdrawal after successful sync; earlier sent reports remain until deletion.';
   if(profile.status==='approved'){
     unsubscribeMessages=onSnapshot(query(collection(db,'testers',uid,'messages'),orderBy('createdAt')),snap=>{if(sameSession(epoch,uid)&&request===testerLoadRequest)selectTopics('messages',snap.docs.map(d=>d.data()));},err=>{if(sameSession(epoch,uid)&&request===testerLoadRequest)message('messageNotice',errorText(err),true);});
   } else {$('messages').innerHTML='<p class="muted small">No conversation yet.</p>';}
@@ -149,7 +149,7 @@ $('messageForm').addEventListener('submit',async e=>{
 $('consentToggle').addEventListener('change',async()=>{
   if(!currentUser||!profile)return;
   const epoch=authEpoch,uid=currentUser.uid,enabled=$('consentToggle').checked;
-  try{await updateDoc(doc(db,'testers',uid),{telemetryConsent:enabled});if(!sameSession(epoch,uid))return;profile.telemetryConsent=enabled;$('activitySummary').textContent=enabled?'Daily summaries are enabled.':'Daily summaries are off; no activity summary should be sent.';}
+  try{await updateDoc(doc(db,'testers',uid),{telemetryConsent:enabled});if(!sameSession(epoch,uid))return;profile.telemetryConsent=enabled;$('activitySummary').textContent=enabled?'Activity sharing is enabled for this account. Game devices apply this choice after successful sync.':'Activity sharing is off for this account. Game devices apply withdrawal after successful sync; earlier sent reports remain until deletion.';}
   catch(e){if(sameSession(epoch,uid)){$('consentToggle').checked=!enabled;message('activitySummary',errorText(e),true);}}
 });
 
@@ -200,6 +200,10 @@ async function loadOwnerData(epoch,uid){
 }
 $('refreshOwnerDashboard').addEventListener('click',()=>{if(!exchangeView.busy)loadOwner();});
 function renderParticipation(testers,dateReports,dates){
+  const summary=$('dailyAttention');summary.replaceChildren();
+  const today=dates.at(-1),yesterday=dates.at(-2);
+  if(today){const counts=dailyAttention(testers,dateReports,today);const cohort=document.createElement('p');cohort.className='small muted';cohort.textContent=`Reporting cohort: ${counts.reporting} approved, access marked added, sharing on. Other statuses: ${counts['pending-review']} pending review · ${counts['pending-access']} pending Play access setup · ${counts['sharing-off']} sharing off · ${counts.deleting} deleting. Access status is the owner's record, not verified Play opt-in.`;summary.append(cohort);}
+  for(const [label,date] of [['Today (still in progress)',today],['Yesterday',yesterday]]){if(!date)continue;const counts=dailyAttention(testers,dateReports,date);const row=document.createElement('p');row.textContent=`${label} · ${date} UTC: ${counts.qualifying} qualifying reports · ${counts.activity} below-threshold reports · ${counts.unknown} no report / play unknown.`;summary.append(row);}
   const root=$('activityRows');root.replaceChildren();
   const grid=document.createElement('div');grid.className='participation-grid';grid.style.setProperty('--day-count',dates.length);
   const corner=document.createElement('div');corner.className='participation-head tester-head';corner.textContent='Tester';grid.append(corner);
@@ -208,8 +212,8 @@ function renderParticipation(testers,dateReports,dates){
   for(const t of testers){const days=dateReports.get(t.uid)||{};const statuses=dates.map(date=>dayStatus(days[date],t.telemetryConsent));
     if(search&&!`${t.alias} ${t.email}`.toLocaleLowerCase().includes(search))continue;
     if(filter!=='all'&&!statuses.includes(filter))continue;
-    const name=document.createElement('div');name.className='participation-name';name.textContent=t.alias;name.title=`${t.alias} · ${t.status} · Sharing ${t.telemetryConsent?'on':'off'}`;grid.append(name);
-    dates.forEach((date,index)=>{const status=statuses[index];const cell=document.createElement('div');cell.className=`day-cell ${status}`;cell.textContent=({qualifying:'✓',activity:'•',unknown:'—','sharing-off':'Off'})[status];cell.title=`${date} UTC · ${statusLabel(status)}`;cell.setAttribute('aria-label',cell.title);grid.append(cell);});
+    const name=document.createElement('div');name.className='participation-name';name.textContent=t.alias;const receipt=latestReportReceipt(days);const detail=document.createElement('small');detail.textContent=`${cohortStateLabel(cohortState(t))}. Latest received in this window: ${receipt?receipt.toLocaleString():'unknown'}`;name.append(detail);name.title=`${t.alias} · ${detail.textContent}`;grid.append(name);
+    dates.forEach((date,index)=>{const status=statuses[index];const cell=document.createElement('div');cell.className=`day-cell ${status}`;cell.textContent=({qualifying:'✓',activity:'•',unknown:'—','sharing-off':'Off'})[status];cell.title=`${date} UTC · ${statusLabel(status)} · ${reportDetail(days[date])}`;cell.setAttribute('aria-label',cell.title);grid.append(cell);});
   }
   root.append(grid);
 }
